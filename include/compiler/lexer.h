@@ -3,6 +3,7 @@
 #include <vector>
 #include <cctype>
 #include <algorithm>
+#include <string>
 
 struct Token
 {
@@ -16,6 +17,7 @@ private:
         IF,
         ELSEIF,
         ELSE,
+        FOR,
         WHILE,
         BREAK,
         RETURN,
@@ -55,15 +57,22 @@ private:
 
 public:
     Token(std::string value, int line, int col);
+    std::string getValue() const;
+    std::string getToken() const;
+    static const std::vector<std::string> keywords, oneCharOperators, twoCharOperators;
 };
 
 class Lexer
 {
 private:
     std::vector<Token> tokens;
+    bool validNumber(const std::string &str);
+    int countSubstrings(const std::string &str, const std::string &substr);
 
 public:
     Lexer();
     void tokenizeFile(std::ifstream &file);
+    void readTokens() const;
+    void readTokenValues() const;
     std::vector<Token> getTokens() const;
 };

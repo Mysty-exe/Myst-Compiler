@@ -5,13 +5,15 @@
 
 void printHelp()
 {
-    std::cout << "Usage: mystc [file]" << std::endl;
+    std::cout << "\tUsage: mystc [file]" << std::endl;
 }
 
 void parseFile(std::ifstream &inputFile)
 {
     Lexer lexer;
     lexer.tokenizeFile(inputFile);
+    lexer.readTokenValues();
+    lexer.readTokens();
 }
 
 int main(int argc, char *argv[])
