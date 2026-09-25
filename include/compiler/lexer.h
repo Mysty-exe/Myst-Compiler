@@ -66,13 +66,21 @@ class Lexer
 {
 private:
     std::vector<Token> tokens;
-    bool validNumber(const std::string &str);
-    int countSubstrings(const std::string &str, const std::string &substr);
+    void addTabsInLine(const std::string &line, int lineNum, int &col);
+    int countSubstrings(const std::string &str, const std::string &substr) const;
+    bool validNumber(const std::string &str) const;
+    bool isNegativeNumber(const std::string &line, int col) const;
+    bool startedNewString(const std::string &line, int col) const;
+    bool stringHasntEnded(bool inString, const std::string &line, int col) const;
+    bool commentStarted(const std::string &line, int col) const;
+    bool isAOneCharOperator(const std::string &line, int col) const;
+    bool isATwoCharOperator(const std::string &line, int col) const;
+    void addCurrentToken(std::string &token, int lineNum, int col);
 
 public:
     Lexer();
     void tokenizeFile(std::ifstream &file);
     void readTokens() const;
-    void readTokenValues() const;
+    void readFile() const;
     std::vector<Token> getTokens() const;
 };

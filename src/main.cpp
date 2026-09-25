@@ -5,14 +5,15 @@
 
 void printHelp()
 {
-    std::cout << "\tUsage: mystc [file]" << std::endl;
+    std::cout << "Usage: mystc [file]" << std::endl;
 }
 
 void parseFile(std::ifstream &inputFile)
 {
     Lexer lexer;
     lexer.tokenizeFile(inputFile);
-    lexer.readTokenValues();
+    lexer.readFile();
+    std::cout << std::endl;
     lexer.readTokens();
 }
 
@@ -27,7 +28,7 @@ int main(int argc, char *argv[])
             return 0;
         }
 
-        std::ifstream inputFile("../" + file);
+        std::ifstream inputFile(file);
         if (!inputFile.is_open())
         {
             std::cerr << "Error: Could not open the file!" << std::endl;

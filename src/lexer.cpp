@@ -179,7 +179,20 @@ Lexer::Lexer()
 {
 }
 
-bool Lexer::validNumber(const std::string &str)
+void Lexer::addTabsInLine(const std::string &line, int lineNum, int &col)
+{
+    while (line.size() - col > 4)
+    {
+        if (line.substr(col, 4) == "    ")
+            tokens.push_back(Token("\t", lineNum, col));
+        else
+            break;
+
+        col += 4;
+    }
+}
+
+bool Lexer::validNumber(const std::string &str) const
 {
     if (str.empty())
         return false;
@@ -199,7 +212,7 @@ bool Lexer::validNumber(const std::string &str)
     }
 }
 
-int Lexer::countSubstrings(const std::string &str, const std::string &substr)
+int Lexer::countSubstrings(const std::string &str, const std::string &substr) const
 {
     if (substr.empty())
         return 0;
@@ -213,6 +226,45 @@ int Lexer::countSubstrings(const std::string &str, const std::string &substr)
     return count;
 }
 
+bool Lexer::isNegativeNumber(const std::string &line, int col) const
+{
+    return (line.size() - col > 1 && line[col] == '-' && std::isdigit(line[col + 1]));
+}
+
+bool Lexer::startedNewString(const std::string &line, int col) const
+{
+    return line[col] == '\"' || line[col] == '\'';
+}
+
+bool Lexer::stringHasntEnded(bool inString, const std::string &line, int col) const
+{
+    return inString && !startedNewString(line, col);
+}
+
+bool Lexer::commentStarted(const std::string &line, int col) const
+{
+    return line.size() - col > 1 && line.substr(col, 2) == "//";
+}
+
+bool Lexer::isAOneCharOperator(const std::string &line, int col) const
+{
+    return std::find(Token::oneCharOperators.begin(), Token::oneCharOperators.end(), std::string() + line[col]) != Token::oneCharOperators.end();
+}
+
+bool Lexer::isATwoCharOperator(const std::string &line, int col) const
+{
+    return line.size() - col > 1 && std::find(Token::twoCharOperators.begin(), Token::twoCharOperators.end(), line.substr(col, 2)) != Token::twoCharOperators.end();
+}
+
+void Lexer::addCurrentToken(std::string &token, int lineNum, int col)
+{
+    if (token.size() > 0)
+    {
+        tokens.push_back(Token(token, lineNum + 1, col + 1));
+        token = "";
+    }
+}
+
 void Lexer::tokenizeFile(std::ifstream &file)
 {
     tokens.clear();
@@ -223,90 +275,56 @@ void Lexer::tokenizeFile(std::ifstream &file)
 
     while (std::getline(file, line))
     {
-        int tabStart = 0;
-        size_t tabPos = line.find("    ");
+        int col = 0;
+        addTabsInLine(line, lineNum, col);
 
-        if (tabPos != std::string::npos)
+        for (col; col < line.size(); col++)
         {
-            for (int i = 0; i < countSubstrings(line, "    "); i++)
-            {
-                tokens.push_back(Token("\t", lineNum + 1, tabStart + 1));
-                tabStart += 4;
-            }
-        }
-
-        for (int col = tabStart; col < line.size(); col++)
-        {
-            if (inString && !(line[col] == '\"' || line[col] == '\''))
+            if (stringHasntEnded(inString, line, col))
             {
                 currentToken += line[col];
                 continue;
             }
 
-            if (line.size() - col > 1 && line.substr(col, 2) == "//")
+            if (commentStarted(line, col))
             {
-                if (currentToken.size() > 0)
-                {
-                    tokens.push_back(Token(currentToken, lineNum + 1, line.size()));
-                    currentToken = "";
-                }
-
+                addCurrentToken(currentToken, lineNum + 1, col + 1);
                 tokens.push_back(Token(line.substr(col), lineNum + 1, col + 1));
                 break;
             }
 
             if (line[col] == ' ')
             {
-                if (currentToken.size() > 0)
-                {
-                    tokens.push_back(Token(currentToken, lineNum + 1, line.size()));
-                    currentToken = "";
-                }
-
+                addCurrentToken(currentToken, lineNum + 1, col + 1);
                 continue;
             }
 
-            if (line[col] == '\"' || line[col] == '\'')
+            if (startedNewString(line, col))
             {
                 if (!inString)
-                {
-                    if (currentToken.size() > 0)
-                    {
-                        tokens.push_back(Token(currentToken, lineNum + 1, line.size()));
-                        currentToken = "";
-                    }
-                }
+                    addCurrentToken(currentToken, lineNum + 1, col + 1);
 
                 currentToken += line[col];
                 inString = !inString;
                 if (!inString)
-                {
-                    tokens.push_back(Token(currentToken, lineNum + 1, line.size()));
-                    currentToken = "";
-                }
-
+                    addCurrentToken(currentToken, lineNum + 1, col + 1);
                 continue;
             }
 
-            if (line.size() - col > 1 && std::find(Token::twoCharOperators.begin(), Token::twoCharOperators.end(), line.substr(col, 2)) != Token::twoCharOperators.end())
+            if (isATwoCharOperator(line, col))
             {
-                if (currentToken.size() > 0)
-                    tokens.push_back(Token(currentToken, lineNum + 1, line.size()));
+                addCurrentToken(currentToken, lineNum + 1, col + 1);
 
                 tokens.push_back(Token(line.substr(col, 2), lineNum + 1, line.size()));
                 col += 1;
                 continue;
             }
 
-            if (std::find(Token::oneCharOperators.begin(), Token::oneCharOperators.end(), std::string() + line[col]) != Token::oneCharOperators.end())
+            if (isAOneCharOperator(line, col))
             {
-                if (!(line.size() - col > 1 && line[col] == '-' && std::isdigit(line[col + 1])) && !validNumber(currentToken))
+                if (!isNegativeNumber(line, col) && !validNumber(currentToken))
                 {
-                    if (currentToken.size() > 0)
-                    {
-                        tokens.push_back(Token(currentToken, lineNum + 1, line.size()));
-                        currentToken = "";
-                    }
+                    addCurrentToken(currentToken, lineNum + 1, col + 1);
 
                     tokens.push_back(Token(std::string() + line[col], lineNum + 1, line.size()));
                     continue;
@@ -316,12 +334,9 @@ void Lexer::tokenizeFile(std::ifstream &file)
             currentToken += line[col];
         };
 
-        if (currentToken.size() > 0)
-        {
-            tokens.push_back(Token(currentToken, lineNum + 1, line.size()));
-            inString = false;
-            currentToken = "";
-        }
+        addCurrentToken(currentToken, lineNum + 1, col + 1);
+        inString = false;
+
         tokens.push_back(Token("\n", lineNum + 1, line.size()));
         lineNum += 1;
     }
@@ -339,9 +354,10 @@ void Lexer::readTokens() const
         if (token.getToken() == "NEWLINE")
             std::cout << std::endl;
     }
+    std::cout << std::endl;
 }
 
-void Lexer::readTokenValues() const
+void Lexer::readFile() const
 {
     for (const Token &token : tokens)
         std::cout << token.getValue() << " ";
