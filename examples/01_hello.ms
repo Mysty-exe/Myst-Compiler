@@ -1,2 +1,1 @@
-func main() -> void: // This is a comment
-    print("Hello, Myst!")
+print(1+5*6)

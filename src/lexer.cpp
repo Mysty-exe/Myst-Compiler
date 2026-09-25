@@ -4,6 +4,10 @@ const std::vector<std::string> Token::keywords = {"func", "struct", "const", "va
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", ":", "<", ">", "(", ")", ",", "."};
 const std::vector<std::string> Token::twoCharOperators = {"==", "<=", ">=", "&&", "||", "->"};
 
+Token::Token()
+{
+}
+
 Token::Token(std::string value, int line, int col)
 {
     this->value = value;
@@ -322,7 +326,7 @@ void Lexer::tokenizeFile(std::ifstream &file)
 
             if (isAOneCharOperator(line, col))
             {
-                if (!isNegativeNumber(line, col) && !validNumber(currentToken))
+                if (!isNegativeNumber(line, col))
                 {
                     addCurrentToken(currentToken, lineNum + 1, col + 1);
 

@@ -56,6 +56,7 @@ private:
     int lineNumber, columnNumber;
 
 public:
+    Token();
     Token(std::string value, int line, int col);
     std::string getValue() const;
     std::string getToken() const;
