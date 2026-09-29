@@ -1,1 +1,2 @@
-print(1+5*6)
+func main() -> int: // This is a comment
+    print("Hello, Myst!")

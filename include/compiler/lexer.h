@@ -1,3 +1,4 @@
+#pragma once
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -66,7 +67,7 @@ public:
 class Lexer
 {
 private:
-    std::vector<Token> tokens;
+    std::vector<std::vector<Token>> tokens;
     void addTabsInLine(const std::string &line, int lineNum, int &col);
     int countSubstrings(const std::string &str, const std::string &substr) const;
     bool validNumber(const std::string &str) const;
@@ -83,5 +84,5 @@ public:
     void tokenizeFile(std::ifstream &file);
     void readTokens() const;
     void readFile() const;
-    std::vector<Token> getTokens() const;
+    std::vector<std::vector<Token>> getTokens() const;
 };

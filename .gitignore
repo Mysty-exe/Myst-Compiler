@@ -70,3 +70,5 @@ Testing/
 
 .vscode/
 .build/
+
+*.sh

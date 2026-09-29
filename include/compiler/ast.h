@@ -1,96 +1,29 @@
+#pragma once
 #include "lexer.h"
 
 struct Node
 {
-};
-
-struct ImportNode : public Node
-{
-private:
-    std::string location;
-};
-
-struct FuncNode : public Node
-{
-private:
-    std::string name, returnType;
-    std::vector<ParamNode *> arguments;
-    BlockNode *body;
-};
-
-struct CallExprNode : public Node
-{
-private:
-    std::string name;
-    std::vector<Node *> arguments;
-};
-
-struct ParamNode : public Node
-{
-private:
-    std::string name, returnType;
-};
-
-struct BlockNode : public Node
-{
-private:
-    std::vector<StmtNode *> statements;
-};
-
-struct StmtNode : public Node
-{
-private:
 public:
+    Node();
 };
 
-struct ReturnStmtNode : public StmtNode
+struct RootNode : Node
 {
 private:
-public:
-};
-
-struct IfStmtNode : public Node
-{
-private:
-    BinaryExprNode *condition;
-    BlockNode *body;
-};
-
-struct ElseIfStmtNode : public Node
-{
-private:
-    BinaryExprNode *condition;
-    BlockNode *body;
-};
-
-struct ElseNode : public Node
-{
-private:
-    BlockNode *body;
-};
-
-struct WhileNode : public Node
-{
-private:
-    BinaryExprNode *condition;
-    BlockNode *body;
-};
-
-struct VarDeclNode : public StmtNode
-{
-private:
-    IdentifierNode *identifier;
-};
-
-struct BinaryExprNode : public Node
-{
-private:
-    Node *left, *right;
+    std::vector<Node *> children;
 
 public:
+    RootNode();
+    void addNode(Node *node);
 };
 
-struct IdentifierNode : public Node
+struct LiteralNode : Node
+{
+private:
+    std::string value;
+};
+
+struct IdentifierNode : Node
 {
 private:
     std::string name;
@@ -98,14 +31,107 @@ private:
     LiteralNode value;
 };
 
-struct LiteralNode : public Node
+struct BinaryExprNode : Node
 {
 private:
-    std::string value;
+    Node *left, *right;
+
+public:
+};
+
+struct StmtNode : Node
+{
+private:
+public:
+};
+
+struct ReturnStmtNode : StmtNode
+{
+private:
+public:
+};
+
+struct BlockNode : Node
+{
+private:
+    std::vector<StmtNode *> statements;
+};
+
+struct ImportNode : Node
+{
+private:
+    std::string location;
+};
+
+struct ParamNode : Node
+{
+private:
+    std::string name, returnType;
+
+public:
+    ParamNode(std::string name, std::string returnType);
+};
+
+struct FuncNode : Node
+{
+private:
+    std::string name, returnType;
+    std::vector<ParamNode *> parameters;
+    Node *body;
+
+public:
+    FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, Node *body);
+};
+
+struct CallExprNode : Node
+{
+private:
+    std::string name;
+    std::vector<Node *> arguments;
+};
+
+struct IfStmtNode : Node
+{
+private:
+    BinaryExprNode *condition;
+    BlockNode *body;
+};
+
+struct ElseIfStmtNode : Node
+{
+private:
+    BinaryExprNode *condition;
+    BlockNode *body;
+};
+
+struct ElseNode : Node
+{
+private:
+    BlockNode *body;
+};
+
+struct WhileNode : Node
+{
+private:
+    BinaryExprNode *condition;
+    BlockNode *body;
+};
+
+struct VarDeclNode : StmtNode
+{
+private:
+    IdentifierNode *identifier;
 };
 
 class AbstractSyntaxTree
 {
 private:
-    std::vector<Node *> nodes;
+    RootNode *root;
+
+public:
+    AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens);
+    int getNumTabs(const std::vector<Token> &tokenLine) const;
+    Token getFirstToken(const std::vector<Token> &tokenLine) const;
+    Node *buildTree(const std::vector<std::vector<Token>> &tokens);
+    void printTree() const;
 };

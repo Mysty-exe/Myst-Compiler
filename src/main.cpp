@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include "compiler/lexer.h"
+#include "compiler/ast.h"
 
 void printHelp()
 {
@@ -12,9 +13,9 @@ void parseFile(std::ifstream &inputFile)
 {
     Lexer lexer;
     lexer.tokenizeFile(inputFile);
-    lexer.readFile();
-    std::cout << std::endl;
     lexer.readTokens();
+
+    AbstractSyntaxTree ast(lexer.getTokens());
 }
 
 int main(int argc, char *argv[])

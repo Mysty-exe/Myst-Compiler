@@ -188,7 +188,7 @@ void Lexer::addTabsInLine(const std::string &line, int lineNum, int &col)
     while (line.size() - col > 4)
     {
         if (line.substr(col, 4) == "    ")
-            tokens.push_back(Token("\t", lineNum, col));
+            tokens[tokens.size() - 1].push_back(Token("\t", lineNum, col));
         else
             break;
 
@@ -264,7 +264,7 @@ void Lexer::addCurrentToken(std::string &token, int lineNum, int col)
 {
     if (token.size() > 0)
     {
-        tokens.push_back(Token(token, lineNum + 1, col + 1));
+        tokens[tokens.size() - 1].push_back(Token(token, lineNum + 1, col + 1));
         token = "";
     }
 }
@@ -279,6 +279,7 @@ void Lexer::tokenizeFile(std::ifstream &file)
 
     while (std::getline(file, line))
     {
+        tokens.push_back({});
         int col = 0;
         addTabsInLine(line, lineNum, col);
 
@@ -293,7 +294,7 @@ void Lexer::tokenizeFile(std::ifstream &file)
             if (commentStarted(line, col))
             {
                 addCurrentToken(currentToken, lineNum + 1, col + 1);
-                tokens.push_back(Token(line.substr(col), lineNum + 1, col + 1));
+                tokens[tokens.size() - 1].push_back(Token(line.substr(col), lineNum + 1, col + 1));
                 break;
             }
 
@@ -319,7 +320,7 @@ void Lexer::tokenizeFile(std::ifstream &file)
             {
                 addCurrentToken(currentToken, lineNum + 1, col + 1);
 
-                tokens.push_back(Token(line.substr(col, 2), lineNum + 1, line.size()));
+                tokens[tokens.size() - 1].push_back(Token(line.substr(col, 2), lineNum + 1, line.size()));
                 col += 1;
                 continue;
             }
@@ -330,7 +331,7 @@ void Lexer::tokenizeFile(std::ifstream &file)
                 {
                     addCurrentToken(currentToken, lineNum + 1, col + 1);
 
-                    tokens.push_back(Token(std::string() + line[col], lineNum + 1, line.size()));
+                    tokens[tokens.size() - 1].push_back(Token(std::string() + line[col], lineNum + 1, line.size()));
                     continue;
                 }
             }
@@ -341,34 +342,42 @@ void Lexer::tokenizeFile(std::ifstream &file)
         addCurrentToken(currentToken, lineNum + 1, col + 1);
         inString = false;
 
-        tokens.push_back(Token("\n", lineNum + 1, line.size()));
+        tokens[tokens.size() - 1].push_back(Token("\n", lineNum + 1, line.size()));
         lineNum += 1;
     }
 
-    tokens.pop_back();
-    tokens.push_back(Token("", lineNum, line.size()));
+    tokens[tokens.size() - 1].pop_back();
+    tokens[tokens.size() - 1].push_back(Token("", lineNum, line.size()));
     file.close();
 }
 
 void Lexer::readTokens() const
 {
-    for (const Token &token : tokens)
+    for (auto &line : tokens)
     {
-        std::cout << token.getToken() << " ";
-        if (token.getToken() == "NEWLINE")
-            std::cout << std::endl;
+        for (const Token &token : line)
+        {
+            if (token.getToken() != "NEWLINE")
+                std::cout << token.getToken() << " ";
+        }
+        std::cout << std::endl;
     }
-    std::cout << std::endl;
 }
 
 void Lexer::readFile() const
 {
-    for (const Token &token : tokens)
-        std::cout << token.getValue() << " ";
-    std::cout << std::endl;
+    for (auto &line : tokens)
+    {
+        for (const Token &token : line)
+        {
+            if (token.getToken() != "NEWLINE")
+                std::cout << token.getValue() << " ";
+        }
+        std::cout << std::endl;
+    }
 }
 
-std::vector<Token> Lexer::getTokens() const
+std::vector<std::vector<Token>> Lexer::getTokens() const
 {
     return tokens;
 };
