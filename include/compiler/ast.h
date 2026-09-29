@@ -23,14 +23,6 @@ private:
     std::string value;
 };
 
-struct IdentifierNode : Node
-{
-private:
-    std::string name;
-    std::string type;
-    LiteralNode value;
-};
-
 struct BinaryExprNode : Node
 {
 private:
@@ -45,22 +37,34 @@ private:
 public:
 };
 
+struct AssignNode : StmtNode
+{
+private:
+    std::string name;
+    std::string type;
+    Node *value;
+
+public:
+    AssignNode(std::string name, std::string type, Node *value);
+};
+
 struct ReturnStmtNode : StmtNode
 {
 private:
+    Node *identifier;
+
 public:
+    ReturnStmtNode(Node *identifier);
 };
 
 struct BlockNode : Node
 {
 private:
     std::vector<StmtNode *> statements;
-};
 
-struct ImportNode : Node
-{
-private:
-    std::string location;
+public:
+    BlockNode();
+    void addStatement(StmtNode *stmt);
 };
 
 struct ParamNode : Node
@@ -77,10 +81,10 @@ struct FuncNode : Node
 private:
     std::string name, returnType;
     std::vector<ParamNode *> parameters;
-    Node *body;
+    BlockNode *body;
 
 public:
-    FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, Node *body);
+    FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body);
 };
 
 struct CallExprNode : Node
@@ -117,21 +121,23 @@ private:
     BlockNode *body;
 };
 
-struct VarDeclNode : StmtNode
-{
-private:
-    IdentifierNode *identifier;
-};
-
 class AbstractSyntaxTree
 {
 private:
     RootNode *root;
+    bool isValidToken(Token token) const;
+    bool isValidLine(const std::vector<Token> &tokens) const;
+    int getTokenIndex(const std::vector<Token> &tokenLine, const std::string &tokenStr, bool includeOnlyValidTokens = false) const;
+    int getNumTabs(const std::vector<Token> &tokenLine) const;
+    Token getNthToken(const std::vector<Token> &tokenLine, int n) const;
+    int getNextDedentedLine(const std::vector<std::vector<Token>> &tokens, int startLine) const;
+    std::vector<std::string> getFunctionInformation(const std::vector<Token> &tokenLine) const;
+    std::string splitLine(const std::vector<Token> &tokens, int startIndex, int endIndex) const;
 
 public:
     AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens);
-    int getNumTabs(const std::vector<Token> &tokenLine) const;
-    Token getFirstToken(const std::vector<Token> &tokenLine) const;
-    Node *buildTree(const std::vector<std::vector<Token>> &tokens);
+    Node *buildIdentifier(const std::vector<Token> &line, int start, int end);
+    BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine);
+    void buildTree(const std::vector<std::vector<Token>> &tokens);
     void printTree() const;
 };

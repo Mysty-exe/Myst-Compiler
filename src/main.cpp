@@ -15,6 +15,8 @@ void parseFile(std::ifstream &inputFile)
     lexer.tokenizeFile(inputFile);
     lexer.readTokens();
 
+    std::cout << std::endl;
+
     AbstractSyntaxTree ast(lexer.getTokens());
 }
 

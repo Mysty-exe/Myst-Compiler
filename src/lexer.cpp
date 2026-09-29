@@ -15,159 +15,159 @@ Token::Token(std::string value, int line, int col)
     this->columnNumber = col;
 
     if (value.size() > 1 && value.substr(0, 2) == "//")
-        type = COMMENT;
+        type = TokenType::COMMENT;
     else if (value[0] == '\"' || value[0] == '\'')
-        type = STRING;
+        type = TokenType::STRING;
     else if (std::isdigit(value[0]) || (value.size() > 1 && value[0] == '-' && std::isdigit(value[1])))
     {
         if (std::count(value.begin(), value.end(), '.') == 1)
-            type = FLOAT;
+            type = TokenType::FLOAT;
         else if (std::count(value.begin(), value.end(), '.') == 1)
-            type = INT;
+            type = TokenType::INT;
     }
     else if (value == "func")
-        type = FUNC;
+        type = TokenType::FUNC;
     else if (value == "struct")
-        type = STRUCT;
+        type = TokenType::STRUCT;
     else if (value == "const")
-        type = CONST;
+        type = TokenType::CONST;
     else if (value == "var")
-        type = VAR;
+        type = TokenType::VAR;
     else if (value == "if")
-        type = IF;
+        type = TokenType::IF;
     else if (value == "elseif")
-        type = ELSEIF;
+        type = TokenType::ELSEIF;
     else if (value == "else")
-        type = ELSE;
+        type = TokenType::ELSE;
     else if (value == "while")
-        type = WHILE;
+        type = TokenType::WHILE;
     else if (value == "for")
-        type = FOR;
+        type = TokenType::FOR;
     else if (value == "break")
-        type = BREAK;
+        type = TokenType::BREAK;
     else if (value == "return")
-        type = RETURN;
+        type = TokenType::RETURN;
     else if (value == "import")
-        type = IMPORT;
+        type = TokenType::IMPORT;
     else if (value == "=")
-        type = ASSIGN;
+        type = TokenType::ASSIGN;
     else if (value == "+")
-        type = PLUS;
+        type = TokenType::PLUS;
     else if (value == "-")
-        type = MINUS;
+        type = TokenType::MINUS;
     else if (value == "*")
-        type = STAR;
+        type = TokenType::STAR;
     else if (value == "/")
-        type = SLASH;
+        type = TokenType::SLASH;
     else if (value == "==")
-        type = EQUALS;
+        type = TokenType::EQUALS;
     else if (value == "<")
-        type = LESSTHAN;
+        type = TokenType::LESSTHAN;
     else if (value == ">")
-        type = GREATERTHAN;
+        type = TokenType::GREATERTHAN;
     else if (value == "<=")
-        type = LESSTHANEQ;
+        type = TokenType::LESSTHANEQ;
     else if (value == ">=")
-        type = GREATERTHANEQ;
+        type = TokenType::GREATERTHANEQ;
     else if (value == "and" || value == "&&")
-        type = AND;
+        type = TokenType::AND;
     else if (value == "or" || value == "||")
-        type = OR;
+        type = TokenType::OR;
     else if (value == ":")
-        type = COLON;
+        type = TokenType::COLON;
     else if (value == "->")
-        type = ARROW;
+        type = TokenType::ARROW;
     else if (value == "(")
-        type = LPAREN;
+        type = TokenType::LPAREN;
     else if (value == ")")
-        type = RPAREN;
+        type = TokenType::RPAREN;
     else if (value == ",")
-        type = COMMA;
+        type = TokenType::COMMA;
     else if (value == ".")
-        type = DOT;
+        type = TokenType::DOT;
     else if (value == "\n")
-        type = NEWLINE;
+        type = TokenType::NEWLINE;
     else if (value == "\t")
-        type = INDENT;
+        type = TokenType::INDENT;
     else if (value == "")
-        type = ENDFILE;
+        type = TokenType::ENDFILE;
     else
-        type = IDENTIFIER;
+        type = TokenType::IDENTIFIER;
 }
 
 std::string Token::getToken() const
 {
     switch (type)
     {
-    case COMMENT:
+    case TokenType::COMMENT:
         return "COMMENT";
-    case STRING:
+    case TokenType::STRING:
         return "STRING";
-    case INT:
+    case TokenType::INT:
         return "INT";
-    case FLOAT:
+    case TokenType::FLOAT:
         return "FLOAT";
-    case FUNC:
+    case TokenType::FUNC:
         return "FUNC";
-    case STRUCT:
+    case TokenType::STRUCT:
         return "STRUCT";
-    case CONST:
+    case TokenType::CONST:
         return "CONST";
-    case VAR:
+    case TokenType::VAR:
         return "VAR";
-    case IF:
+    case TokenType::IF:
         return "IF";
-    case ELSEIF:
+    case TokenType::ELSEIF:
         return "ELSEIF";
-    case ELSE:
+    case TokenType::ELSE:
         return "ELSE";
-    case WHILE:
+    case TokenType::WHILE:
         return "WHILE";
-    case FOR:
+    case TokenType::FOR:
         return "FOR";
-    case BREAK:
+    case TokenType::BREAK:
         return "BREAK";
-    case RETURN:
+    case TokenType::RETURN:
         return "RETURN";
-    case IMPORT:
+    case TokenType::IMPORT:
         return "IMPORT";
-    case ASSIGN:
+    case TokenType::ASSIGN:
         return "ASSIGN";
-    case PLUS:
+    case TokenType::PLUS:
         return "PLUS";
-    case MINUS:
+    case TokenType::MINUS:
         return "MINUS";
-    case STAR:
+    case TokenType::STAR:
         return "STAR";
-    case SLASH:
+    case TokenType::SLASH:
         return "SLASH";
-    case EQUALS:
+    case TokenType::EQUALS:
         return "EQUALS";
-    case LESSTHAN:
+    case TokenType::LESSTHAN:
         return "LESSTHAN";
-    case GREATERTHAN:
+    case TokenType::GREATERTHAN:
         return "GREATERTHAN";
-    case AND:
+    case TokenType::AND:
         return "AND";
-    case OR:
+    case TokenType::OR:
         return "OR";
-    case COLON:
+    case TokenType::COLON:
         return "COLON";
-    case ARROW:
+    case TokenType::ARROW:
         return "ARROW";
-    case LPAREN:
+    case TokenType::LPAREN:
         return "LPAREN";
-    case RPAREN:
+    case TokenType::RPAREN:
         return "RPAREN";
-    case COMMA:
+    case TokenType::COMMA:
         return "COMMA";
-    case DOT:
+    case TokenType::DOT:
         return "DOT";
-    case NEWLINE:
+    case TokenType::NEWLINE:
         return "NEWLINE";
-    case INDENT:
+    case TokenType::INDENT:
         return "INDENT";
-    case ENDFILE:
+    case TokenType::ENDFILE:
         return "ENDFILE";
     default:
         return "IDENTIFIER";

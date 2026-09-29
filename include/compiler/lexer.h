@@ -6,52 +6,54 @@
 #include <algorithm>
 #include <string>
 
+enum class TokenType
+{
+    FUNC,
+    STRUCT,
+    CONST,
+    VAR,
+    IF,
+    ELSEIF,
+    ELSE,
+    FOR,
+    WHILE,
+    BREAK,
+    RETURN,
+    IMPORT,
+    IDENTIFIER,
+    INT,
+    FLOAT,
+    STRING,
+    COMMENT,
+    ASSIGN,
+    PLUS,
+    MINUS,
+    STAR,
+    SLASH,
+    EQUALS,
+    LESSTHAN,
+    GREATERTHAN,
+    LESSTHANEQ,
+    GREATERTHANEQ,
+    NOTEQUAL,
+    AND,
+    OR,
+    COLON,
+    ARROW,
+    LPAREN,
+    RPAREN,
+    COMMA,
+    DOT,
+    NEWLINE,
+    INDENT,
+    ENDFILE,
+    UNKNOWN
+};
+
 struct Token
 {
 private:
-    enum TokenKeywords
-    {
-        FUNC,
-        STRUCT,
-        CONST,
-        VAR,
-        IF,
-        ELSEIF,
-        ELSE,
-        FOR,
-        WHILE,
-        BREAK,
-        RETURN,
-        IMPORT,
-        IDENTIFIER,
-        INT,
-        FLOAT,
-        STRING,
-        COMMENT,
-        ASSIGN,
-        PLUS,
-        MINUS,
-        STAR,
-        SLASH,
-        EQUALS,
-        LESSTHAN,
-        GREATERTHAN,
-        LESSTHANEQ,
-        GREATERTHANEQ,
-        NOTEQUAL,
-        AND,
-        OR,
-        COLON,
-        ARROW,
-        LPAREN,
-        RPAREN,
-        COMMA,
-        DOT,
-        NEWLINE,
-        INDENT,
-        ENDFILE,
-        UNKNOWN
-    } type;
+    TokenType type;
 
     std::string value;
     int lineNumber, columnNumber;
