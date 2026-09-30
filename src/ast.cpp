@@ -30,6 +30,19 @@ IdentifierNode::IdentifierNode(std::string name, std::string returnType)
     this->type = returnType;
 }
 
+BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
+{
+    this->op = op;
+    this->left = left;
+    this->right = right;
+}
+
+UnaryExprNode::UnaryExprNode(std::string op, Node *right)
+{
+    this->op = op;
+    this->right = right;
+}
+
 ParamNode::ParamNode(std::string identifier)
 {
     for (int i = identifier.size() - 1; i > -1; i--)
@@ -55,6 +68,12 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
     this->returnType = returnType;
     this->parameters = parameters;
     this->body = body;
+}
+
+CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
+{
+    this->name = name;
+    this->arguments = arguments;
 }
 
 AssignNode::AssignNode(std::string name, std::string type, Node *value)
@@ -106,6 +125,15 @@ AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &to
     buildTree(tokens);
 }
 
+const std::vector<std::vector<std::string>> AbstractSyntaxTree::operatorPrecedence =
+    {
+        {"STAR", "SLASH"},
+        {"PLUS", "MINUS"},
+        {"LESSTHAN", "GREATERTHAN", "LESSTHANEQ", "GREATERTHANEQ"},
+        {"EQUALS", "NEQUALS"},
+        {"AND"},
+        {"OR"}};
+
 int AbstractSyntaxTree::getTokenIndex(const std::vector<Token> &tokenLine, const std::string &tokenStr, bool includeOnlyValidTokens) const
 {
     int result = 0;
@@ -149,6 +177,26 @@ bool AbstractSyntaxTree::isValidLine(const std::vector<Token> &tokens) const
     for (const Token &token : tokens)
     {
         if (isValidToken(token))
+            return true;
+    }
+
+    return false;
+}
+
+bool AbstractSyntaxTree::hasOperator(const std::vector<Token> &line, int start, int end) const
+{
+    int lparen = 0, rparen = 0;
+    for (int i = start; i <= end; i++)
+    {
+        if (line[i].getToken() == "LPAREN")
+            lparen++;
+        else if (line[i].getToken() == "RPAREN")
+            rparen++;
+
+        if (lparen != rparen)
+            continue;
+
+        if (std::find(Token::operators.begin(), Token::operators.end(), line[i].getValue()) != Token::operators.end())
             return true;
     }
 
@@ -259,25 +307,79 @@ std::string AbstractSyntaxTree::splitLine(const std::vector<Token> &tokens, int 
 
 Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int start, int end)
 {
-    if (line.size() == 1)
-        if (line[0].getToken() == "IDENTIFIER")
-            return new IdentifierNode(line[0].getValue());
-        else
-            return new LiteralNode(line[0].getValue());
-
-    int lparen = 0, rparen = 0;
-    for (int i = start; i <= end; i++)
+    if (end - start == 0)
     {
-        if (line[i].getToken() == "LPAREN")
-            lparen++;
-        if (line[i].getToken() == "RPAREN")
-            rparen++;
+        if (line[start].getToken() == "IDENTIFIER")
+            return new IdentifierNode(line[start].getValue());
+        else
+            return new LiteralNode(line[start].getValue());
+    }
+    else if (hasOperator(line, start, end))
+    {
+        if (line[start].getToken() == "PLUS" || line[start].getToken() == "MINUS" || line[start].getToken() == "NOT")
+            return new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, end));
 
-        if (line[i].getToken() == "COMMA" && lparen == rparen)
+        std::cout << "JFDSF" << std::endl;
+        int lparen = 0, rparen = 0;
+        int splitIndex = -1, currentLevel = -1;
+        for (int i = start; i <= end; i++)
         {
-            rparen = 0, lparen = 0;
+            if (line[i].getToken() == "LPAREN")
+                lparen++;
+
+            else if (line[i].getToken() == "RPAREN")
+                rparen++;
+
+            if (lparen != rparen)
+                continue;
+
+            for (int level = 0; level < operatorPrecedence.size(); level++)
+            {
+                for (int op = 0; op < operatorPrecedence[level].size(); op++)
+                {
+                    if (line[i].getToken() == operatorPrecedence[level][op])
+                    {
+                        if (level > currentLevel)
+                        {
+                            splitIndex = i;
+                            currentLevel = level;
+                        }
+                    }
+                }
+            }
+        }
+
+        return new BinaryExprNode(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
+    }
+    else
+    {
+        if (line[start].getToken() == "LPAREN" && line[end].getToken() == "RPAREN")
+            return buildIdentifier(line, start + 1, end - 1);
+
+        if (line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "LPAREN" && line[end].getToken() == "RPAREN")
+        {
+            std::vector<Node *> arguments;
+            int startArg = start + 2, lparen = 0, rparen = 0;
+            for (int i = startArg; i <= end - 1; i++)
+            {
+                if (line[i].getToken() == "LPAREN")
+                    lparen++;
+                if (line[i].getToken() == "RPAREN")
+                    rparen++;
+
+                if (line[i].getToken() == "COMMA" && lparen == rparen)
+                {
+                    rparen = 0, lparen = 0;
+                    arguments.push_back(buildIdentifier(line, startArg, i - 1));
+                    startArg = i + 1;
+                }
+            }
+
+            arguments.push_back(buildIdentifier(line, startArg, end - 1));
+            return new CallExprNode(line[start].getValue(), arguments);
         }
     }
+
     return new Node();
 }
 
@@ -288,50 +390,65 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
 
     for (int line = startLine; line < tokens.size(); line++)
     {
+        if (getNumTabs(tokens[line]) < tabs)
+        {
+            startLine = line;
+            break;
+        }
 
         if (!isValidLine(tokens[line]))
             continue;
 
-        if (getNumTabs(tokens[line]) < tabs)
-            break;
-
         if (getNthToken(tokens[line], 1).getValue() == "func")
+        {
+            startLine = line;
             break;
+        }
 
         int ifIndex = getTokenIndex(tokens[line], "IF");
         if (ifIndex != -1)
         {
             line++;
-            blockNode->addStatement(new IfStmtNode(buildIdentifier(tokens[line], ifIndex + 1, tokens[line].size() - 2), buildBlock(tokens, line)));
+            blockNode->addStatement(new IfStmtNode(buildIdentifier(tokens[line - 1], ifIndex + 1, tokens[line].size() - 3), buildBlock(tokens, line)));
+            continue;
         }
-
         int elseIfIndex = getTokenIndex(tokens[line], "ELSEIF");
         if (elseIfIndex != -1)
         {
             line++;
-            blockNode->addStatement(new ElseIfStmtNode(buildIdentifier(tokens[line], elseIfIndex + 1, tokens[line].size() - 2), buildBlock(tokens, line)));
+            blockNode->addStatement(new ElseIfStmtNode(buildIdentifier(tokens[line - 1], elseIfIndex + 1, tokens[line].size() - 3), buildBlock(tokens, line)));
+            continue;
         }
         int elseIndex = getTokenIndex(tokens[line], "ELSE");
         if (elseIndex != -1)
         {
             line++;
             blockNode->addStatement(new ElseNode(buildBlock(tokens, line)));
+            continue;
         }
 
         int whileIndex = getTokenIndex(tokens[line], "WHILE");
         if (whileIndex != -1)
         {
             line++;
-            blockNode->addStatement(new WhileNode(buildIdentifier(tokens[line], whileIndex + 1, tokens[line].size() - 2), buildBlock(tokens, line)));
+            blockNode->addStatement(new WhileNode(buildIdentifier(tokens[line - 1], whileIndex + 1, tokens[line].size() - 3), buildBlock(tokens, line)));
+            continue;
         }
 
         int assignIndex = getTokenIndex(tokens[line], "ASSIGN");
         if (assignIndex != -1)
+        {
             blockNode->addStatement(new AssignNode(tokens[line][assignIndex - 1].getValue(), splitLine(tokens[line], tabs, assignIndex - 2), buildIdentifier(tokens[line], assignIndex + 1, tokens[line].size() - 2)));
-
+            continue;
+        }
         int returnIndex = getTokenIndex(tokens[line], "RETURN");
         if (returnIndex != -1)
+        {
             blockNode->addStatement(new ReturnStmtNode(buildIdentifier(tokens[line], returnIndex + 1, tokens[line].size() - 2)));
+            continue;
+        }
+
+        blockNode->addStatement(buildIdentifier(tokens[line], tabs, tokens[line].size() - 2));
 
         startLine = line;
     }

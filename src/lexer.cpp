@@ -1,7 +1,8 @@
 #include <compiler/lexer.h>
 
-const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "return", "import", "and", "or"};
-const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", ":", "<", ">", "(", ")", ",", "."};
+const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "return", "import", "and", "or", "not"};
+const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "<", ">", "!", "==", "<=", ">=", "&&", "||", "and", "or", "not"};
+const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", ":", "<", ">", "(", ")", ",", ".", "!"};
 const std::vector<std::string> Token::twoCharOperators = {"==", "<=", ">=", "&&", "||", "->"};
 
 Token::Token()
@@ -59,6 +60,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::STAR;
     else if (value == "/")
         type = TokenType::SLASH;
+    else if (value == "!=")
+        type = TokenType::NEQUALS;
     else if (value == "==")
         type = TokenType::EQUALS;
     else if (value == "<")
@@ -73,6 +76,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::AND;
     else if (value == "or" || value == "||")
         type = TokenType::OR;
+    else if (value == "not" || value == "!")
+        type = TokenType::NOT;
     else if (value == ":")
         type = TokenType::COLON;
     else if (value == "->")
@@ -95,7 +100,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::IDENTIFIER;
 }
 
-std::string Token::getToken() const
+std::string
+Token::getToken() const
 {
     switch (type)
     {
@@ -143,6 +149,8 @@ std::string Token::getToken() const
         return "SLASH";
     case TokenType::EQUALS:
         return "EQUALS";
+    case TokenType::NEQUALS:
+        return "NEQUALS";
     case TokenType::LESSTHAN:
         return "LESSTHAN";
     case TokenType::GREATERTHAN:
@@ -151,6 +159,8 @@ std::string Token::getToken() const
         return "AND";
     case TokenType::OR:
         return "OR";
+    case TokenType::NOT:
+        return "NOT";
     case TokenType::COLON:
         return "COLON";
     case TokenType::ARROW:
@@ -185,14 +195,14 @@ Lexer::Lexer()
 
 void Lexer::addTabsInLine(const std::string &line, int lineNum, int &col)
 {
-    while (line.size() - col > 4)
+    for (int i = 0; i < line.size(); i++)
     {
-        if (line.substr(col, 4) == "    ")
+        if (line[i] == '\t')
             tokens[tokens.size() - 1].push_back(Token("\t", lineNum, col));
         else
             break;
 
-        col += 4;
+        col++;
     }
 }
 
@@ -330,7 +340,6 @@ void Lexer::tokenizeFile(std::ifstream &file)
                 if (!isNegativeNumber(line, col))
                 {
                     addCurrentToken(currentToken, lineNum + 1, col + 1);
-
                     tokens[tokens.size() - 1].push_back(Token(std::string() + line[col], lineNum + 1, line.size()));
                     continue;
                 }
@@ -346,8 +355,7 @@ void Lexer::tokenizeFile(std::ifstream &file)
         lineNum += 1;
     }
 
-    tokens[tokens.size() - 1].pop_back();
-    tokens[tokens.size() - 1].push_back(Token("", lineNum, line.size()));
+    tokens.push_back({Token("\n", lineNum, line.size())});
     file.close();
 }
 

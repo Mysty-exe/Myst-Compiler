@@ -1,8 +1,9 @@
 func main(): // -> This is a comment
-    print("Hello, Myst!")
+	print("Hello, Myst!")
+	int r = 5 + 7 * 4
 
-int x = callFunc(insideFunc(5))
+int x = outsideFunc(insideFunc(5 - 1))
+string y = "Testing + Strings"
 
 func anotherFunc(int x, int y) -> int: // -> This is another comment
-    int z = x + y
-    return z(y)
+	return x + y

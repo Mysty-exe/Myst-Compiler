@@ -30,6 +30,7 @@ enum class TokenType
     MINUS,
     STAR,
     SLASH,
+    NEQUALS,
     EQUALS,
     LESSTHAN,
     GREATERTHAN,
@@ -38,6 +39,7 @@ enum class TokenType
     NOTEQUAL,
     AND,
     OR,
+    NOT,
     COLON,
     ARROW,
     LPAREN,
@@ -63,7 +65,7 @@ public:
     Token(std::string value, int line, int col);
     std::string getValue() const;
     std::string getToken() const;
-    static const std::vector<std::string> keywords, oneCharOperators, twoCharOperators;
+    static const std::vector<std::string> keywords, operators, oneCharOperators, twoCharOperators;
 };
 
 class Lexer

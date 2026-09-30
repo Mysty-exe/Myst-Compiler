@@ -40,9 +40,21 @@ public:
 struct BinaryExprNode : Node
 {
 private:
+    std::string op;
     Node *left, *right;
 
 public:
+    BinaryExprNode(std::string op, Node *left, Node *right);
+};
+
+struct UnaryExprNode : Node
+{
+private:
+    std::string op;
+    Node *right;
+
+public:
+    UnaryExprNode(std::string op, Node *right);
 };
 
 struct StmtNode : Node
@@ -106,6 +118,9 @@ struct CallExprNode : Node
 private:
     std::string name;
     std::vector<Node *> arguments;
+
+public:
+    CallExprNode(std::string name, std::vector<Node *> arguments);
 };
 
 struct IfStmtNode : Node
@@ -151,8 +166,10 @@ class AbstractSyntaxTree
 {
 private:
     RootNode *root;
+    static const std::vector<std::vector<std::string>> operatorPrecedence;
     bool isValidToken(Token token) const;
     bool isValidLine(const std::vector<Token> &tokens) const;
+    bool hasOperator(const std::vector<Token> &line, int start, int end) const;
     int getTokenIndex(const std::vector<Token> &tokenLine, const std::string &tokenStr, bool includeOnlyValidTokens = false) const;
     int getNumTabs(const std::vector<Token> &tokenLine) const;
     Token getNthToken(const std::vector<Token> &tokenLine, int n) const;
