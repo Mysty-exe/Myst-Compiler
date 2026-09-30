@@ -3,19 +3,35 @@
 Node::Node()
 {
 }
+std::ostream &operator<<(std::ostream &os, Node const &node)
+{
+    node.print(os);
+    return os;
+}
 
 RootNode::RootNode()
 {
 }
-
 void RootNode::addNode(Node *node)
 {
     children.push_back(node);
+}
+std::vector<Node *> RootNode::getChildren()
+{
+    return children;
+}
+void RootNode::print(std::ostream &os) const
+{
+    os << "Root:";
 }
 
 LiteralNode::LiteralNode(std::string value)
 {
     this->value = value;
+}
+void LiteralNode::print(std::ostream &os) const
+{
+    os << "LiteralNode: " << value;
 }
 
 IdentifierNode::IdentifierNode(std::string name)
@@ -23,11 +39,14 @@ IdentifierNode::IdentifierNode(std::string name)
     this->name = name;
     this->type = "";
 }
-
 IdentifierNode::IdentifierNode(std::string name, std::string returnType)
 {
     this->name = name;
     this->type = returnType;
+}
+void IdentifierNode::print(std::ostream &os) const
+{
+    os << "IdentifierNode: " << type << " " << name;
 }
 
 BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
@@ -36,11 +55,22 @@ BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
     this->left = left;
     this->right = right;
 }
+void BinaryExprNode::print(std::ostream &os) const
+{
+    os << "BinaryExpressionNode: " << op;
+    os << "\t" << *left;
+    os << "\t" << *right;
+}
 
 UnaryExprNode::UnaryExprNode(std::string op, Node *right)
 {
     this->op = op;
     this->right = right;
+}
+void UnaryExprNode::print(std::ostream &os) const
+{
+    os << "UnaryExpressionNode: " << op;
+    os << "\t" << *right;
 }
 
 ParamNode::ParamNode(std::string identifier)
@@ -55,11 +85,14 @@ ParamNode::ParamNode(std::string identifier)
         }
     }
 }
-
 ParamNode::ParamNode(std::string name, std::string returnType)
 {
     this->name = name;
     this->returnType = returnType;
+}
+void ParamNode::print(std::ostream &os) const
+{
+    os << "ParameterNode: " << returnType << name;
 }
 
 FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body)
@@ -69,11 +102,37 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
     this->parameters = parameters;
     this->body = body;
 }
+void FuncNode::print(std::ostream &os) const
+{
+    os << "FunctionNode: " << name;
+    os << "\tReturn Type: " << returnType;
+    os << "\tParamters: ";
+    for (int i = 0; i < parameters.size(); i++)
+    {
+        if (i == parameters.size() - 1)
+            os << "\t\t" << parameters[i];
+        else
+            os << "\t\t" << parameters[i] << ", ";
+    }
+    os << "\t" << *body;
+}
 
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
 {
     this->name = name;
     this->arguments = arguments;
+}
+void CallExprNode::print(std::ostream &os) const
+{
+    os << "CallExpressionNode: " << name;
+    os << "Arguments: ";
+    for (int i = 0; i < arguments.size(); i++)
+    {
+        if (i == arguments.size() - 1)
+            os << "\t" << arguments[i];
+        else
+            os << "\t" << arguments[i] << ", ";
+    }
 }
 
 AssignNode::AssignNode(std::string name, std::string type, Node *value)
@@ -81,9 +140,26 @@ AssignNode::AssignNode(std::string name, std::string type, Node *value)
     this->identifier = new IdentifierNode(name, type);
     this->value = value;
 }
+void AssignNode::print(std::ostream &os) const
+{
+    os << "AssignmentNode: \n";
+}
 
 BlockNode::BlockNode()
 {
+}
+void BlockNode::addStatement(Node *stmt)
+{
+    statements.push_back(stmt);
+}
+void BlockNode::print(std::ostream &os) const
+{
+    os << "BlockNode: \n";
+}
+
+void StmtNode::print(std::ostream &os) const
+{
+    os << "StatementNode: \n";
 }
 
 IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
@@ -91,16 +167,28 @@ IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
     this->condition = condition;
     this->body = body;
 }
+void IfStmtNode::print(std::ostream &os) const
+{
+    os << "BlockNode: \n";
+}
 
 ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
 {
     this->condition = condition;
     this->body = body;
 }
+void ElseIfStmtNode::print(std::ostream &os) const
+{
+    os << "BlockNode: \n";
+}
 
 ElseNode::ElseNode(BlockNode *body)
 {
     this->body = body;
+}
+void ElseNode::print(std::ostream &os) const
+{
+    os << "BlockNode: \n";
 }
 
 WhileNode::WhileNode(Node *condition, BlockNode *body)
@@ -108,15 +196,18 @@ WhileNode::WhileNode(Node *condition, BlockNode *body)
     this->condition = condition;
     this->body = body;
 }
-
-void BlockNode::addStatement(Node *stmt)
+void WhileNode::print(std::ostream &os) const
 {
-    statements.push_back(stmt);
+    os << "BlockNode: \n";
 }
 
 ReturnStmtNode::ReturnStmtNode(Node *identifier)
 {
     this->identifier = identifier;
+}
+void ReturnStmtNode::print(std::ostream &os) const
+{
+    os << "BlockNode: \n";
 }
 
 AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens)
@@ -319,7 +410,6 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
         if (line[start].getToken() == "PLUS" || line[start].getToken() == "MINUS" || line[start].getToken() == "NOT")
             return new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, end));
 
-        std::cout << "JFDSF" << std::endl;
         int lparen = 0, rparen = 0;
         int splitIndex = -1, currentLevel = -1;
         for (int i = start; i <= end; i++)
@@ -380,7 +470,7 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
         }
     }
 
-    return new Node();
+    throw std::logic_error("Something is Wrong");
 }
 
 BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine)
@@ -486,4 +576,9 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
 
 void AbstractSyntaxTree::printTree() const
 {
+    std::cout << *root << std::endl;
+    for (Node *node : root->getChildren())
+    {
+        std::cout << *node << std::endl;
+    }
 }
