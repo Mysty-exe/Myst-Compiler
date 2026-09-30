@@ -21,6 +21,20 @@ struct LiteralNode : Node
 {
 private:
     std::string value;
+
+public:
+    LiteralNode(std::string value);
+};
+
+struct IdentifierNode : Node
+{
+private:
+    std::string name;
+    std::string type;
+
+public:
+    IdentifierNode(std::string name);
+    IdentifierNode(std::string name, std::string returnType);
 };
 
 struct BinaryExprNode : Node
@@ -40,8 +54,7 @@ public:
 struct AssignNode : StmtNode
 {
 private:
-    std::string name;
-    std::string type;
+    IdentifierNode *identifier;
     Node *value;
 
 public:
@@ -60,11 +73,11 @@ public:
 struct BlockNode : Node
 {
 private:
-    std::vector<StmtNode *> statements;
+    std::vector<Node *> statements;
 
 public:
     BlockNode();
-    void addStatement(StmtNode *stmt);
+    void addStatement(Node *stmt);
 };
 
 struct ParamNode : Node
@@ -73,6 +86,7 @@ private:
     std::string name, returnType;
 
 public:
+    ParamNode(std::string identifier);
     ParamNode(std::string name, std::string returnType);
 };
 
@@ -97,28 +111,40 @@ private:
 struct IfStmtNode : Node
 {
 private:
-    BinaryExprNode *condition;
+    Node *condition;
     BlockNode *body;
+
+public:
+    IfStmtNode(Node *condition, BlockNode *body);
 };
 
 struct ElseIfStmtNode : Node
 {
 private:
-    BinaryExprNode *condition;
+    Node *condition;
     BlockNode *body;
+
+public:
+    ElseIfStmtNode(Node *condition, BlockNode *body);
 };
 
 struct ElseNode : Node
 {
 private:
     BlockNode *body;
+
+public:
+    ElseNode(BlockNode *body);
 };
 
 struct WhileNode : Node
 {
 private:
-    BinaryExprNode *condition;
+    Node *condition;
     BlockNode *body;
+
+public:
+    WhileNode(Node *condition, BlockNode *body);
 };
 
 class AbstractSyntaxTree

@@ -13,6 +13,36 @@ void RootNode::addNode(Node *node)
     children.push_back(node);
 }
 
+LiteralNode::LiteralNode(std::string value)
+{
+    this->value = value;
+}
+
+IdentifierNode::IdentifierNode(std::string name)
+{
+    this->name = name;
+    this->type = "";
+}
+
+IdentifierNode::IdentifierNode(std::string name, std::string returnType)
+{
+    this->name = name;
+    this->type = returnType;
+}
+
+ParamNode::ParamNode(std::string identifier)
+{
+    for (int i = identifier.size() - 1; i > -1; i--)
+    {
+        if (identifier[i] == ' ')
+        {
+            name = identifier.substr(i);
+            returnType = identifier.substr(0, i);
+            return;
+        }
+    }
+}
+
 ParamNode::ParamNode(std::string name, std::string returnType)
 {
     this->name = name;
@@ -29,8 +59,7 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
 
 AssignNode::AssignNode(std::string name, std::string type, Node *value)
 {
-    this->name = name;
-    this->type = type;
+    this->identifier = new IdentifierNode(name, type);
     this->value = value;
 }
 
@@ -38,7 +67,30 @@ BlockNode::BlockNode()
 {
 }
 
-void BlockNode::addStatement(StmtNode *stmt)
+IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
+{
+    this->condition = condition;
+    this->body = body;
+}
+
+ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
+{
+    this->condition = condition;
+    this->body = body;
+}
+
+ElseNode::ElseNode(BlockNode *body)
+{
+    this->body = body;
+}
+
+WhileNode::WhileNode(Node *condition, BlockNode *body)
+{
+    this->condition = condition;
+    this->body = body;
+}
+
+void BlockNode::addStatement(Node *stmt)
 {
     statements.push_back(stmt);
 }
@@ -207,8 +259,25 @@ std::string AbstractSyntaxTree::splitLine(const std::vector<Token> &tokens, int 
 
 Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int start, int end)
 {
+    if (line.size() == 1)
+        if (line[0].getToken() == "IDENTIFIER")
+            return new IdentifierNode(line[0].getValue());
+        else
+            return new LiteralNode(line[0].getValue());
+
+    int lparen = 0, rparen = 0;
     for (int i = start; i <= end; i++)
-        std::cout << line[i].getValue() << std::endl;
+    {
+        if (line[i].getToken() == "LPAREN")
+            lparen++;
+        if (line[i].getToken() == "RPAREN")
+            rparen++;
+
+        if (line[i].getToken() == "COMMA" && lparen == rparen)
+        {
+            rparen = 0, lparen = 0;
+        }
+    }
     return new Node();
 }
 
@@ -228,6 +297,33 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
 
         if (getNthToken(tokens[line], 1).getValue() == "func")
             break;
+
+        int ifIndex = getTokenIndex(tokens[line], "IF");
+        if (ifIndex != -1)
+        {
+            line++;
+            blockNode->addStatement(new IfStmtNode(buildIdentifier(tokens[line], ifIndex + 1, tokens[line].size() - 2), buildBlock(tokens, line)));
+        }
+
+        int elseIfIndex = getTokenIndex(tokens[line], "ELSEIF");
+        if (elseIfIndex != -1)
+        {
+            line++;
+            blockNode->addStatement(new ElseIfStmtNode(buildIdentifier(tokens[line], elseIfIndex + 1, tokens[line].size() - 2), buildBlock(tokens, line)));
+        }
+        int elseIndex = getTokenIndex(tokens[line], "ELSE");
+        if (elseIndex != -1)
+        {
+            line++;
+            blockNode->addStatement(new ElseNode(buildBlock(tokens, line)));
+        }
+
+        int whileIndex = getTokenIndex(tokens[line], "WHILE");
+        if (whileIndex != -1)
+        {
+            line++;
+            blockNode->addStatement(new WhileNode(buildIdentifier(tokens[line], whileIndex + 1, tokens[line].size() - 2), buildBlock(tokens, line)));
+        }
 
         int assignIndex = getTokenIndex(tokens[line], "ASSIGN");
         if (assignIndex != -1)
@@ -254,10 +350,16 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
         if (getNthToken(tokens[line], 1).getValue() == "func")
         {
             std::vector<std::string> information = getFunctionInformation(tokens[line]);
-            int nextDedentedLine = getNextDedentedLine(tokens, line);
-
             line++;
             BlockNode *body = buildBlock(tokens, line);
+            std::vector<ParamNode *> parameters;
+
+            for (int i = 2; i < information.size(); i++)
+            {
+                parameters.push_back(new ParamNode(information[i]));
+            }
+
+            root->addNode(new FuncNode(information[0], information[1], parameters, body));
             continue;
         }
 
