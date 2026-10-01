@@ -44,6 +44,14 @@ IdentifierNode::IdentifierNode(std::string name, std::string returnType)
     this->name = name;
     this->type = returnType;
 }
+std::string IdentifierNode::getName() const
+{
+    return name;
+}
+std::string IdentifierNode::getType() const
+{
+    return type;
+}
 void IdentifierNode::print(std::ostream &os) const
 {
     os << "IdentifierNode: " << type << " " << name;
@@ -104,13 +112,13 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
 }
 void FuncNode::print(std::ostream &os) const
 {
-    os << "FunctionNode: " << name;
-    os << "\tReturn Type: " << returnType;
-    os << "\tParamters: ";
+    os << "FunctionNode: " << name << std::endl;
+    os << "\tReturn Type: " << returnType << std::endl;
+    os << "\tParamters: " << std::endl;
     for (int i = 0; i < parameters.size(); i++)
     {
         if (i == parameters.size() - 1)
-            os << "\t\t" << parameters[i];
+            os << "\t\t" << parameters[i] << std::endl;
         else
             os << "\t\t" << parameters[i] << ", ";
     }
@@ -124,14 +132,14 @@ CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
 }
 void CallExprNode::print(std::ostream &os) const
 {
-    os << "CallExpressionNode: " << name;
-    os << "Arguments: ";
+    os << "CallExpressionNode: " << name << std::endl;
+    os << "\tArguments: " << std::endl;
     for (int i = 0; i < arguments.size(); i++)
     {
         if (i == arguments.size() - 1)
-            os << "\t" << arguments[i];
+            os << "\t\t" << *(arguments[i]) << std::endl;
         else
-            os << "\t" << arguments[i] << ", ";
+            os << "\t\t" << *(arguments[i]) << ", ";
     }
 }
 
@@ -142,7 +150,9 @@ AssignNode::AssignNode(std::string name, std::string type, Node *value)
 }
 void AssignNode::print(std::ostream &os) const
 {
-    os << "AssignmentNode: \n";
+    os << "AssignmentNode: " << std::endl;
+    os << "Left Side: " << identifier->getType() << " " << identifier->getName() << std::endl;
+    os << "Right Side: " << value;
 }
 
 BlockNode::BlockNode()
@@ -155,6 +165,11 @@ void BlockNode::addStatement(Node *stmt)
 void BlockNode::print(std::ostream &os) const
 {
     os << "BlockNode: \n";
+    for (int i = 0; i < statements.size(); i++)
+        if (i == statements.size() - 1)
+            os << "\t" << *(statements[i]);
+        else
+            os << "\t" << *(statements[i]) << ", ";
 }
 
 void StmtNode::print(std::ostream &os) const
@@ -169,7 +184,11 @@ IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
 }
 void IfStmtNode::print(std::ostream &os) const
 {
-    os << "BlockNode: \n";
+    os << "IfStatementNode: \n";
+    os << "Condition:" << std::endl;
+    os << condition << std::endl;
+    os << "Body:" << std::endl;
+    os << "\t" << *body << std::endl;
 }
 
 ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
@@ -179,7 +198,11 @@ ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
 }
 void ElseIfStmtNode::print(std::ostream &os) const
 {
-    os << "BlockNode: \n";
+    os << "ElseIfStatementNode: \n";
+    os << "Condition:" << std::endl;
+    os << condition << std::endl;
+    os << "Body:" << std::endl;
+    os << "\t" << *body << std::endl;
 }
 
 ElseNode::ElseNode(BlockNode *body)
@@ -188,7 +211,9 @@ ElseNode::ElseNode(BlockNode *body)
 }
 void ElseNode::print(std::ostream &os) const
 {
-    os << "BlockNode: \n";
+    os << "ElseStatementNode: \n";
+    os << "Body:" << std::endl;
+    os << "\t" << *body << std::endl;
 }
 
 WhileNode::WhileNode(Node *condition, BlockNode *body)
@@ -198,7 +223,11 @@ WhileNode::WhileNode(Node *condition, BlockNode *body)
 }
 void WhileNode::print(std::ostream &os) const
 {
-    os << "BlockNode: \n";
+    os << "WhileStatementNode: \n";
+    os << "Condition:" << std::endl;
+    os << condition << std::endl;
+    os << "Body:" << std::endl;
+    os << "\t" << *body << std::endl;
 }
 
 ReturnStmtNode::ReturnStmtNode(Node *identifier)
@@ -207,7 +236,9 @@ ReturnStmtNode::ReturnStmtNode(Node *identifier)
 }
 void ReturnStmtNode::print(std::ostream &os) const
 {
-    os << "BlockNode: \n";
+    os << "ReturnNode: \n";
+    os << "Returning:" << std::endl;
+    os << "\t" << *identifier << std::endl;
 }
 
 AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens)
@@ -570,7 +601,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
             continue;
         }
 
-        buildBlock(tokens, line);
+        root->addNode(buildBlock(tokens, line));
     }
 }
 
@@ -579,6 +610,8 @@ void AbstractSyntaxTree::printTree() const
     std::cout << *root << std::endl;
     for (Node *node : root->getChildren())
     {
-        std::cout << *node << std::endl;
+        std::cout << "\t" << *node << std::endl;
     }
+
+    std::cout << root->getChildren().size();
 }

@@ -49,6 +49,8 @@ protected:
 public:
     IdentifierNode(std::string name);
     IdentifierNode(std::string name, std::string returnType);
+    std::string getName() const;
+    std::string getType() const;
 };
 
 struct BinaryExprNode : Node
