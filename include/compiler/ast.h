@@ -5,10 +5,7 @@ struct Node
 {
 public:
     Node();
-    friend std::ostream &operator<<(std::ostream &os, Node const &node);
-
-protected:
-    virtual void print(std::ostream &os) const = 0;
+    virtual void print(int depth = 0) const = 0;
 };
 
 struct RootNode : Node
@@ -16,13 +13,11 @@ struct RootNode : Node
 private:
     std::vector<Node *> children;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     RootNode();
     void addNode(Node *node);
     std::vector<Node *> getChildren();
+    virtual void print(int depth = 0) const override;
 };
 
 struct LiteralNode : Node
@@ -30,11 +25,9 @@ struct LiteralNode : Node
 private:
     std::string value;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     LiteralNode(std::string value);
+    virtual void print(int depth = 0) const override;
 };
 
 struct IdentifierNode : Node
@@ -43,14 +36,12 @@ private:
     std::string name;
     std::string type;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     IdentifierNode(std::string name);
     IdentifierNode(std::string name, std::string returnType);
     std::string getName() const;
     std::string getType() const;
+    virtual void print(int depth = 0) const override;
 };
 
 struct BinaryExprNode : Node
@@ -59,11 +50,9 @@ private:
     std::string op;
     Node *left, *right;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     BinaryExprNode(std::string op, Node *left, Node *right);
+    virtual void print(int depth = 0) const override;
 };
 
 struct UnaryExprNode : Node
@@ -72,20 +61,17 @@ private:
     std::string op;
     Node *right;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     UnaryExprNode(std::string op, Node *right);
+    virtual void print(int depth = 0) const override;
 };
 
 struct StmtNode : Node
 {
 private:
 protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
+    virtual void print(int depth = 0) const override;
 };
 
 struct AssignNode : StmtNode
@@ -94,11 +80,9 @@ private:
     IdentifierNode *identifier;
     Node *value;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     AssignNode(std::string name, std::string type, Node *value);
+    virtual void print(int depth = 0) const override;
 };
 
 struct ReturnStmtNode : StmtNode
@@ -106,11 +90,9 @@ struct ReturnStmtNode : StmtNode
 private:
     Node *identifier;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     ReturnStmtNode(Node *identifier);
+    virtual void print(int depth = 0) const override;
 };
 
 struct BlockNode : Node
@@ -118,12 +100,10 @@ struct BlockNode : Node
 private:
     std::vector<Node *> statements;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     BlockNode();
     void addStatement(Node *stmt);
+    virtual void print(int depth = 0) const override;
 };
 
 struct ParamNode : Node
@@ -131,12 +111,10 @@ struct ParamNode : Node
 private:
     std::string name, returnType;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     ParamNode(std::string identifier);
     ParamNode(std::string name, std::string returnType);
+    virtual void print(int depth = 0) const override;
 };
 
 struct FuncNode : Node
@@ -146,11 +124,9 @@ private:
     std::vector<ParamNode *> parameters;
     BlockNode *body;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body);
+    virtual void print(int depth = 0) const override;
 };
 
 struct CallExprNode : Node
@@ -159,11 +135,9 @@ private:
     std::string name;
     std::vector<Node *> arguments;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     CallExprNode(std::string name, std::vector<Node *> arguments);
+    virtual void print(int depth = 0) const override;
 };
 
 struct IfStmtNode : Node
@@ -172,11 +146,9 @@ private:
     Node *condition;
     BlockNode *body;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     IfStmtNode(Node *condition, BlockNode *body);
+    virtual void print(int depth = 0) const override;
 };
 
 struct ElseIfStmtNode : Node
@@ -185,11 +157,9 @@ private:
     Node *condition;
     BlockNode *body;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     ElseIfStmtNode(Node *condition, BlockNode *body);
+    virtual void print(int depth = 0) const override;
 };
 
 struct ElseNode : Node
@@ -197,11 +167,9 @@ struct ElseNode : Node
 private:
     BlockNode *body;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     ElseNode(BlockNode *body);
+    virtual void print(int depth = 0) const override;
 };
 
 struct WhileNode : Node
@@ -210,11 +178,9 @@ private:
     Node *condition;
     BlockNode *body;
 
-protected:
-    virtual void print(std::ostream &os) const override;
-
 public:
     WhileNode(Node *condition, BlockNode *body);
+    virtual void print(int depth = 0) const override;
 };
 
 class AbstractSyntaxTree

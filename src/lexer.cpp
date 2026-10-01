@@ -23,7 +23,7 @@ Token::Token(std::string value, int line, int col)
     {
         if (std::count(value.begin(), value.end(), '.') == 1)
             type = TokenType::FLOAT;
-        else if (std::count(value.begin(), value.end(), '.') == 1)
+        else if (std::count(value.begin(), value.end(), '.') == 0)
             type = TokenType::INT;
     }
     else if (value == "func")

@@ -1,12 +1,19 @@
 #include "compiler/ast.h"
 
+std::string repeat_string(const std::string &input, size_t num)
+{
+    std::string result;
+    result.reserve(input.size() * num);
+
+    while (num--)
+    {
+        result += input;
+    }
+    return result;
+}
+
 Node::Node()
 {
-}
-std::ostream &operator<<(std::ostream &os, Node const &node)
-{
-    node.print(os);
-    return os;
 }
 
 RootNode::RootNode()
@@ -20,18 +27,24 @@ std::vector<Node *> RootNode::getChildren()
 {
     return children;
 }
-void RootNode::print(std::ostream &os) const
+void RootNode::print(int depth) const
 {
-    os << "Root:";
+    std::cout << "Root:" << std::endl;
+    for (Node *node : children)
+    {
+        node->print(depth + 1);
+        std::cout << std::endl;
+    }
 }
 
 LiteralNode::LiteralNode(std::string value)
 {
     this->value = value;
 }
-void LiteralNode::print(std::ostream &os) const
+void LiteralNode::print(int depth) const
 {
-    os << "LiteralNode: " << value;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "LiteralNode: " << value << std::endl;
 }
 
 IdentifierNode::IdentifierNode(std::string name)
@@ -52,9 +65,10 @@ std::string IdentifierNode::getType() const
 {
     return type;
 }
-void IdentifierNode::print(std::ostream &os) const
+void IdentifierNode::print(int depth) const
 {
-    os << "IdentifierNode: " << type << " " << name;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "IdentifierNode: " << type << " " << name << std::endl;
 }
 
 BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
@@ -63,11 +77,14 @@ BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
     this->left = left;
     this->right = right;
 }
-void BinaryExprNode::print(std::ostream &os) const
+void BinaryExprNode::print(int depth) const
 {
-    os << "BinaryExpressionNode: " << op;
-    os << "\t" << *left;
-    os << "\t" << *right;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "BinaryExpressionNode: " << op << std::endl;
+    std::cout << depthTabs << "\tLeft:\n";
+    left->print(depth + 2);
+    std::cout << depthTabs << "\tRight:\n";
+    right->print(depth + 2);
 }
 
 UnaryExprNode::UnaryExprNode(std::string op, Node *right)
@@ -75,10 +92,12 @@ UnaryExprNode::UnaryExprNode(std::string op, Node *right)
     this->op = op;
     this->right = right;
 }
-void UnaryExprNode::print(std::ostream &os) const
+void UnaryExprNode::print(int depth) const
 {
-    os << "UnaryExpressionNode: " << op;
-    os << "\t" << *right;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "UnaryExpressionNode: " << op << std::endl;
+    std::cout << depthTabs << "Right:";
+    right->print(depth + 2);
 }
 
 ParamNode::ParamNode(std::string identifier)
@@ -98,9 +117,10 @@ ParamNode::ParamNode(std::string name, std::string returnType)
     this->name = name;
     this->returnType = returnType;
 }
-void ParamNode::print(std::ostream &os) const
+void ParamNode::print(int depth) const
 {
-    os << "ParameterNode: " << returnType << name;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "ParameterNode: " << returnType << name << std::endl;
 }
 
 FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body)
@@ -110,19 +130,15 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
     this->parameters = parameters;
     this->body = body;
 }
-void FuncNode::print(std::ostream &os) const
+void FuncNode::print(int depth) const
 {
-    os << "FunctionNode: " << name << std::endl;
-    os << "\tReturn Type: " << returnType << std::endl;
-    os << "\tParamters: " << std::endl;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "FunctionNode: " << name << std::endl;
+    std::cout << depthTabs << "\tReturn Type: " << returnType << std::endl;
+    std::cout << depthTabs << "\tParameters: " << std::endl;
     for (int i = 0; i < parameters.size(); i++)
-    {
-        if (i == parameters.size() - 1)
-            os << "\t\t" << parameters[i] << std::endl;
-        else
-            os << "\t\t" << parameters[i] << ", ";
-    }
-    os << "\t" << *body;
+        parameters[i]->print(depth + 2);
+    body->print(depth + 1);
 }
 
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
@@ -130,17 +146,13 @@ CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
     this->name = name;
     this->arguments = arguments;
 }
-void CallExprNode::print(std::ostream &os) const
+void CallExprNode::print(int depth) const
 {
-    os << "CallExpressionNode: " << name << std::endl;
-    os << "\tArguments: " << std::endl;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "CallExpressionNode: " << name << std::endl;
+    std::cout << depthTabs << "\tArguments: " << std::endl;
     for (int i = 0; i < arguments.size(); i++)
-    {
-        if (i == arguments.size() - 1)
-            os << "\t\t" << *(arguments[i]) << std::endl;
-        else
-            os << "\t\t" << *(arguments[i]) << ", ";
-    }
+        arguments[i]->print(depth + 2);
 }
 
 AssignNode::AssignNode(std::string name, std::string type, Node *value)
@@ -148,11 +160,13 @@ AssignNode::AssignNode(std::string name, std::string type, Node *value)
     this->identifier = new IdentifierNode(name, type);
     this->value = value;
 }
-void AssignNode::print(std::ostream &os) const
+void AssignNode::print(int depth) const
 {
-    os << "AssignmentNode: " << std::endl;
-    os << "Left Side: " << identifier->getType() << " " << identifier->getName() << std::endl;
-    os << "Right Side: " << value;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "AssignmentNode: " << std::endl;
+    std::cout << depthTabs << "\tLeft Side: " << identifier->getType() << " " << identifier->getName() << std::endl;
+    std::cout << depthTabs << "\tRight Side: " << std::endl;
+    value->print(depth + 2);
 }
 
 BlockNode::BlockNode()
@@ -162,19 +176,17 @@ void BlockNode::addStatement(Node *stmt)
 {
     statements.push_back(stmt);
 }
-void BlockNode::print(std::ostream &os) const
+void BlockNode::print(int depth) const
 {
-    os << "BlockNode: \n";
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "BlockNode:" << std::endl;
     for (int i = 0; i < statements.size(); i++)
-        if (i == statements.size() - 1)
-            os << "\t" << *(statements[i]);
-        else
-            os << "\t" << *(statements[i]) << ", ";
+        statements[i]->print(depth + 1);
 }
 
-void StmtNode::print(std::ostream &os) const
+void StmtNode::print(int depth) const
 {
-    os << "StatementNode: \n";
+    std::cout << "StatementNode: \n";
 }
 
 IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
@@ -182,13 +194,14 @@ IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
     this->condition = condition;
     this->body = body;
 }
-void IfStmtNode::print(std::ostream &os) const
+void IfStmtNode::print(int depth) const
 {
-    os << "IfStatementNode: \n";
-    os << "Condition:" << std::endl;
-    os << condition << std::endl;
-    os << "Body:" << std::endl;
-    os << "\t" << *body << std::endl;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "IfStatementNode: \n";
+    std::cout << depthTabs << "\tCondition:" << std::endl;
+    condition->print(depth + 2);
+    std::cout << depthTabs << "\tBody:" << std::endl;
+    body->print(depth + 2);
 }
 
 ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
@@ -196,24 +209,26 @@ ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
     this->condition = condition;
     this->body = body;
 }
-void ElseIfStmtNode::print(std::ostream &os) const
+void ElseIfStmtNode::print(int depth) const
 {
-    os << "ElseIfStatementNode: \n";
-    os << "Condition:" << std::endl;
-    os << condition << std::endl;
-    os << "Body:" << std::endl;
-    os << "\t" << *body << std::endl;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "ElseIfStatementNode:" << std::endl;
+    std::cout << depthTabs << "\tCondition:" << std::endl;
+    condition->print(depth + 2);
+    std::cout << depthTabs << "\tBody:" << std::endl;
+    body->print(depth + 2);
 }
 
 ElseNode::ElseNode(BlockNode *body)
 {
     this->body = body;
 }
-void ElseNode::print(std::ostream &os) const
+void ElseNode::print(int depth) const
 {
-    os << "ElseStatementNode: \n";
-    os << "Body:" << std::endl;
-    os << "\t" << *body << std::endl;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "ElseStatementNode:" << std::endl;
+    std::cout << depthTabs << "\tBody:" << std::endl;
+    body->print(depth + 2);
 }
 
 WhileNode::WhileNode(Node *condition, BlockNode *body)
@@ -221,24 +236,26 @@ WhileNode::WhileNode(Node *condition, BlockNode *body)
     this->condition = condition;
     this->body = body;
 }
-void WhileNode::print(std::ostream &os) const
+void WhileNode::print(int depth) const
 {
-    os << "WhileStatementNode: \n";
-    os << "Condition:" << std::endl;
-    os << condition << std::endl;
-    os << "Body:" << std::endl;
-    os << "\t" << *body << std::endl;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "WhileStatementNode:" << std::endl;
+    std::cout << depthTabs << "\tCondition:" << std::endl;
+    condition->print(depth + 2);
+    std::cout << depthTabs << "\tBody:" << std::endl;
+    body->print(depth + 2);
 }
 
 ReturnStmtNode::ReturnStmtNode(Node *identifier)
 {
     this->identifier = identifier;
 }
-void ReturnStmtNode::print(std::ostream &os) const
+void ReturnStmtNode::print(int depth) const
 {
-    os << "ReturnNode: \n";
-    os << "Returning:" << std::endl;
-    os << "\t" << *identifier << std::endl;
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "ReturnNode:" << std::endl;
+    std::cout << depthTabs << "\tReturning:" << std::endl;
+    identifier->print(depth + 2);
 }
 
 AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens)
@@ -496,7 +513,8 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
                 }
             }
 
-            arguments.push_back(buildIdentifier(line, startArg, end - 1));
+            if (startArg <= end - 1)
+                arguments.push_back(buildIdentifier(line, startArg, end - 1));
             return new CallExprNode(line[start].getValue(), arguments);
         }
     }
@@ -511,33 +529,41 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
 
     for (int line = startLine; line < tokens.size(); line++)
     {
-        if (getNumTabs(tokens[line]) < tabs)
-        {
-            startLine = line;
-            break;
-        }
-
         if (!isValidLine(tokens[line]))
             continue;
 
-        if (getNthToken(tokens[line], 1).getValue() == "func")
+        if (getNumTabs(tokens[line]) < tabs)
         {
             startLine = line;
-            break;
+            return blockNode;
+        }
+
+        if (getNthToken(tokens[line], 1).getValue() == "func")
+        {
+            startLine = line - 1;
+            return blockNode;
         }
 
         int ifIndex = getTokenIndex(tokens[line], "IF");
         if (ifIndex != -1)
         {
             line++;
-            blockNode->addStatement(new IfStmtNode(buildIdentifier(tokens[line - 1], ifIndex + 1, tokens[line].size() - 3), buildBlock(tokens, line)));
+            Node *condition = buildIdentifier(tokens[line - 1], ifIndex + 1, tokens[line - 1].size() - 3);
+            BlockNode *block = buildBlock(tokens, line);
+            blockNode->addStatement(new IfStmtNode(condition, block));
+            startLine = line;
+            line--;
             continue;
         }
         int elseIfIndex = getTokenIndex(tokens[line], "ELSEIF");
         if (elseIfIndex != -1)
         {
             line++;
-            blockNode->addStatement(new ElseIfStmtNode(buildIdentifier(tokens[line - 1], elseIfIndex + 1, tokens[line].size() - 3), buildBlock(tokens, line)));
+            Node *condition = buildIdentifier(tokens[line - 1], elseIfIndex + 1, tokens[line - 1].size() - 3);
+            BlockNode *block = buildBlock(tokens, line);
+            blockNode->addStatement(new ElseIfStmtNode(condition, block));
+            startLine = line;
+            line--;
             continue;
         }
         int elseIndex = getTokenIndex(tokens[line], "ELSE");
@@ -545,6 +571,8 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
         {
             line++;
             blockNode->addStatement(new ElseNode(buildBlock(tokens, line)));
+            startLine = line;
+            line--;
             continue;
         }
 
@@ -552,7 +580,11 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
         if (whileIndex != -1)
         {
             line++;
-            blockNode->addStatement(new WhileNode(buildIdentifier(tokens[line - 1], whileIndex + 1, tokens[line].size() - 3), buildBlock(tokens, line)));
+            Node *condition = buildIdentifier(tokens[line - 1], whileIndex + 1, tokens[line - 1].size() - 3);
+            BlockNode *block = buildBlock(tokens, line);
+            blockNode->addStatement(new WhileNode(condition, block));
+            line--;
+            startLine = line;
             continue;
         }
 
@@ -574,6 +606,7 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
         startLine = line;
     }
 
+    startLine = tokens.size() - 1;
     return blockNode;
 }
 
@@ -589,7 +622,10 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
         {
             std::vector<std::string> information = getFunctionInformation(tokens[line]);
             line++;
+
             BlockNode *body = buildBlock(tokens, line);
+            line--;
+
             std::vector<ParamNode *> parameters;
 
             for (int i = 2; i < information.size(); i++)
@@ -607,11 +643,5 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
 
 void AbstractSyntaxTree::printTree() const
 {
-    std::cout << *root << std::endl;
-    for (Node *node : root->getChildren())
-    {
-        std::cout << "\t" << *node << std::endl;
-    }
-
-    std::cout << root->getChildren().size();
+    root->print();
 }
