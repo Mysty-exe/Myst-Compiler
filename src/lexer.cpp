@@ -1,5 +1,33 @@
 #include <compiler/lexer.h>
 
+bool validIdentifier(const std::string &identifier)
+{
+    for (int i = 0; i < identifier.size(); i++)
+    {
+        if (!std::isalpha(identifier[i]) && identifier[i] != '_')
+            return false;
+    }
+    return true;
+}
+
+bool validNumber(const std::string &number)
+{
+    bool decimal = false;
+    for (int i = 0; i < number.size(); i++)
+    {
+        if (number[i] == '.')
+        {
+            if (decimal)
+                return false;
+            decimal = true;
+        }
+
+        if (!(number[i] >= '0' && number[i] <= '9'))
+            return false;
+    }
+    return true;
+}
+
 const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "return", "import", "and", "or", "not"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "<", ">", "!", "==", "<=", ">=", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", ":", "<", ">", "(", ")", ",", ".", "!"};
@@ -17,9 +45,9 @@ Token::Token(std::string value, int line, int col)
 
     if (value.size() > 1 && value.substr(0, 2) == "//")
         type = TokenType::COMMENT;
-    else if (value[0] == '\"' || value[0] == '\'')
+    else if ((value[0] == '\"' && value[value.size() - 1] == '\"') || (value[0] == '\'' && value[value.size() - 1] == '\''))
         type = TokenType::STRING;
-    else if (std::isdigit(value[0]) || (value.size() > 1 && value[0] == '-' && std::isdigit(value[1])))
+    else if (validNumber(value))
     {
         if (std::count(value.begin(), value.end(), '.') == 1)
             type = TokenType::FLOAT;
@@ -96,8 +124,10 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::INDENT;
     else if (value == "")
         type = TokenType::ENDFILE;
-    else
+    else if (validIdentifier(value))
         type = TokenType::IDENTIFIER;
+    else
+        type = TokenType::UNKNOWN;
 }
 
 std::string
@@ -179,14 +209,21 @@ Token::getToken() const
         return "INDENT";
     case TokenType::ENDFILE:
         return "ENDFILE";
-    default:
+    case TokenType::IDENTIFIER:
         return "IDENTIFIER";
+    default:
+        return "UNKNOWN";
     }
 }
 
 std::string Token::getValue() const
 {
     return value;
+}
+
+int Token::getLineNumber() const
+{
+    return lineNumber;
 }
 
 Lexer::Lexer()
@@ -198,7 +235,7 @@ void Lexer::addTabsInLine(const std::string &line, int lineNum, int &col)
     for (int i = 0; i < line.size(); i++)
     {
         if (line[i] == '\t')
-            tokens[tokens.size() - 1].push_back(Token("\t", lineNum, col));
+            tokens[tokens.size() - 1].push_back(Token("\t", lineNum, col + 1));
         else
             break;
 
@@ -274,7 +311,8 @@ void Lexer::addCurrentToken(std::string &token, int lineNum, int col)
 {
     if (token.size() > 0)
     {
-        tokens[tokens.size() - 1].push_back(Token(token, lineNum + 1, col + 1));
+        Token t = Token(token, lineNum, col);
+        tokens[tokens.size() - 1].push_back(t);
         token = "";
     }
 }
@@ -291,7 +329,7 @@ void Lexer::tokenizeFile(std::ifstream &file)
     {
         tokens.push_back({});
         int col = 0;
-        addTabsInLine(line, lineNum, col);
+        addTabsInLine(line, lineNum + 1, col);
 
         for (col; col < line.size(); col++)
         {
@@ -304,7 +342,6 @@ void Lexer::tokenizeFile(std::ifstream &file)
             if (commentStarted(line, col))
             {
                 addCurrentToken(currentToken, lineNum + 1, col + 1);
-                tokens[tokens.size() - 1].push_back(Token(line.substr(col), lineNum + 1, col + 1));
                 break;
             }
 

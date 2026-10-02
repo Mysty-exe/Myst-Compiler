@@ -65,6 +65,7 @@ public:
     Token(std::string value, int line, int col);
     std::string getValue() const;
     std::string getToken() const;
+    int getLineNumber() const;
     static const std::vector<std::string> keywords, operators, oneCharOperators, twoCharOperators;
 };
 
