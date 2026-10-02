@@ -1,5 +1,18 @@
 #include "compiler/ast.h"
 
+void throwSyntaxError(std::string message)
+{
+    try
+    {
+        throw SyntaxError(message);
+    }
+    catch (const SyntaxError &e)
+    {
+        std::cerr << "SyntaxError: " << e.what() << std::endl;
+        exit(-1);
+    }
+}
+
 std::string repeat_string(const std::string &input, size_t num)
 {
     std::string result;
@@ -111,6 +124,8 @@ ParamNode::ParamNode(std::string identifier)
             return;
         }
     }
+
+    throwSyntaxError("Parameter type not found.");
 }
 ParamNode::ParamNode(std::string name, std::string returnType)
 {
@@ -373,7 +388,8 @@ Token AbstractSyntaxTree::getNthToken(const std::vector<Token> &tokenLine, int n
         }
     }
 
-    throw std::invalid_argument("Invalid argument provided.");
+    throwSyntaxError("Line couldn't be parsed.");
+    exit(-1);
 }
 
 int AbstractSyntaxTree::getNextDedentedLine(const std::vector<std::vector<Token>> &tokens, int startLine) const
@@ -392,7 +408,11 @@ int AbstractSyntaxTree::getNextDedentedLine(const std::vector<std::vector<Token>
 std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::vector<Token> &tokenLine) const
 {
     std::vector<std::string> result;
-    result.push_back(getNthToken(tokenLine, 2).getValue());
+    Token name = getNthToken(tokenLine, 2);
+    if (name.getToken() == "IDENTIFIER")
+        result.push_back(name.getValue());
+    else
+        throwSyntaxError("Function Name Not Found.");
 
     int arrowIndex = getTokenIndex(tokenLine, "ARROW");
     std::string returnType = "void";
@@ -400,10 +420,14 @@ std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::v
         returnType = tokenLine[arrowIndex + 1].getValue();
     result.push_back(returnType);
 
+    int colonIndex = getTokenIndex(tokenLine, "COLON", true);
+    if (colonIndex == -1)
+        throwSyntaxError("Function is missing a colon.");
+
     int startParams = 3;
     int endParams;
     if (arrowIndex == -1)
-        endParams = getTokenIndex(tokenLine, "COLON", true) - 2;
+        endParams = colonIndex - 2;
     else
         endParams = arrowIndex - 2;
 
@@ -623,15 +647,15 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
             std::vector<std::string> information = getFunctionInformation(tokens[line]);
             line++;
 
-            BlockNode *body = buildBlock(tokens, line);
-            line--;
-
             std::vector<ParamNode *> parameters;
 
             for (int i = 2; i < information.size(); i++)
             {
                 parameters.push_back(new ParamNode(information[i]));
             }
+
+            BlockNode *body = buildBlock(tokens, line);
+            line--;
 
             root->addNode(new FuncNode(information[0], information[1], parameters, body));
             continue;

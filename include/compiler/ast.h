@@ -1,8 +1,12 @@
 #pragma once
 #include "lexer.h"
+#include "error.h"
 
 struct Node
 {
+protected:
+    int line;
+
 public:
     Node();
     virtual void print(int depth = 0) const = 0;
