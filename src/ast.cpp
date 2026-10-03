@@ -1,5 +1,20 @@
 #include "compiler/ast.h"
 
+void throwLexicalError(int line, std::string message)
+{
+    try
+    {
+        throw LexicalError(message);
+    }
+    catch (const LexicalError &e)
+    {
+        std::cerr << "\033[31m";
+        std::cerr << "Lexical Error on line " << line << ": " << e.what() << std::endl;
+        std::cerr << "\033[0m";
+        exit(-1);
+    }
+}
+
 void throwSyntaxError(int line, std::string message)
 {
     try
@@ -8,7 +23,31 @@ void throwSyntaxError(int line, std::string message)
     }
     catch (const SyntaxError &e)
     {
-        std::cerr << "SyntaxError on line " << line << ": " << e.what() << std::endl;
+        std::cerr << "\033[31m";
+        std::cerr << "Syntax Error on line " << line << ": " << e.what() << std::endl;
+        std::cerr << "\033[0m";
+        exit(-1);
+    }
+}
+
+void throwSemanticWarning(int line, std::string message)
+{
+    std::cout << "\033[38;5;208m";
+    std::cout << "Warning on line " << line << ": " << message << std::endl;
+    std::cout << "\033[38;5;208m";
+}
+
+void throwSemanticError(int line, std::string message)
+{
+    try
+    {
+        throw SemanticError(message);
+    }
+    catch (const SemanticError &e)
+    {
+        std::cerr << "\033[31m";
+        std::cerr << "Semantic Error on line " << line << ": " << e.what() << std::endl;
+        std::cerr << "\033[0m";
         exit(-1);
     }
 }
@@ -297,6 +336,11 @@ AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &to
     buildTree(tokens);
 }
 
+RootNode *AbstractSyntaxTree::getRoot() const
+{
+    return root;
+}
+
 const std::vector<std::vector<std::string>> AbstractSyntaxTree::operatorPrecedence =
     {
         {"STAR", "SLASH"},
@@ -349,7 +393,7 @@ bool AbstractSyntaxTree::isValidLine(const std::vector<Token> &tokens) const
     for (const Token &token : tokens)
     {
         if (token.getToken() == "UNKNOWN")
-            throwSyntaxError(token.getLineNumber(), "Unexpected token, '" + token.getValue() + "'");
+            throwLexicalError(token.getLineNumber(), "Unexpected token, '" + token.getValue() + "'");
     }
 
     for (const Token &token : tokens)

@@ -3,6 +3,7 @@
 #include <string>
 #include "compiler/lexer.h"
 #include "compiler/ast.h"
+#include "compiler/semantic_analyzer.h"
 
 void printHelp()
 {
@@ -31,6 +32,8 @@ void parseFile(std::ifstream &inputFile)
 
     AbstractSyntaxTree ast(lexer.getTokens());
     ast.printTree();
+
+    SemanticAnalyzer::analyzeTree(ast.getRoot());
 }
 
 int main(int argc, char *argv[])
