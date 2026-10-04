@@ -5,7 +5,6 @@
 
 class SemanticAnalyzer
 {
-private:
 public:
-    static void analyzeTree(Node *rootNode);
+    static void analyzeTree(RootNode *rootNode);
 };

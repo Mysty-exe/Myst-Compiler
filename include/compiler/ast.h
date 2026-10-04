@@ -1,4 +1,5 @@
 #pragma once
+#include <unordered_map>
 #include "lexer.h"
 #include "error.h"
 
@@ -10,6 +11,7 @@ protected:
 public:
     Node();
     virtual ~Node() = default;
+    virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope);
     virtual void print(int depth = 0) const = 0;
     int getLine() const;
     void setLine(int line);
@@ -25,6 +27,7 @@ public:
     void addNode(Node *node);
     std::vector<Node *> getChildren();
     virtual void print(int depth = 0) const override;
+    virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope) override;
 };
 
 template <typename T>
@@ -82,6 +85,17 @@ public:
     virtual void print(int depth = 0) const override;
 };
 
+struct CallExprNode : StmtNode
+{
+private:
+    std::string name;
+    std::vector<Node *> arguments;
+
+public:
+    CallExprNode(std::string name, std::vector<Node *> arguments);
+    virtual void print(int depth = 0) const override;
+};
+
 struct AssignNode : StmtNode
 {
 private:
@@ -114,6 +128,7 @@ public:
     int getNumStatements() const;
     std::vector<Node *> getStatements() const;
     virtual void print(int depth = 0) const override;
+    virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope) override;
 };
 
 struct ParamNode : Node
@@ -139,17 +154,7 @@ private:
 public:
     FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body);
     virtual void print(int depth = 0) const override;
-};
-
-struct CallExprNode : Node
-{
-private:
-    std::string name;
-    std::vector<Node *> arguments;
-
-public:
-    CallExprNode(std::string name, std::vector<Node *> arguments);
-    virtual void print(int depth = 0) const override;
+    virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope) override;
 };
 
 struct IfStmtNode : Node

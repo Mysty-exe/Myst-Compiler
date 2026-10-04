@@ -94,6 +94,10 @@ void Node::setLine(int line)
     this->line = line;
 }
 
+void Node::checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope)
+{
+}
+
 RootNode::RootNode()
 {
 }
@@ -113,6 +117,12 @@ void RootNode::print(int depth) const
         node->print(depth + 1);
         std::cout << std::endl;
     }
+}
+
+void RootNode::checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope)
+{
+    for (Node *child : children)
+        child->checkSemantics(scope, visibleScope);
 }
 
 template <typename T>
@@ -268,6 +278,10 @@ void FuncNode::print(int depth) const
     body->print(depth + 1);
 }
 
+void FuncNode::checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope)
+{
+}
+
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
 {
     this->name = name;
@@ -295,6 +309,9 @@ void AssignNode::print(int depth) const
     std::cout << depthTabs << "\tRight Side: " << std::endl;
     value->print(depth + 2);
 }
+void BlockNode::checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope)
+{
+}
 
 BlockNode::BlockNode()
 {
@@ -318,7 +335,11 @@ void BlockNode::print(int depth) const
     for (int i = 0; i < statements.size(); i++)
         statements[i]->print(depth + 1);
 }
-
+void BlockNode::checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope)
+{
+    for (Node *statement : statements)
+        statement->checkSemantics(scope, visibleScope);
+}
 void StmtNode::print(int depth) const
 {
     std::cout << "StatementNode: \n";
