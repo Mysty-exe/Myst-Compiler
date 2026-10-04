@@ -64,6 +64,22 @@ std::string repeat_string(const std::string &input, size_t num)
     return result;
 }
 
+std::string getDataTypeStr(const std::string &str)
+{
+    if (str == "CHARTYPE")
+        return "char";
+    if (str == "STRINGTYPE")
+        return "string";
+    if (str == "INTTYPE")
+        return "int";
+    if (str == "DECIMALTYPE")
+        return "decimal";
+    if (str == "BOOLTYPE")
+        return "bool";
+
+    return "unknown";
+}
+
 Node::Node()
 {
 }
@@ -99,11 +115,14 @@ void RootNode::print(int depth) const
     }
 }
 
-LiteralNode::LiteralNode(std::string value)
+template <typename T>
+LiteralNode<T>::LiteralNode(T value)
 {
     this->value = value;
 }
-void LiteralNode::print(int depth) const
+
+template <typename T>
+void LiteralNode<T>::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "LiteralNode: " << value << std::endl;
@@ -112,25 +131,35 @@ void LiteralNode::print(int depth) const
 IdentifierNode::IdentifierNode(std::string name)
 {
     this->name = name;
-    this->type = "";
+    this->type = TokenType::UNKNOWN;
 }
 IdentifierNode::IdentifierNode(std::string name, std::string returnType)
 {
     this->name = name;
-    this->type = returnType;
+
+    if (returnType == "char")
+        this->type = TokenType::CHARTYPE;
+    if (returnType == "string")
+        this->type = TokenType::STRINGTYPE;
+    if (returnType == "int")
+        this->type = TokenType::INTTYPE;
+    if (returnType == "decimal")
+        this->type = TokenType::DECIMALTYPE;
+    if (returnType == "bool")
+        this->type = TokenType::BOOLTYPE;
 }
 std::string IdentifierNode::getName() const
 {
     return name;
 }
-std::string IdentifierNode::getType() const
+TokenType IdentifierNode::getType() const
 {
     return type;
 }
 void IdentifierNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
-    std::cout << depthTabs << "IdentifierNode: " << type << " " << name << std::endl;
+    std::cout << depthTabs << "IdentifierNode: " << getDataTypeStr(Token::getType(type)) << " " << name << std::endl;
 }
 
 BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
@@ -168,37 +197,71 @@ ParamNode::ParamNode(std::string identifier)
     {
         if (identifier[i] == ' ')
         {
-            name = identifier.substr(i);
-            returnType = identifier.substr(0, i);
+            name = identifier.substr(i + 1);
+
+            std::string type = identifier.substr(0, i);
+            if (type == "char")
+                this->type = TokenType::CHARTYPE;
+            else if (type == "string")
+                this->type = TokenType::STRINGTYPE;
+            else if (type == "int")
+                this->type = TokenType::INTTYPE;
+            else if (type == "decimal")
+                this->type = TokenType::DECIMALTYPE;
+            else if (type == "bool")
+                this->type = TokenType::BOOLTYPE;
+            else
+                throwSyntaxError(line, "Unexpected type for '" + name + "' found.");
+
             return;
         }
     }
 
     throwSyntaxError(line, "Missing parameter type (or name) for '" + identifier + "'");
 }
-ParamNode::ParamNode(std::string name, std::string returnType)
+ParamNode::ParamNode(std::string name, std::string type)
 {
     this->name = name;
-    this->returnType = returnType;
+
+    if (type == "char")
+        this->type = TokenType::CHARTYPE;
+    if (type == "string")
+        this->type = TokenType::STRINGTYPE;
+    if (type == "int")
+        this->type = TokenType::INTTYPE;
+    if (type == "decimal")
+        this->type = TokenType::DECIMALTYPE;
+    if (type == "bool")
+        this->type = TokenType::BOOLTYPE;
 }
 void ParamNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
-    std::cout << depthTabs << "ParameterNode: " << returnType << name << std::endl;
+    std::cout << depthTabs << "ParameterNode: " << getDataTypeStr(Token::getType(type)) << " " << name << std::endl;
 }
 
 FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body)
 {
     this->name = name;
-    this->returnType = returnType;
     this->parameters = parameters;
     this->body = body;
+
+    if (returnType == "char")
+        this->returnType = TokenType::CHARTYPE;
+    if (returnType == "string")
+        this->returnType = TokenType::STRINGTYPE;
+    if (returnType == "int")
+        this->returnType = TokenType::INTTYPE;
+    if (returnType == "decimal")
+        this->returnType = TokenType::DECIMALTYPE;
+    if (returnType == "bool")
+        this->returnType = TokenType::BOOLTYPE;
 }
 void FuncNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "FunctionNode: " << name << std::endl;
-    std::cout << depthTabs << "\tReturn Type: " << returnType << std::endl;
+    std::cout << depthTabs << "\tReturn Type: " << getDataTypeStr(Token::getType(returnType)) << std::endl;
     std::cout << depthTabs << "\tParameters: " << std::endl;
     for (int i = 0; i < parameters.size(); i++)
         parameters[i]->print(depth + 2);
@@ -228,7 +291,7 @@ void AssignNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "AssignmentNode: " << std::endl;
-    std::cout << depthTabs << "\tLeft Side: " << identifier->getType() << " " << identifier->getName() << std::endl;
+    std::cout << depthTabs << "\tLeft Side: " << getDataTypeStr(Token::getType(identifier->getType())) << " " << identifier->getName() << std::endl;
     std::cout << depthTabs << "\tRight Side: " << std::endl;
     value->print(depth + 2);
 }
@@ -327,7 +390,10 @@ void ReturnStmtNode::print(int depth) const
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "ReturnNode:" << std::endl;
     std::cout << depthTabs << "\tReturning:" << std::endl;
-    identifier->print(depth + 2);
+    if (identifier == nullptr)
+        std::cout << depthTabs << "\t\tVoid" << std::endl;
+    else
+        identifier->print(depth + 2);
 }
 
 AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens)
@@ -377,6 +443,11 @@ int AbstractSyntaxTree::getNumTabs(const std::vector<Token> &tokenLine) const
     }
 
     return tabs;
+}
+
+bool AbstractSyntaxTree::isDataType(const std::string &str) const
+{
+    return (str == "CHARTYPE" || str == "STRINGTYPE" || str == "INTTYPE" || str == "DECIMALTYPE" || str == "BOOLTYPE");
 }
 
 bool AbstractSyntaxTree::isValidToken(Token token) const
@@ -480,14 +551,14 @@ std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::v
     if (name.getToken() == "IDENTIFIER")
         result.push_back(name.getValue());
     else
-        throwSyntaxError(name.getLineNumber(), "Expected identifier after 'func' not found.");
+        throwSyntaxError(name.getLineNumber(), "Unexpected identifier after 'func' found.");
 
     int arrowIndex = getTokenIndex(tokenLine, "ARROW");
     std::string returnType = "void";
     if (arrowIndex != -1)
     {
-        if (tokenLine[arrowIndex + 1].getToken() != "IDENTIFIER")
-            throwSyntaxError(tokenLine[arrowIndex + 1].getLineNumber(), "Unexpected keyword '" + tokenLine[arrowIndex + 1].getValue() + "' used as the function return type.");
+        if (!isDataType(tokenLine[arrowIndex + 1].getToken()))
+            throwSyntaxError(tokenLine[arrowIndex + 1].getLineNumber(), "Unexpected idenifier '" + tokenLine[arrowIndex + 1].getValue() + "' used as the function return type.");
         returnType = tokenLine[arrowIndex + 1].getValue();
     }
     result.push_back(returnType);
@@ -511,15 +582,18 @@ std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::v
             result.push_back(currentParameter);
             currentParameter = "";
         }
-        else if (tokenLine[i].getToken() == "IDENTIFIER" || currentParameter.size() == 0 && tokenLine[i].getToken() == "VAR")
+        else
         {
             if (currentParameter.size() > 0)
-                currentParameter += " " + tokenLine[i].getValue();
+            {
+                if (tokenLine[i].getToken() == "IDENTIFIER")
+                    currentParameter += " " + tokenLine[i].getValue();
+                else
+                    throwSyntaxError(tokenLine[i].getLineNumber(), "Unexpected identifier '" + tokenLine[i].getValue() + "' used as parameter name.");
+            }
             else
                 currentParameter += tokenLine[i].getValue();
         }
-        else
-            throwSyntaxError(0, "Unexpected keyword '" + tokenLine[i].getValue() + "' used in function signature.");
     }
 
     if (currentParameter.size() > 0)
@@ -549,8 +623,23 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
         std::string tokenType = line[start].getToken();
         if (tokenType == "IDENTIFIER")
             return new IdentifierNode(line[start].getValue());
-        else if (tokenType != "UNKNOWN")
+        else if (tokenType == "CHAR")
+            return new LiteralNode(line[start].getValue()[0]);
+        else if (tokenType == "STRING")
             return new LiteralNode(line[start].getValue());
+        else if (tokenType == "INT")
+            return new LiteralNode(std::stoi(line[start].getValue()));
+        else if (tokenType == "DECIMAL")
+            return new LiteralNode(std::stoi(line[start].getValue()));
+        else if (tokenType == "BOOL")
+        {
+            if (line[start].getValue() == "true")
+                return new LiteralNode(true);
+            else if (line[start].getValue() == "false")
+                return new LiteralNode(false);
+        }
+        else
+            throwSyntaxError(line[start].getLineNumber(), "Unexpected Identifier '" + line[start].getValue() + "' found.");
     }
     else if (hasOperator(line, start, end))
     {
@@ -673,7 +762,6 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
                 throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'elseif' statement found.");
 
             line++;
-            std::cout << "FDSKLJFD " << tokens.size() << std::endl;
 
             if (blockNode->getNumStatements() == 0 || !dynamic_cast<IfStmtNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
                 throwSyntaxError(line, "'elseif' statement found without a preceding 'if' statement.");
@@ -740,7 +828,11 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
         if (assignIndex != -1)
         {
             if (tokens[line][assignIndex - 1].getToken() != "IDENTIFIER")
-                throwSyntaxError(tokens[line][0].getLineNumber(), "Reserved keyword '" + tokens[line][assignIndex - 1].getValue() + "' can't be used as a variable name.");
+                throwSyntaxError(tokens[line][0].getLineNumber(), "'" + tokens[line][assignIndex - 1].getValue() + "' can't be used as a variable name.");
+
+            std::string type = splitLine(tokens[line], tabs, assignIndex - 2);
+            if (type != "" && !isDataType(tokens[line][assignIndex - 2].getToken()) && tokens[line][assignIndex - 2].getToken() != "VAR")
+                throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected type used for variable '" + tokens[line][assignIndex - 1].getValue() + "'.");
 
             blockNode->addStatement(new AssignNode(tokens[line][assignIndex - 1].getValue(), splitLine(tokens[line], tabs, assignIndex - 2), buildIdentifier(tokens[line], assignIndex + 1, tokens[line].size() - 2)));
             continue;
@@ -751,9 +843,10 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (!inFunction)
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'return' statement found outside of a function.");
             if (getNumValidTokens(tokens[line]) < 2)
-                throwSyntaxError(tokens[line][0].getLineNumber(), "Expected identifier after 'return' statement.");
+                blockNode->addStatement(new ReturnStmtNode());
+            else
+                blockNode->addStatement(new ReturnStmtNode(buildIdentifier(tokens[line], returnIndex + 1, tokens[line].size() - 2)));
 
-            blockNode->addStatement(new ReturnStmtNode(buildIdentifier(tokens[line], returnIndex + 1, tokens[line].size() - 2)));
             continue;
         }
 
@@ -782,7 +875,11 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
             std::vector<ParamNode *> parameters;
 
             for (int i = 2; i < information.size(); i++)
+            {
+                ParamNode *parameter = new ParamNode(information[i]);
+                parameter->setLine(line + 1);
                 parameters.push_back(new ParamNode(information[i]));
+            }
 
             BlockNode *body = buildBlock(tokens, line, 1, true);
             if (body->getNumStatements() == 0)

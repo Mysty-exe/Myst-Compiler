@@ -9,8 +9,6 @@
 enum class TokenType
 {
     FUNC,
-    STRUCT,
-    CONST,
     VAR,
     IF,
     ELSEIF,
@@ -19,11 +17,17 @@ enum class TokenType
     WHILE,
     BREAK,
     RETURN,
-    IMPORT,
     IDENTIFIER,
-    INT,
-    FLOAT,
+    CHARTYPE,
+    STRINGTYPE,
+    INTTYPE,
+    DECIMALTYPE,
+    BOOLTYPE,
+    CHAR,
     STRING,
+    INT,
+    DECIMAL,
+    BOOL,
     COMMENT,
     ASSIGN,
     PLUS,
@@ -48,7 +52,6 @@ enum class TokenType
     DOT,
     NEWLINE,
     INDENT,
-    ENDFILE,
     UNKNOWN
 };
 
@@ -63,10 +66,11 @@ private:
 public:
     Token();
     Token(std::string value, int line, int col);
-    std::string getValue() const;
+    static std::string getType(TokenType type);
     std::string getToken() const;
+    std::string getValue() const;
     int getLineNumber() const;
-    static const std::vector<std::string> keywords, operators, oneCharOperators, twoCharOperators;
+    static const std::vector<std::string> keywords, dataTypes, operators, oneCharOperators, twoCharOperators;
 };
 
 class Lexer

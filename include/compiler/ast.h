@@ -27,13 +27,14 @@ public:
     virtual void print(int depth = 0) const override;
 };
 
+template <typename T>
 struct LiteralNode : Node
 {
 private:
-    std::string value;
+    T value;
 
 public:
-    LiteralNode(std::string value);
+    LiteralNode(T value);
     virtual void print(int depth = 0) const override;
 };
 
@@ -41,13 +42,13 @@ struct IdentifierNode : Node
 {
 private:
     std::string name;
-    std::string type;
+    TokenType type;
 
 public:
     IdentifierNode(std::string name);
     IdentifierNode(std::string name, std::string returnType);
     std::string getName() const;
-    std::string getType() const;
+    TokenType getType() const;
     virtual void print(int depth = 0) const override;
 };
 
@@ -98,7 +99,7 @@ private:
     Node *identifier;
 
 public:
-    ReturnStmtNode(Node *identifier);
+    ReturnStmtNode(Node *identifier = nullptr);
     virtual void print(int depth = 0) const override;
 };
 
@@ -118,18 +119,20 @@ public:
 struct ParamNode : Node
 {
 private:
-    std::string name, returnType;
+    TokenType type;
+    std::string name;
 
 public:
     ParamNode(std::string identifier);
-    ParamNode(std::string name, std::string returnType);
+    ParamNode(std::string name, std::string type);
     virtual void print(int depth = 0) const override;
 };
 
 struct FuncNode : Node
 {
 private:
-    std::string name, returnType;
+    std::string name;
+    TokenType returnType;
     std::vector<ParamNode *> parameters;
     BlockNode *body;
 
@@ -197,6 +200,7 @@ class AbstractSyntaxTree
 private:
     RootNode *root;
     static const std::vector<std::vector<std::string>> operatorPrecedence;
+    bool isDataType(const std::string &str) const;
     bool isValidToken(Token token) const;
     bool isValidLine(const std::vector<Token> &tokens) const;
     int getNumValidTokens(const std::vector<Token> &line) const;

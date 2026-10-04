@@ -29,6 +29,7 @@ bool validNumber(const std::string &number)
 }
 
 const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "return", "import", "and", "or", "not"};
+const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "<", ">", "!", "==", "<=", ">=", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", ":", "<", ">", "(", ")", ",", ".", "!"};
 const std::vector<std::string> Token::twoCharOperators = {"==", "<=", ">=", "&&", "||", "->"};
@@ -45,21 +46,37 @@ Token::Token(std::string value, int line, int col)
 
     if (value.size() > 1 && value.substr(0, 2) == "//")
         type = TokenType::COMMENT;
-    else if ((value[0] == '\"' && value[value.size() - 1] == '\"') || (value[0] == '\'' && value[value.size() - 1] == '\''))
+    else if (value.size() == 3 && value[0] == '\'' && value[value.size() - 1] == '\'')
+    {
+        value = value[1];
+        type = TokenType::CHAR;
+    }
+    else if ((value[0] == '\"' && value[value.size() - 1] == '\"'))
+    {
+        value = value.substr(1, value.size() - 1);
         type = TokenType::STRING;
+    }
     else if (validNumber(value))
     {
         if (std::count(value.begin(), value.end(), '.') == 1)
-            type = TokenType::FLOAT;
+            type = TokenType::DECIMAL;
         else if (std::count(value.begin(), value.end(), '.') == 0)
             type = TokenType::INT;
     }
+    else if (value == "true" || value == "false")
+        type = TokenType::BOOL;
+    else if (value == "char")
+        type = TokenType::CHARTYPE;
+    else if (value == "string")
+        type = TokenType::STRINGTYPE;
+    else if (value == "int")
+        type = TokenType::INTTYPE;
+    else if (value == "decimal")
+        type = TokenType::DECIMALTYPE;
+    else if (value == "bool")
+        type = TokenType::BOOLTYPE;
     else if (value == "func")
         type = TokenType::FUNC;
-    else if (value == "struct")
-        type = TokenType::STRUCT;
-    else if (value == "const")
-        type = TokenType::CONST;
     else if (value == "var")
         type = TokenType::VAR;
     else if (value == "if")
@@ -76,8 +93,6 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::BREAK;
     else if (value == "return")
         type = TokenType::RETURN;
-    else if (value == "import")
-        type = TokenType::IMPORT;
     else if (value == "=")
         type = TokenType::ASSIGN;
     else if (value == "+")
@@ -122,33 +137,40 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::NEWLINE;
     else if (value == "\t")
         type = TokenType::INDENT;
-    else if (value == "")
-        type = TokenType::ENDFILE;
     else if (validIdentifier(value))
         type = TokenType::IDENTIFIER;
     else
         type = TokenType::UNKNOWN;
 }
 
-std::string
-Token::getToken() const
+std::string Token::getType(TokenType type)
 {
     switch (type)
     {
     case TokenType::COMMENT:
         return "COMMENT";
+    case TokenType::CHAR:
+        return "CHAR";
     case TokenType::STRING:
         return "STRING";
     case TokenType::INT:
         return "INT";
-    case TokenType::FLOAT:
-        return "FLOAT";
+    case TokenType::DECIMAL:
+        return "DECIMAL";
+    case TokenType::BOOL:
+        return "BOOL";
+    case TokenType::CHARTYPE:
+        return "CHARTYPE";
+    case TokenType::STRINGTYPE:
+        return "STRINGTYPE";
+    case TokenType::INTTYPE:
+        return "INTTYPE";
+    case TokenType::DECIMALTYPE:
+        return "DECIMALTYPE";
+    case TokenType::BOOLTYPE:
+        return "BOOLTYPE";
     case TokenType::FUNC:
         return "FUNC";
-    case TokenType::STRUCT:
-        return "STRUCT";
-    case TokenType::CONST:
-        return "CONST";
     case TokenType::VAR:
         return "VAR";
     case TokenType::IF:
@@ -165,8 +187,6 @@ Token::getToken() const
         return "BREAK";
     case TokenType::RETURN:
         return "RETURN";
-    case TokenType::IMPORT:
-        return "IMPORT";
     case TokenType::ASSIGN:
         return "ASSIGN";
     case TokenType::PLUS:
@@ -207,13 +227,16 @@ Token::getToken() const
         return "NEWLINE";
     case TokenType::INDENT:
         return "INDENT";
-    case TokenType::ENDFILE:
-        return "ENDFILE";
     case TokenType::IDENTIFIER:
         return "IDENTIFIER";
     default:
         return "UNKNOWN";
     }
+}
+
+std::string Token::getToken() const
+{
+    return Token::getType(type);
 }
 
 std::string Token::getValue() const

@@ -1,2 +1,4 @@
-func doing_something(var sum):
-	string test = "fdklfdsk
+func doSomething(string x) -> bool:
+	print("Hello " + x + " !")
+	bool isWorking = true
+	return isWorking
