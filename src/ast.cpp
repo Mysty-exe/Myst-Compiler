@@ -76,6 +76,8 @@ std::string getDataTypeStr(const std::string &str)
         return "decimal";
     if (str == "BOOLTYPE")
         return "bool";
+    if (str == "VAR")
+        return "var";
 
     return "unknown";
 }
@@ -94,8 +96,16 @@ void Node::setLine(int line)
     this->line = line;
 }
 
-void Node::checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope)
+bool Node::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
 {
+    return true;
+}
+void Node::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+{
+}
+std::string Node::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+{
+    return "";
 }
 
 RootNode::RootNode()
@@ -111,7 +121,6 @@ std::vector<Node *> RootNode::getChildren()
 }
 void RootNode::print(int depth) const
 {
-    std::cout << "Root:" << std::endl;
     for (Node *node : children)
     {
         node->print(depth + 1);
@@ -119,16 +128,33 @@ void RootNode::print(int depth) const
     }
 }
 
-void RootNode::checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope)
+void RootNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
 {
+    visibleScope.push_back("global");
     for (Node *child : children)
         child->checkSemantics(scope, visibleScope);
 }
 
+void RootNode::sendWarnings(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope)
+{
+    for (const auto &[_, identifier] : scope)
+    {
+        for (int i = 0; i < identifier.size(); i++)
+        {
+            if (identifier[i][1] == "false")
+                if (identifier[i][2] == "func")
+                    throwSemanticWarning(std::stoi(identifier[i][0]), "Unused function '" + identifier[i][3] + "' found.");
+                else
+                    throwSemanticWarning(std::stoi(identifier[i][0]), "Unused variable '" + identifier[i][3] + "' found.");
+        }
+    }
+}
+
 template <typename T>
-LiteralNode<T>::LiteralNode(T value)
+LiteralNode<T>::LiteralNode(T value, std::string type)
 {
     this->value = value;
+    this->type = type;
 }
 
 template <typename T>
@@ -138,25 +164,63 @@ void LiteralNode<T>::print(int depth) const
     std::cout << depthTabs << "LiteralNode: " << value << std::endl;
 }
 
+template <typename T>
+bool LiteralNode<T>::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+{
+    if (this->type == "CHAR" && type == "CHARTYPE")
+        return true;
+    if (this->type == "STRING" && type == "STRINGTYPE")
+        return true;
+    if (this->type == "INT" && type == "INTTYPE")
+        return true;
+    if (this->type == "DECIMAL" && type == "DECIMALTYPE")
+        return true;
+    if (this->type == "BOOL" && type == "BOOLTYPE")
+        return true;
+
+    return false;
+}
+
+template <typename T>
+std::string LiteralNode<T>::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+{
+    if (this->type == "CHAR")
+        return "CHARTYPE";
+    if (this->type == "STRING")
+        return "STRINGTYPE";
+    if (this->type == "INT")
+        return "INTTYPE";
+    if (this->type == "DECIMAL")
+        return "DECIMALTYPE";
+    if (this->type == "BOOL")
+        return "BOOLTYPE";
+
+    return "";
+}
+
 IdentifierNode::IdentifierNode(std::string name)
 {
     this->name = name;
     this->type = TokenType::UNKNOWN;
 }
-IdentifierNode::IdentifierNode(std::string name, std::string returnType)
+IdentifierNode::IdentifierNode(std::string name, std::string type)
 {
     this->name = name;
 
-    if (returnType == "char")
+    if (type == "char")
         this->type = TokenType::CHARTYPE;
-    if (returnType == "string")
+    else if (type == "string")
         this->type = TokenType::STRINGTYPE;
-    if (returnType == "int")
+    else if (type == "int")
         this->type = TokenType::INTTYPE;
-    if (returnType == "decimal")
+    else if (type == "decimal")
         this->type = TokenType::DECIMALTYPE;
-    if (returnType == "bool")
+    else if (type == "bool")
         this->type = TokenType::BOOLTYPE;
+    else if (type == "var")
+        this->type = TokenType::VAR;
+    else
+        this->type = TokenType::UNKNOWN;
 }
 std::string IdentifierNode::getName() const
 {
@@ -170,6 +234,44 @@ void IdentifierNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "IdentifierNode: " << getDataTypeStr(Token::getType(type)) << " " << name << std::endl;
+}
+bool IdentifierNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+{
+    for (int i = 0; i < visibleScope.size(); i++)
+    {
+        auto currentScope = scope[visibleScope[i]];
+        for (int j = 0; j < currentScope.size(); j++)
+        {
+            auto currentIdentifier = currentScope[j];
+            if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "var" && name == currentIdentifier[3])
+            {
+                scope[visibleScope[i]][j][1] = "true";
+                return (type == currentIdentifier[4]);
+            }
+        }
+    }
+
+    throwSemanticError(line, "'" + name + "' hasn't been declared.");
+    return false;
+}
+std::string IdentifierNode::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+{
+    for (int i = 0; i < visibleScope.size(); i++)
+    {
+        auto currentScope = scope[visibleScope[i]];
+        for (int j = 0; j < currentScope.size(); j++)
+        {
+            auto currentIdentifier = currentScope[j];
+            if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "var" && name == currentIdentifier[3])
+            {
+                scope[visibleScope[i]][j][1] = "true";
+                return currentIdentifier[4];
+            }
+        }
+    }
+
+    throwSemanticError(line, "'" + name + "' hasn't been declared.");
+    return "";
 }
 
 BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
@@ -187,6 +289,42 @@ void BinaryExprNode::print(int depth) const
     std::cout << depthTabs << "\tRight:\n";
     right->print(depth + 2);
 }
+bool BinaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+{
+    if ((op == "and" || op == "or" || op == "&&" || op == "||") && type != "BOOLTYPE")
+    {
+        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        return false;
+    }
+    if ((op == "+" || op == "-" || op == "*" || op == "/" || op == ">" || op == "<" || op == ">=" || op == "<=") && (type != "INTTYPE" && type != "DECIMALTYPE"))
+    {
+        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        return false;
+    }
+    return right->checkType(scope, visibleScope, type) && left->checkType(scope, visibleScope, type);
+}
+std::string BinaryExprNode::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+{
+    std::string leftType = left->inferType(scope, visibleScope), rightType = right->inferType(scope, visibleScope);
+    if (leftType != rightType)
+    {
+        throwSemanticError(line, "Mismatched types found with '" + op + "' operator.");
+        return "";
+    }
+
+    if ((op == "and" || op == "or" || op == "&&" || op == "||") && leftType != "BOOLTYPE")
+    {
+        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        return "";
+    }
+    if ((op == "+" || op == "-" || op == "*" || op == "/" || op == ">" || op == "<" || op == ">=" || op == "<=") && (leftType != "INTTYPE" && leftType != "DECIMALTYPE"))
+    {
+        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        return "";
+    }
+
+    return leftType;
+}
 
 UnaryExprNode::UnaryExprNode(std::string op, Node *right)
 {
@@ -199,6 +337,37 @@ void UnaryExprNode::print(int depth) const
     std::cout << depthTabs << "UnaryExpressionNode: " << op << std::endl;
     std::cout << depthTabs << "\tRight:" << std::endl;
     right->print(depth + 2);
+}
+bool UnaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+{
+    if ((op == "!" || op == "not") && type != "BOOLTYPE")
+    {
+        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        return false;
+    }
+    if ((op == "+" || op == "-") && (type != "INTTYPE" && type != "DECIMALTYPE"))
+    {
+        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        return false;
+    }
+
+    return right->checkType(scope, visibleScope, type);
+}
+std::string UnaryExprNode::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+{
+    std::string rightType = right->inferType(scope, visibleScope);
+    if ((op == "!" || op == "not") && rightType != "BOOLTYPE")
+    {
+        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        return "";
+    }
+    if ((op == "+" || op == "-") && (rightType != "INTTYPE" && rightType != "DECIMALTYPE"))
+    {
+        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        return "";
+    }
+
+    return rightType;
 }
 
 ParamNode::ParamNode(std::string identifier)
@@ -244,6 +413,14 @@ ParamNode::ParamNode(std::string name, std::string type)
     if (type == "bool")
         this->type = TokenType::BOOLTYPE;
 }
+std::string ParamNode::getName() const
+{
+    return name;
+}
+TokenType ParamNode::getType() const
+{
+    return type;
+}
 void ParamNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -278,8 +455,24 @@ void FuncNode::print(int depth) const
     body->print(depth + 1);
 }
 
-void FuncNode::checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope)
+void FuncNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
 {
+    for (int i = 0; i < visibleScope.size(); i++)
+    {
+        auto currentScope = scope[visibleScope[i]];
+        for (int j = 0; j < currentScope.size(); j++)
+        {
+            auto currentIdentifier = currentScope[j];
+            if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "func" && name == currentIdentifier[3])
+                throwSemanticError(line, "'" + name + "' has already been declared as a function.");
+        }
+    }
+
+    std::vector<std::string> scopeToAdd = {std::to_string(line), "false", "func", name, Token::getType(returnType)};
+    for (ParamNode *parameter : parameters)
+        scopeToAdd.push_back(Token::getType(parameter->getType()));
+
+    scope[visibleScope[visibleScope.size() - 1]].push_back(scopeToAdd);
 }
 
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
@@ -295,6 +488,62 @@ void CallExprNode::print(int depth) const
     for (int i = 0; i < arguments.size(); i++)
         arguments[i]->print(depth + 2);
 }
+bool CallExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+{
+    for (int i = 0; i < visibleScope.size(); i++)
+    {
+        auto currentScope = scope[visibleScope[i]];
+        for (int j = 0; j < currentScope.size(); j++)
+        {
+            auto currentIdentifier = currentScope[j];
+            if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "func" && name == currentIdentifier[3])
+            {
+                if (type == "" || currentIdentifier[4] == type)
+                {
+                    if (arguments.size() != currentIdentifier.size() - 5)
+                        throwSemanticError(line, "Unexpected number of arguments: got " + std::to_string(arguments.size()) + ", expected " + std::to_string(currentIdentifier.size() - 5) + ".");
+
+                    for (int k = 0; k < arguments.size(); k++)
+                    {
+                        if (arguments[k]->checkType(scope, visibleScope, currentIdentifier[5 + k]))
+                        {
+                            scope[visibleScope[i]][j][1] = "true";
+                            return true;
+                        }
+                        else
+                            throwSemanticError(line, "Unexpected type found in function call: '" + name + "'.");
+                    }
+                    return true;
+                }
+                else
+                    return false;
+            }
+        }
+    }
+
+    throwSemanticError(line, "function '" + name + "' hasn't been declared.");
+    return false;
+}
+void CallExprNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+{
+    checkType(scope, visibleScope, "");
+}
+std::string CallExprNode::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+{
+    for (int i = 0; i < visibleScope.size(); i++)
+    {
+        auto currentScope = scope[visibleScope[i]];
+        for (int j = 0; j < currentScope.size(); j++)
+        {
+            auto currentIdentifier = currentScope[j];
+            if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "func" && name == currentIdentifier[3])
+                return currentIdentifier[4];
+        }
+    }
+
+    throwSemanticError(line, "function '" + name + "' hasn't been declared.");
+    return "false";
+}
 
 AssignNode::AssignNode(std::string name, std::string type, Node *value)
 {
@@ -309,8 +558,53 @@ void AssignNode::print(int depth) const
     std::cout << depthTabs << "\tRight Side: " << std::endl;
     value->print(depth + 2);
 }
-void BlockNode::checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope)
+void AssignNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
 {
+    if (identifier->getType() != TokenType::UNKNOWN)
+    {
+        for (int i = 0; i < visibleScope.size(); i++)
+        {
+            auto currentScope = scope[visibleScope[i]];
+            for (int j = 0; j < currentScope.size(); j++)
+            {
+                auto currentIdentifier = currentScope[j];
+                if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "var" && identifier->getName() == currentIdentifier[3])
+                    throwSemanticError(line, "'" + identifier->getName() + "' has already been declared.");
+            }
+        }
+
+        if (identifier->getType() == TokenType::VAR)
+        {
+            std::string t = value->inferType(scope, visibleScope);
+            std::cout << t << std::endl;
+            scope[visibleScope[visibleScope.size() - 1]]
+                .push_back({std::to_string(line), "false", "var", identifier->getName(), t});
+        }
+        else if (value->checkType(scope, visibleScope, Token::getType(identifier->getType())))
+            scope[visibleScope[visibleScope.size() - 1]].push_back({std::to_string(line), "false", "var", identifier->getName(), Token::getType(identifier->getType())});
+        else
+            throwSemanticError(line, "Value in '" + identifier->getName() + "' must have type '" + getDataTypeStr(Token::getType(identifier->getType())) + "'.");
+    }
+    else
+    {
+        for (int i = 0; i < visibleScope.size(); i++)
+        {
+            auto currentScope = scope[visibleScope[i]];
+            for (int j = 0; j < currentScope.size(); j++)
+            {
+                auto currentIdentifier = currentScope[j];
+                if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "var" && identifier->getName() == currentIdentifier[3])
+                {
+                    if (value->checkType(scope, visibleScope, currentIdentifier[4]))
+                        return;
+                    else
+                        throwSemanticError(line, "'" + identifier->getName() + "' has already been declared with type '" + getDataTypeStr(currentIdentifier[4]) + "'.");
+                }
+            }
+        }
+
+        throwSemanticError(line, "'" + identifier->getName() + "' hasn't been declared.");
+    }
 }
 
 BlockNode::BlockNode()
@@ -335,7 +629,7 @@ void BlockNode::print(int depth) const
     for (int i = 0; i < statements.size(); i++)
         statements[i]->print(depth + 1);
 }
-void BlockNode::checkSemantics(std::unordered_map<std::string, std::vector<std::string>> &scope, std::vector<std::string> visibleScope)
+void BlockNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
 {
     for (Node *statement : statements)
         statement->checkSemantics(scope, visibleScope);
@@ -643,21 +937,49 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
     {
         std::string tokenType = line[start].getToken();
         if (tokenType == "IDENTIFIER")
-            return new IdentifierNode(line[start].getValue());
+        {
+            IdentifierNode *identifier = new IdentifierNode(line[start].getValue());
+            identifier->setLine(line[start].getLineNumber());
+            return identifier;
+        }
         else if (tokenType == "CHAR")
-            return new LiteralNode(line[start].getValue()[0]);
+        {
+            LiteralNode<char> *literal = new LiteralNode(line[start].getValue()[0], line[start].getToken());
+            literal->setLine(line[start].getLineNumber());
+            return literal;
+        }
         else if (tokenType == "STRING")
-            return new LiteralNode(line[start].getValue());
+        {
+            LiteralNode<std::string> *literal = new LiteralNode(line[start].getValue(), line[start].getToken());
+            literal->setLine(line[start].getLineNumber());
+            return literal;
+        }
         else if (tokenType == "INT")
-            return new LiteralNode(std::stoi(line[start].getValue()));
+        {
+            LiteralNode<int> *literal = new LiteralNode(std::stoi(line[start].getValue()), line[start].getToken());
+            literal->setLine(line[start].getLineNumber());
+            return literal;
+        }
         else if (tokenType == "DECIMAL")
-            return new LiteralNode(std::stoi(line[start].getValue()));
+        {
+            LiteralNode<double> *literal = new LiteralNode(std::stod(line[start].getValue()), line[start].getToken());
+            literal->setLine(line[start].getLineNumber());
+            return literal;
+        }
         else if (tokenType == "BOOL")
         {
             if (line[start].getValue() == "true")
-                return new LiteralNode(true);
+            {
+                LiteralNode<bool> *literal = new LiteralNode(true, line[start].getToken());
+                literal->setLine(line[start].getLineNumber());
+                return literal;
+            }
             else if (line[start].getValue() == "false")
-                return new LiteralNode(false);
+            {
+                LiteralNode<bool> *literal = new LiteralNode(true, line[start].getToken());
+                literal->setLine(line[start].getLineNumber());
+                return literal;
+            }
         }
         else
             throwSyntaxError(line[start].getLineNumber(), "Unexpected Identifier '" + line[start].getValue() + "' found.");
@@ -665,7 +987,11 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
     else if (hasOperator(line, start, end))
     {
         if (line[start].getToken() == "PLUS" || line[start].getToken() == "MINUS" || line[start].getToken() == "NOT")
-            return new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, end));
+        {
+            UnaryExprNode *unaryExpr = new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, end));
+            unaryExpr->setLine(line[start].getLineNumber());
+            return unaryExpr;
+        }
 
         int lparen = 0, rparen = 0;
         int splitIndex = -1, currentLevel = -1;
@@ -724,7 +1050,10 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
 
             if (startArg <= end - 1)
                 arguments.push_back(buildIdentifier(line, startArg, end - 1));
-            return new CallExprNode(line[start].getValue(), arguments);
+
+            CallExprNode *callExpr = new CallExprNode(line[start].getValue(), arguments);
+            callExpr->setLine(line[start].getLineNumber());
+            return callExpr;
         }
     }
 
@@ -735,6 +1064,7 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
 BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction)
 {
     BlockNode *blockNode = new BlockNode();
+    blockNode->setLine(startLine + 1);
     int tabs = getNumTabs(tokens[startLine]);
 
     for (int line = startLine; line < tokens.size(); line++)
@@ -770,7 +1100,9 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'if' statement.");
 
-            blockNode->addStatement(new IfStmtNode(condition, block));
+            IfStmtNode *ifStmt = new IfStmtNode(condition, block);
+            ifStmt->setLine(line);
+            blockNode->addStatement(ifStmt);
             startLine = line;
             line--;
             continue;
@@ -793,7 +1125,9 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'elseif' statement.");
 
-            blockNode->addStatement(new ElseIfStmtNode(condition, block));
+            ElseIfStmtNode *elseIfStmt = new ElseIfStmtNode(condition, block);
+            elseIfStmt->setLine(line);
+            blockNode->addStatement(elseIfStmt);
             startLine = line;
             line--;
             continue;
@@ -819,7 +1153,9 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'else' statement.");
 
-            blockNode->addStatement(new ElseNode(block));
+            ElseNode *elseStmt = new ElseNode(block);
+            elseStmt->setLine(line);
+            blockNode->addStatement(elseStmt);
             startLine = line;
             line--;
             continue;
@@ -839,7 +1175,9 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'while' loop.");
 
-            blockNode->addStatement(new WhileNode(condition, block));
+            WhileNode *whileStmt = new WhileNode(condition, block);
+            whileStmt->setLine(line);
+            blockNode->addStatement(whileStmt);
             line--;
             startLine = line;
             continue;
@@ -855,7 +1193,9 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (type != "" && !isDataType(tokens[line][assignIndex - 2].getToken()) && tokens[line][assignIndex - 2].getToken() != "VAR")
                 throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected type used for variable '" + tokens[line][assignIndex - 1].getValue() + "'.");
 
-            blockNode->addStatement(new AssignNode(tokens[line][assignIndex - 1].getValue(), splitLine(tokens[line], tabs, assignIndex - 2), buildIdentifier(tokens[line], assignIndex + 1, tokens[line].size() - 2)));
+            AssignNode *assignStmt = new AssignNode(tokens[line][assignIndex - 1].getValue(), splitLine(tokens[line], tabs, assignIndex - 2), buildIdentifier(tokens[line], assignIndex + 1, tokens[line].size() - 2));
+            assignStmt->setLine(line + 1);
+            blockNode->addStatement(assignStmt);
             continue;
         }
         int returnIndex = getTokenIndex(tokens[line], "RETURN");
@@ -864,9 +1204,17 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (!inFunction)
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'return' statement found outside of a function.");
             if (getNumValidTokens(tokens[line]) < 2)
-                blockNode->addStatement(new ReturnStmtNode());
+            {
+                ReturnStmtNode *returnStmt = new ReturnStmtNode();
+                returnStmt->setLine(line + 1);
+                blockNode->addStatement(returnStmt);
+            }
             else
-                blockNode->addStatement(new ReturnStmtNode(buildIdentifier(tokens[line], returnIndex + 1, tokens[line].size() - 2)));
+            {
+                ReturnStmtNode *returnStmt = new ReturnStmtNode(buildIdentifier(tokens[line], returnIndex + 1, tokens[line].size() - 2));
+                returnStmt->setLine(line + 1);
+                blockNode->addStatement(returnStmt);
+            }
 
             continue;
         }
@@ -907,7 +1255,9 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
                 throwSyntaxError(line, "Missing body in function '" + information[0] + "'.");
             line--;
 
-            root->addNode(new FuncNode(information[0], information[1], parameters, body));
+            FuncNode *func = new FuncNode(information[0], information[1], parameters, body);
+            func->setLine(line - 1);
+            root->addNode(func);
             continue;
         }
 

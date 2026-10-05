@@ -2,7 +2,9 @@
 
 void SemanticAnalyzer::analyzeTree(RootNode *root)
 {
-    std::unordered_map<std::string, std::vector<std::string>> scope;
+    std::unordered_map<std::string, std::vector<std::vector<std::string>>> scope;
+    std::vector<std::string> visibleScope;
 
-    root->checkSemantics(scope, {"global"});
+    root->checkSemantics(scope, visibleScope);
+    root->sendWarnings(scope);
 }
