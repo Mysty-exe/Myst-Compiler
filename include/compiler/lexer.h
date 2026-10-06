@@ -66,6 +66,7 @@ private:
 public:
     Token();
     Token(std::string value, int line, int col);
+    static TokenType getTokenDataType(std::string type);
     static std::string getType(TokenType type);
     std::string getToken() const;
     std::string getValue() const;

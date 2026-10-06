@@ -11,7 +11,7 @@ protected:
 public:
     Node();
     virtual ~Node() = default;
-    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const;
+    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type);
     virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope);
     virtual std::string inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const;
     virtual void print(int depth = 0) const = 0;
@@ -43,7 +43,7 @@ private:
 public:
     LiteralNode(T value, std::string type);
     virtual void print(int depth = 0) const override;
-    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const override;
+    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual std::string inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const override;
 };
 
@@ -58,8 +58,10 @@ public:
     IdentifierNode(std::string name, std::string returnType);
     std::string getName() const;
     TokenType getType() const;
+    void setName(std::string name);
+    void setType(TokenType type);
     virtual void print(int depth = 0) const override;
-    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const override;
+    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual std::string inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const override;
 };
 
@@ -72,7 +74,7 @@ private:
 public:
     BinaryExprNode(std::string op, Node *left, Node *right);
     virtual void print(int depth = 0) const override;
-    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const override;
+    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual std::string inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const override;
 };
 
@@ -85,7 +87,7 @@ private:
 public:
     UnaryExprNode(std::string op, Node *right);
     virtual void print(int depth = 0) const override;
-    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const override;
+    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual std::string inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const override;
 };
 
@@ -106,7 +108,7 @@ private:
 public:
     CallExprNode(std::string name, std::vector<Node *> arguments);
     virtual void print(int depth = 0) const override;
-    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const override;
+    virtual bool checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) override;
     virtual std::string inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const override;
 };
@@ -131,6 +133,7 @@ private:
 public:
     ReturnStmtNode(Node *identifier = nullptr);
     virtual void print(int depth = 0) const override;
+    virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) override;
 };
 
 struct BlockNode : Node
@@ -184,6 +187,7 @@ private:
 public:
     IfStmtNode(Node *condition, BlockNode *body);
     virtual void print(int depth = 0) const override;
+    virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) override;
 };
 
 struct ElseIfStmtNode : Node
@@ -195,16 +199,18 @@ private:
 public:
     ElseIfStmtNode(Node *condition, BlockNode *body);
     virtual void print(int depth = 0) const override;
+    virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) override;
 };
 
-struct ElseNode : Node
+struct ElseStmtNode : Node
 {
 private:
     BlockNode *body;
 
 public:
-    ElseNode(BlockNode *body);
+    ElseStmtNode(BlockNode *body);
     virtual void print(int depth = 0) const override;
+    virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) override;
 };
 
 struct WhileNode : Node
@@ -216,6 +222,7 @@ private:
 public:
     WhileNode(Node *condition, BlockNode *body);
     virtual void print(int depth = 0) const override;
+    virtual void checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) override;
 };
 
 class AbstractSyntaxTree

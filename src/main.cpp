@@ -32,8 +32,8 @@ void parseFile(std::ifstream &inputFile)
 
     AbstractSyntaxTree ast(lexer.getTokens());
     ast.printTree();
-
     SemanticAnalyzer::analyzeTree(ast.getRoot());
+    ast.printTree();
 }
 
 int main(int argc, char *argv[])

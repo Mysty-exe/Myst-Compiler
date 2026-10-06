@@ -4,7 +4,7 @@ bool validIdentifier(const std::string &identifier)
 {
     for (int i = 0; i < identifier.size(); i++)
     {
-        if (!std::isalpha(identifier[i]) && identifier[i] != '_')
+        if (!std::isalpha(identifier[i]) && identifier[i] != '_' && !(std::isdigit(identifier[i]) && i > 0))
             return false;
     }
     return true;
@@ -141,6 +141,20 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::IDENTIFIER;
     else
         type = TokenType::UNKNOWN;
+}
+
+TokenType Token::getTokenDataType(std::string type)
+{
+    if (type == "CHARTYPE")
+        return TokenType::CHARTYPE;
+    if (type == "STRINGTYPE")
+        return TokenType::STRINGTYPE;
+    if (type == "INTTYPE")
+        return TokenType::INTTYPE;
+    if (type == "DECIMALTYPE")
+        return TokenType::DECIMALTYPE;
+    if (type == "BOOLTYPE")
+        return TokenType::BOOLTYPE;
 }
 
 std::string Token::getType(TokenType type)

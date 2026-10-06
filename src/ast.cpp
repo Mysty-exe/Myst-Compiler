@@ -34,7 +34,7 @@ void throwSemanticWarning(int line, std::string message)
 {
     std::cout << "\033[38;5;208m";
     std::cout << "Warning on line " << line << ": " << message << std::endl;
-    std::cout << "\033[38;5;208m";
+    std::cerr << "\033[0m";
 }
 
 void throwSemanticError(int line, std::string message)
@@ -79,7 +79,7 @@ std::string getDataTypeStr(const std::string &str)
     if (str == "VAR")
         return "var";
 
-    return "unknown";
+    return "void";
 }
 
 Node::Node()
@@ -96,7 +96,7 @@ void Node::setLine(int line)
     this->line = line;
 }
 
-bool Node::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+bool Node::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
 {
     return true;
 }
@@ -130,9 +130,14 @@ void RootNode::print(int depth) const
 
 void RootNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
 {
-    visibleScope.push_back("global");
+    visibleScope.push_back("1");
     for (Node *child : children)
+    {
         child->checkSemantics(scope, visibleScope);
+
+        for (std::string s : visibleScope)
+            std::cout << s << " ";
+    }
 }
 
 void RootNode::sendWarnings(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope)
@@ -142,12 +147,16 @@ void RootNode::sendWarnings(std::unordered_map<std::string, std::vector<std::vec
         for (int i = 0; i < identifier.size(); i++)
         {
             if (identifier[i][1] == "false")
-                if (identifier[i][2] == "func")
-                    throwSemanticWarning(std::stoi(identifier[i][0]), "Unused function '" + identifier[i][3] + "' found.");
-                else
+                if (identifier[i][3] == "func")
+                    throwSemanticWarning(std::stoi(identifier[i][0]), "Unused function '" + identifier[i][4] + "' found.");
+                else if (identifier[i][2] == "var")
                     throwSemanticWarning(std::stoi(identifier[i][0]), "Unused variable '" + identifier[i][3] + "' found.");
+            if (identifier[i][3] == "func" && identifier[i][2] == "false")
+                throwSemanticWarning(std::stoi(identifier[i][0]), "Function '" + identifier[i][4] + "' returns '" + getDataTypeStr(identifier[i][5]) + "' but return statement not found.");
         }
     }
+
+    std::cout << std::endl;
 }
 
 template <typename T>
@@ -165,7 +174,7 @@ void LiteralNode<T>::print(int depth) const
 }
 
 template <typename T>
-bool LiteralNode<T>::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+bool LiteralNode<T>::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
 {
     if (this->type == "CHAR" && type == "CHARTYPE")
         return true;
@@ -230,12 +239,20 @@ TokenType IdentifierNode::getType() const
 {
     return type;
 }
+void IdentifierNode::setName(std::string name)
+{
+    this->name = name;
+}
+void IdentifierNode::setType(TokenType type)
+{
+    this->type = type;
+}
 void IdentifierNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "IdentifierNode: " << getDataTypeStr(Token::getType(type)) << " " << name << std::endl;
 }
-bool IdentifierNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+bool IdentifierNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
@@ -246,6 +263,9 @@ bool IdentifierNode::checkType(std::unordered_map<std::string, std::vector<std::
             if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "var" && name == currentIdentifier[3])
             {
                 scope[visibleScope[i]][j][1] = "true";
+                if (type == currentIdentifier[4])
+                    this->type = Token::getTokenDataType(currentIdentifier[4]);
+
                 return (type == currentIdentifier[4]);
             }
         }
@@ -289,7 +309,7 @@ void BinaryExprNode::print(int depth) const
     std::cout << depthTabs << "\tRight:\n";
     right->print(depth + 2);
 }
-bool BinaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+bool BinaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
 {
     if ((op == "and" || op == "or" || op == "&&" || op == "||") && type != "BOOLTYPE")
     {
@@ -301,6 +321,14 @@ bool BinaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::
         throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
         return false;
     }
+    if (op == "==" || op == "!=")
+    {
+        if (right->inferType(scope, visibleScope) != left->inferType(scope, visibleScope))
+            throwSemanticError(line, "Can't compare these two types with '" + op + "' operator.");
+
+        return type == "BOOLTYPE";
+    }
+
     return right->checkType(scope, visibleScope, type) && left->checkType(scope, visibleScope, type);
 }
 std::string BinaryExprNode::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
@@ -322,6 +350,8 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, std::vecto
         throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
         return "";
     }
+    if (op == "==" || op == "!=")
+        return "BOOLTYPE";
 
     return leftType;
 }
@@ -338,7 +368,7 @@ void UnaryExprNode::print(int depth) const
     std::cout << depthTabs << "\tRight:" << std::endl;
     right->print(depth + 2);
 }
-bool UnaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+bool UnaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
 {
     if ((op == "!" || op == "not") && type != "BOOLTYPE")
     {
@@ -443,6 +473,8 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
         this->returnType = TokenType::DECIMALTYPE;
     if (returnType == "bool")
         this->returnType = TokenType::BOOLTYPE;
+    if (returnType == "void")
+        this->returnType = TokenType::UNKNOWN;
 }
 void FuncNode::print(int depth) const
 {
@@ -463,16 +495,19 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, std::vector<std::v
         for (int j = 0; j < currentScope.size(); j++)
         {
             auto currentIdentifier = currentScope[j];
-            if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "func" && name == currentIdentifier[3])
+            if (currentIdentifier.size() >= 6 && currentIdentifier[3] == "func" && name == currentIdentifier[4])
                 throwSemanticError(line, "'" + name + "' has already been declared as a function.");
         }
     }
 
-    std::vector<std::string> scopeToAdd = {std::to_string(line), "false", "func", name, Token::getType(returnType)};
+    std::vector<std::string> scopeToAdd = {std::to_string(line), "false", "false", "func", name, Token::getType(returnType)};
     for (ParamNode *parameter : parameters)
         scopeToAdd.push_back(Token::getType(parameter->getType()));
 
     scope[visibleScope[visibleScope.size() - 1]].push_back(scopeToAdd);
+    visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
+    body->checkSemantics(scope, visibleScope);
+    visibleScope.pop_back();
 }
 
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
@@ -488,7 +523,7 @@ void CallExprNode::print(int depth) const
     for (int i = 0; i < arguments.size(); i++)
         arguments[i]->print(depth + 2);
 }
-bool CallExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type) const
+bool CallExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
@@ -496,12 +531,12 @@ bool CallExprNode::checkType(std::unordered_map<std::string, std::vector<std::ve
         for (int j = 0; j < currentScope.size(); j++)
         {
             auto currentIdentifier = currentScope[j];
-            if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "func" && name == currentIdentifier[3])
+            if (currentIdentifier.size() >= 6 && currentIdentifier[3] == "func" && name == currentIdentifier[4])
             {
-                if (type == "" || currentIdentifier[4] == type)
+                if (type == "" || currentIdentifier[5] == type)
                 {
-                    if (arguments.size() != currentIdentifier.size() - 5)
-                        throwSemanticError(line, "Unexpected number of arguments: got " + std::to_string(arguments.size()) + ", expected " + std::to_string(currentIdentifier.size() - 5) + ".");
+                    if (arguments.size() != currentIdentifier.size() - 6)
+                        throwSemanticError(line, "Unexpected number of arguments: got " + std::to_string(arguments.size()) + ", expected " + std::to_string(currentIdentifier.size() - 6) + ".");
 
                     for (int k = 0; k < arguments.size(); k++)
                     {
@@ -536,8 +571,8 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, std::vector<
         for (int j = 0; j < currentScope.size(); j++)
         {
             auto currentIdentifier = currentScope[j];
-            if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "func" && name == currentIdentifier[3])
-                return currentIdentifier[4];
+            if (currentIdentifier.size() >= 6 && currentIdentifier[3] == "func" && name == currentIdentifier[4])
+                return currentIdentifier[5];
         }
     }
 
@@ -576,7 +611,6 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, std::vector<std:
         if (identifier->getType() == TokenType::VAR)
         {
             std::string t = value->inferType(scope, visibleScope);
-            std::cout << t << std::endl;
             scope[visibleScope[visibleScope.size() - 1]]
                 .push_back({std::to_string(line), "false", "var", identifier->getName(), t});
         }
@@ -596,7 +630,10 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, std::vector<std:
                 if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "var" && identifier->getName() == currentIdentifier[3])
                 {
                     if (value->checkType(scope, visibleScope, currentIdentifier[4]))
+                    {
+                        identifier->setType(Token::getTokenDataType(currentIdentifier[4]));
                         return;
+                    }
                     else
                         throwSemanticError(line, "'" + identifier->getName() + "' has already been declared with type '" + getDataTypeStr(currentIdentifier[4]) + "'.");
                 }
@@ -653,6 +690,16 @@ void IfStmtNode::print(int depth) const
     std::cout << depthTabs << "\tBody:" << std::endl;
     body->print(depth + 2);
 }
+void IfStmtNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+{
+    if (!condition->checkType(scope, visibleScope, "BOOLTYPE"))
+        throwSemanticError(line, "If Statement condition doesn't evaluate to a boolean.");
+
+    visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
+    for (Node *stmtNode : body->getStatements())
+        stmtNode->checkSemantics(scope, visibleScope);
+    visibleScope.pop_back();
+}
 
 ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
 {
@@ -668,17 +715,34 @@ void ElseIfStmtNode::print(int depth) const
     std::cout << depthTabs << "\tBody:" << std::endl;
     body->print(depth + 2);
 }
+void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+{
+    if (!condition->checkType(scope, visibleScope, "BOOLTYPE"))
+        throwSemanticError(line, "Else If Statement condition doesn't evaluate to a boolean.");
 
-ElseNode::ElseNode(BlockNode *body)
+    visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
+    for (Node *stmtNode : body->getStatements())
+        stmtNode->checkSemantics(scope, visibleScope);
+    visibleScope.pop_back();
+}
+
+ElseStmtNode::ElseStmtNode(BlockNode *body)
 {
     this->body = body;
 }
-void ElseNode::print(int depth) const
+void ElseStmtNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "ElseStatementNode:" << std::endl;
     std::cout << depthTabs << "\tBody:" << std::endl;
     body->print(depth + 2);
+}
+void ElseStmtNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+{
+    visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
+    for (Node *stmtNode : body->getStatements())
+        stmtNode->checkSemantics(scope, visibleScope);
+    visibleScope.pop_back();
 }
 
 WhileNode::WhileNode(Node *condition, BlockNode *body)
@@ -695,6 +759,16 @@ void WhileNode::print(int depth) const
     std::cout << depthTabs << "\tBody:" << std::endl;
     body->print(depth + 2);
 }
+void WhileNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+{
+    if (!condition->checkType(scope, visibleScope, "BOOLTYPE"))
+        throwSemanticError(line, "While loop condition doesn't evaluate to a boolean.");
+
+    visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
+    for (Node *stmtNode : body->getStatements())
+        stmtNode->checkSemantics(scope, visibleScope);
+    visibleScope.pop_back();
+}
 
 ReturnStmtNode::ReturnStmtNode(Node *identifier)
 {
@@ -709,6 +783,27 @@ void ReturnStmtNode::print(int depth) const
         std::cout << depthTabs << "\t\tVoid" << std::endl;
     else
         identifier->print(depth + 2);
+}
+void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+{
+
+    for (int i = 0; i < visibleScope.size(); i++)
+    {
+        auto currentScope = scope[visibleScope[i]];
+        for (int j = 0; j < currentScope.size(); j++)
+        {
+            auto currentIdentifier = currentScope[j];
+            if (currentIdentifier.size() >= 6 && currentIdentifier[3] == "func")
+            {
+                if (currentIdentifier[5] == "UNKNOWN")
+                    throwSemanticError(line, "Return statement found in a function that doesn't have a return type.");
+                if (!identifier->checkType(scope, visibleScope, currentIdentifier[5]))
+                    throwSemanticError(line, "Return statement doesn't return the required return type.");
+
+                scope[visibleScope[i]][j][2] = "true";
+            }
+        }
+    }
 }
 
 AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens)
@@ -1081,6 +1176,8 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
 
         if (getNthToken(tokens[line], 1).getValue() == "func")
         {
+            if (inFunction)
+                throwSyntaxError(line, "Function can't be defined in a function.");
             startLine = line - 1;
             return blockNode;
         }
@@ -1096,6 +1193,8 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
                 throwSyntaxError(line, "Expected ':' at the end of 'if' statement.");
 
             Node *condition = buildIdentifier(tokens[line - 1], ifIndex + 1, tokens[line - 1].size() - 3);
+            condition->setLine(line);
+
             BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction);
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'if' statement.");
@@ -1121,6 +1220,8 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
                 throwSyntaxError(line, "Expected ':' at the end of elseif statement.");
             Node *condition = buildIdentifier(tokens[line - 1], elseIfIndex + 1, tokens[line - 1].size() - 3);
+            condition->setLine(line);
+
             BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction);
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'elseif' statement.");
@@ -1153,7 +1254,7 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'else' statement.");
 
-            ElseNode *elseStmt = new ElseNode(block);
+            ElseStmtNode *elseStmt = new ElseStmtNode(block);
             elseStmt->setLine(line);
             blockNode->addStatement(elseStmt);
             startLine = line;
@@ -1171,6 +1272,8 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
                 throwSyntaxError(line, "Expected ':' at the end of 'while' loop.");
             Node *condition = buildIdentifier(tokens[line - 1], whileIndex + 1, tokens[line - 1].size() - 3);
+            condition->setLine(line);
+
             BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction);
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'while' loop.");
