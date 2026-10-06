@@ -85,7 +85,9 @@ std::string getDataTypeStr(const std::string &str)
 Node::Node()
 {
 }
-
+Node::~Node()
+{
+}
 int Node::getLine() const
 {
     return line;
@@ -96,19 +98,22 @@ void Node::setLine(int line)
     this->line = line;
 }
 
-bool Node::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
+bool Node::checkType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
     return true;
 }
-void Node::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void Node::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
 }
-std::string Node::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+std::string Node::inferType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope) const
 {
     return "";
 }
 
 RootNode::RootNode()
+{
+}
+RootNode::~RootNode()
 {
 }
 void RootNode::addNode(Node *node)
@@ -128,31 +133,35 @@ void RootNode::print(int depth) const
     }
 }
 
-void RootNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void RootNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
-    visibleScope.push_back("1");
+    visibleScope.push_back("global");
     for (Node *child : children)
     {
-        child->checkSemantics(scope, visibleScope);
+        child->checkSemantics(symbolTable, visibleScope);
 
         for (std::string s : visibleScope)
             std::cout << s << " ";
     }
 }
 
-void RootNode::sendWarnings(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope)
+void RootNode::sendWarnings(std::unordered_map<std::string, Scope> symbolTable)
 {
-    for (const auto &[_, identifier] : scope)
+    for (auto &[_, scope] : symbolTable)
     {
-        for (int i = 0; i < identifier.size(); i++)
+        for (Symbol *symbol : scope.getSymbols())
         {
-            if (identifier[i][1] == "false")
-                if (identifier[i][3] == "func")
-                    throwSemanticWarning(std::stoi(identifier[i][0]), "Unused function '" + identifier[i][4] + "' found.");
-                else if (identifier[i][2] == "var")
-                    throwSemanticWarning(std::stoi(identifier[i][0]), "Unused variable '" + identifier[i][3] + "' found.");
-            if (identifier[i][3] == "func" && identifier[i][2] == "false")
-                throwSemanticWarning(std::stoi(identifier[i][0]), "Function '" + identifier[i][4] + "' returns '" + getDataTypeStr(identifier[i][5]) + "' but return statement not found.");
+            if (!symbol->isUsed())
+                if (symbol->getType() == "VAR")
+                    throwSemanticWarning(symbol->getLine(), "Unused function '" + symbol->getName() + "' found.");
+                else
+                    throwSemanticWarning(symbol->getLine(), "Unused variable '" + symbol->getName() + "' found.");
+            if (symbol->getType() == "FUNC")
+            {
+                FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
+                if (!derivedSymbol->hasReturn())
+                    throwSemanticWarning(derivedSymbol->getLine(), "Function '" + symbol->getName() + "' returns '" + getDataTypeStr(derivedSymbol->getReturnType()) + "' but return statement not found.");
+            }
         }
     }
 
@@ -165,6 +174,10 @@ LiteralNode<T>::LiteralNode(T value, std::string type)
     this->value = value;
     this->type = type;
 }
+template <typename T>
+LiteralNode<T>::~LiteralNode()
+{
+}
 
 template <typename T>
 void LiteralNode<T>::print(int depth) const
@@ -174,7 +187,7 @@ void LiteralNode<T>::print(int depth) const
 }
 
 template <typename T>
-bool LiteralNode<T>::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
+bool LiteralNode<T>::checkType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
     if (this->type == "CHAR" && type == "CHARTYPE")
         return true;
@@ -191,7 +204,7 @@ bool LiteralNode<T>::checkType(std::unordered_map<std::string, std::vector<std::
 }
 
 template <typename T>
-std::string LiteralNode<T>::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+std::string LiteralNode<T>::inferType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope) const
 {
     if (this->type == "CHAR")
         return "CHARTYPE";
@@ -211,6 +224,9 @@ IdentifierNode::IdentifierNode(std::string name)
 {
     this->name = name;
     this->type = TokenType::UNKNOWN;
+}
+IdentifierNode::~IdentifierNode()
+{
 }
 IdentifierNode::IdentifierNode(std::string name, std::string type)
 {
@@ -252,11 +268,11 @@ void IdentifierNode::print(int depth) const
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "IdentifierNode: " << getDataTypeStr(Token::getType(type)) << " " << name << std::endl;
 }
-bool IdentifierNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
+bool IdentifierNode::checkType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
-        auto currentScope = scope[visibleScope[i]];
+        auto currentScope = symbolTable[visibleScope[i]];
         for (int j = 0; j < currentScope.size(); j++)
         {
             auto currentIdentifier = currentScope[j];
@@ -274,11 +290,11 @@ bool IdentifierNode::checkType(std::unordered_map<std::string, std::vector<std::
     throwSemanticError(line, "'" + name + "' hasn't been declared.");
     return false;
 }
-std::string IdentifierNode::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+std::string IdentifierNode::inferType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope) const
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
-        auto currentScope = scope[visibleScope[i]];
+        auto currentScope = symbolTable[visibleScope[i]];
         for (int j = 0; j < currentScope.size(); j++)
         {
             auto currentIdentifier = currentScope[j];
@@ -300,6 +316,9 @@ BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
     this->left = left;
     this->right = right;
 }
+BinaryExprNode::~BinaryExprNode()
+{
+}
 void BinaryExprNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -309,7 +328,7 @@ void BinaryExprNode::print(int depth) const
     std::cout << depthTabs << "\tRight:\n";
     right->print(depth + 2);
 }
-bool BinaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
+bool BinaryExprNode::checkType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
     if ((op == "and" || op == "or" || op == "&&" || op == "||") && type != "BOOLTYPE")
     {
@@ -323,17 +342,17 @@ bool BinaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::
     }
     if (op == "==" || op == "!=")
     {
-        if (right->inferType(scope, visibleScope) != left->inferType(scope, visibleScope))
+        if (right->inferType(symbolTable, visibleScope) != left->inferType(symbolTable, visibleScope))
             throwSemanticError(line, "Can't compare these two types with '" + op + "' operator.");
 
         return type == "BOOLTYPE";
     }
 
-    return right->checkType(scope, visibleScope, type) && left->checkType(scope, visibleScope, type);
+    return right->checkType(symbolTable, visibleScope, type) && left->checkType(symbolTable, visibleScope, type);
 }
-std::string BinaryExprNode::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope) const
 {
-    std::string leftType = left->inferType(scope, visibleScope), rightType = right->inferType(scope, visibleScope);
+    std::string leftType = left->inferType(symbolTable, visibleScope), rightType = right->inferType(symbolTable, visibleScope);
     if (leftType != rightType)
     {
         throwSemanticError(line, "Mismatched types found with '" + op + "' operator.");
@@ -361,6 +380,9 @@ UnaryExprNode::UnaryExprNode(std::string op, Node *right)
     this->op = op;
     this->right = right;
 }
+UnaryExprNode::~UnaryExprNode()
+{
+}
 void UnaryExprNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -368,7 +390,7 @@ void UnaryExprNode::print(int depth) const
     std::cout << depthTabs << "\tRight:" << std::endl;
     right->print(depth + 2);
 }
-bool UnaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
+bool UnaryExprNode::checkType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
     if ((op == "!" || op == "not") && type != "BOOLTYPE")
     {
@@ -381,11 +403,11 @@ bool UnaryExprNode::checkType(std::unordered_map<std::string, std::vector<std::v
         return false;
     }
 
-    return right->checkType(scope, visibleScope, type);
+    return right->checkType(symbolTable, visibleScope, type);
 }
-std::string UnaryExprNode::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+std::string UnaryExprNode::inferType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope) const
 {
-    std::string rightType = right->inferType(scope, visibleScope);
+    std::string rightType = right->inferType(symbolTable, visibleScope);
     if ((op == "!" || op == "not") && rightType != "BOOLTYPE")
     {
         throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
@@ -427,6 +449,9 @@ ParamNode::ParamNode(std::string identifier)
     }
 
     throwSyntaxError(line, "Missing parameter type (or name) for '" + identifier + "'");
+}
+ParamNode::~ParamNode()
+{
 }
 ParamNode::ParamNode(std::string name, std::string type)
 {
@@ -476,6 +501,9 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
     if (returnType == "void")
         this->returnType = TokenType::UNKNOWN;
 }
+FuncNode::~FuncNode()
+{
+}
 void FuncNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -487,11 +515,11 @@ void FuncNode::print(int depth) const
     body->print(depth + 1);
 }
 
-void FuncNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
-        auto currentScope = scope[visibleScope[i]];
+        auto currentScope = symbolTable[visibleScope[i]];
         for (int j = 0; j < currentScope.size(); j++)
         {
             auto currentIdentifier = currentScope[j];
@@ -504,7 +532,7 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, std::vector<std::v
     for (ParamNode *parameter : parameters)
         scopeToAdd.push_back(Token::getType(parameter->getType()));
 
-    scope[visibleScope[visibleScope.size() - 1]].push_back(scopeToAdd);
+    symbolTable[visibleScope[visibleScope.size() - 1]].push_back(scopeToAdd);
     visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
     body->checkSemantics(scope, visibleScope);
     visibleScope.pop_back();
@@ -515,6 +543,9 @@ CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
     this->name = name;
     this->arguments = arguments;
 }
+CallExprNode::~CallExprNode()
+{
+}
 void CallExprNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -523,7 +554,7 @@ void CallExprNode::print(int depth) const
     for (int i = 0; i < arguments.size(); i++)
         arguments[i]->print(depth + 2);
 }
-bool CallExprNode::checkType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope, const std::string &type)
+bool CallExprNode::checkType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
@@ -559,11 +590,12 @@ bool CallExprNode::checkType(std::unordered_map<std::string, std::vector<std::ve
     throwSemanticError(line, "function '" + name + "' hasn't been declared.");
     return false;
 }
-void CallExprNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void CallExprNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
     checkType(scope, visibleScope, "");
 }
-std::string CallExprNode::inferType(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope) const
+
+std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope) const
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
@@ -585,6 +617,9 @@ AssignNode::AssignNode(std::string name, std::string type, Node *value)
     this->identifier = new IdentifierNode(name, type);
     this->value = value;
 }
+AssignNode::~AssignNode()
+{
+}
 void AssignNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -593,7 +628,7 @@ void AssignNode::print(int depth) const
     std::cout << depthTabs << "\tRight Side: " << std::endl;
     value->print(depth + 2);
 }
-void AssignNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
     if (identifier->getType() != TokenType::UNKNOWN)
     {
@@ -647,6 +682,9 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, std::vector<std:
 BlockNode::BlockNode()
 {
 }
+BlockNode::~BlockNode()
+{
+}
 void BlockNode::addStatement(Node *stmt)
 {
     statements.push_back(stmt);
@@ -666,7 +704,7 @@ void BlockNode::print(int depth) const
     for (int i = 0; i < statements.size(); i++)
         statements[i]->print(depth + 1);
 }
-void BlockNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void BlockNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
     for (Node *statement : statements)
         statement->checkSemantics(scope, visibleScope);
@@ -681,6 +719,9 @@ IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
     this->condition = condition;
     this->body = body;
 }
+IfStmtNode::~IfStmtNode()
+{
+}
 void IfStmtNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -690,7 +731,7 @@ void IfStmtNode::print(int depth) const
     std::cout << depthTabs << "\tBody:" << std::endl;
     body->print(depth + 2);
 }
-void IfStmtNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void IfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
     if (!condition->checkType(scope, visibleScope, "BOOLTYPE"))
         throwSemanticError(line, "If Statement condition doesn't evaluate to a boolean.");
@@ -706,6 +747,9 @@ ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
     this->condition = condition;
     this->body = body;
 }
+ElseIfStmtNode::~ElseIfStmtNode()
+{
+}
 void ElseIfStmtNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -715,7 +759,7 @@ void ElseIfStmtNode::print(int depth) const
     std::cout << depthTabs << "\tBody:" << std::endl;
     body->print(depth + 2);
 }
-void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
     if (!condition->checkType(scope, visibleScope, "BOOLTYPE"))
         throwSemanticError(line, "Else If Statement condition doesn't evaluate to a boolean.");
@@ -730,6 +774,9 @@ ElseStmtNode::ElseStmtNode(BlockNode *body)
 {
     this->body = body;
 }
+ElseStmtNode::~ElseStmtNode()
+{
+}
 void ElseStmtNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -737,7 +784,7 @@ void ElseStmtNode::print(int depth) const
     std::cout << depthTabs << "\tBody:" << std::endl;
     body->print(depth + 2);
 }
-void ElseStmtNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void ElseStmtNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
     visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
     for (Node *stmtNode : body->getStatements())
@@ -750,6 +797,9 @@ WhileNode::WhileNode(Node *condition, BlockNode *body)
     this->condition = condition;
     this->body = body;
 }
+WhileNode::~WhileNode()
+{
+}
 void WhileNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -759,7 +809,7 @@ void WhileNode::print(int depth) const
     std::cout << depthTabs << "\tBody:" << std::endl;
     body->print(depth + 2);
 }
-void WhileNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void WhileNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
     if (!condition->checkType(scope, visibleScope, "BOOLTYPE"))
         throwSemanticError(line, "While loop condition doesn't evaluate to a boolean.");
@@ -784,7 +834,7 @@ void ReturnStmtNode::print(int depth) const
     else
         identifier->print(depth + 2);
 }
-void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, std::vector<std::vector<std::string>>> &scope, std::vector<std::string> &visibleScope)
+void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
 
     for (int i = 0; i < visibleScope.size(); i++)
