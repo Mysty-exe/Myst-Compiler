@@ -1,4 +1,4 @@
-#include <compiler/lexer.h>
+#include "compiler/lexer.h"
 
 bool validIdentifier(const std::string &identifier)
 {
