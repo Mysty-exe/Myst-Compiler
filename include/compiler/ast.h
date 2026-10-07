@@ -10,7 +10,6 @@ protected:
 
 public:
     Node();
-    virtual ~Node();
     virtual ~Node() = default;
     virtual bool checkType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope, const std::string &type);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope);

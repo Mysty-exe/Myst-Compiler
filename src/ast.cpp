@@ -85,9 +85,6 @@ std::string getDataTypeStr(const std::string &str)
 Node::Node()
 {
 }
-Node::~Node()
-{
-}
 int Node::getLine() const
 {
     return line;
@@ -160,7 +157,7 @@ void RootNode::sendWarnings(std::unordered_map<std::string, Scope> symbolTable)
             {
                 FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
                 if (!derivedSymbol->hasReturn())
-                    throwSemanticWarning(derivedSymbol->getLine(), "Function '" + symbol->getName() + "' returns '" + getDataTypeStr(derivedSymbol->getReturnType()) + "' but return statement not found.");
+                    throwSemanticWarning(derivedSymbol->getLine(), "Function '" + symbol->getName() + "' returns '" + getDataTypeStr(derivedSymbol->getDataType()) + "' but return statement not found.");
             }
         }
     }
@@ -272,17 +269,16 @@ bool IdentifierNode::checkType(std::unordered_map<std::string, Scope> symbolTabl
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
-        auto currentScope = symbolTable[visibleScope[i]];
-        for (int j = 0; j < currentScope.size(); j++)
+        auto scope = symbolTable[visibleScope[i]];
+        for (Symbol *symbol : scope.getSymbols())
         {
-            auto currentIdentifier = currentScope[j];
-            if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "var" && name == currentIdentifier[3])
+            if (symbol->getType() == "VAR" && symbol->getName() == name)
             {
-                scope[visibleScope[i]][j][1] = "true";
-                if (type == currentIdentifier[4])
-                    this->type = Token::getTokenDataType(currentIdentifier[4]);
+                symbol->setUsed(true);
+                if (symbol->getDataType() == type)
+                    this->type = Token::getTokenDataType(symbol->getDataType());
 
-                return (type == currentIdentifier[4]);
+                return (symbol->getDataType() == type);
             }
         }
     }
@@ -294,14 +290,13 @@ std::string IdentifierNode::inferType(std::unordered_map<std::string, Scope> sym
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
-        auto currentScope = symbolTable[visibleScope[i]];
-        for (int j = 0; j < currentScope.size(); j++)
+        auto scope = symbolTable[visibleScope[i]];
+        for (Symbol *symbol : scope.getSymbols())
         {
-            auto currentIdentifier = currentScope[j];
-            if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "var" && name == currentIdentifier[3])
+            if (symbol->getType() == "VAR" && symbol->getName() == name)
             {
-                scope[visibleScope[i]][j][1] = "true";
-                return currentIdentifier[4];
+                symbol->setUsed(true);
+                return symbol->getDataType();
             }
         }
     }
@@ -519,22 +514,21 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
-        auto currentScope = symbolTable[visibleScope[i]];
-        for (int j = 0; j < currentScope.size(); j++)
+        auto scope = symbolTable[visibleScope[i]];
+        for (Symbol *symbol : scope.getSymbols())
         {
-            auto currentIdentifier = currentScope[j];
-            if (currentIdentifier.size() >= 6 && currentIdentifier[3] == "func" && name == currentIdentifier[4])
+            if (symbol->getType() == "FUNC" && symbol->getName() == name)
                 throwSemanticError(line, "'" + name + "' has already been declared as a function.");
         }
     }
 
-    std::vector<std::string> scopeToAdd = {std::to_string(line), "false", "false", "func", name, Token::getType(returnType)};
+    std::vector<std::string> parameterTypes;
     for (ParamNode *parameter : parameters)
-        scopeToAdd.push_back(Token::getType(parameter->getType()));
+        parameterTypes.push_back(Token::getType(parameter->getType()));
 
-    symbolTable[visibleScope[visibleScope.size() - 1]].push_back(scopeToAdd);
+    symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new FuncSymbol(line, false, name, Token::getType(returnType), false, parameterTypes));
     visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
-    body->checkSemantics(scope, visibleScope);
+    body->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
 
@@ -558,22 +552,22 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> symbolTable,
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
-        auto currentScope = scope[visibleScope[i]];
-        for (int j = 0; j < currentScope.size(); j++)
+        auto scope = symbolTable[visibleScope[i]];
+        for (Symbol *symbol : scope.getSymbols())
         {
-            auto currentIdentifier = currentScope[j];
-            if (currentIdentifier.size() >= 6 && currentIdentifier[3] == "func" && name == currentIdentifier[4])
+            if (symbol->getType() == "FUNC" && symbol->getName() == name)
             {
-                if (type == "" || currentIdentifier[5] == type)
+                if (type == "" || symbol->getDataType() == type)
                 {
-                    if (arguments.size() != currentIdentifier.size() - 6)
+                    FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
+                    if (arguments.size() != derivedSymbol->getNumParameters())
                         throwSemanticError(line, "Unexpected number of arguments: got " + std::to_string(arguments.size()) + ", expected " + std::to_string(currentIdentifier.size() - 6) + ".");
 
-                    for (int k = 0; k < arguments.size(); k++)
+                    for (int k = 0; k < derivedSymbol->getParameters().size(); k++)
                     {
-                        if (arguments[k]->checkType(scope, visibleScope, currentIdentifier[5 + k]))
+                        if (arguments[k]->checkType(symbolTable, visibleScope, derivedSymbol->getParameters()[k]))
                         {
-                            scope[visibleScope[i]][j][1] = "true";
+                            symbol->setUsed(true);
                             return true;
                         }
                         else
@@ -592,19 +586,18 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> symbolTable,
 }
 void CallExprNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
-    checkType(scope, visibleScope, "");
+    checkType(symbolTable, visibleScope, "");
 }
 
 std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope) const
 {
     for (int i = 0; i < visibleScope.size(); i++)
     {
-        auto currentScope = scope[visibleScope[i]];
-        for (int j = 0; j < currentScope.size(); j++)
+        auto scope = symbolTable[visibleScope[i]];
+        for (Symbol *symbol : scope.getSymbols())
         {
-            auto currentIdentifier = currentScope[j];
-            if (currentIdentifier.size() >= 6 && currentIdentifier[3] == "func" && name == currentIdentifier[4])
-                return currentIdentifier[5];
+            if (symbol->getType() == "FUNC" && symbol->getName() == name)
+                return symbol->getDataType();
         }
     }
 
@@ -634,23 +627,21 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTab
     {
         for (int i = 0; i < visibleScope.size(); i++)
         {
-            auto currentScope = scope[visibleScope[i]];
-            for (int j = 0; j < currentScope.size(); j++)
+            auto scope = symbolTable[visibleScope[i]];
+            for (Symbol *symbol : scope.getSymbols())
             {
-                auto currentIdentifier = currentScope[j];
-                if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "var" && identifier->getName() == currentIdentifier[3])
+                if (symbol->getType() == "VAR" && symbol->getName() == identifier->getName())
                     throwSemanticError(line, "'" + identifier->getName() + "' has already been declared.");
             }
         }
 
         if (identifier->getType() == TokenType::VAR)
         {
-            std::string t = value->inferType(scope, visibleScope);
-            scope[visibleScope[visibleScope.size() - 1]]
-                .push_back({std::to_string(line), "false", "var", identifier->getName(), t});
+            std::string t = value->inferType(symbolTable, visibleScope);
+            symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new VarSymbol(line, false, identifier->getName(), t));
         }
-        else if (value->checkType(scope, visibleScope, Token::getType(identifier->getType())))
-            scope[visibleScope[visibleScope.size() - 1]].push_back({std::to_string(line), "false", "var", identifier->getName(), Token::getType(identifier->getType())});
+        else if (value->checkType(symbolTable, visibleScope, Token::getType(identifier->getType())))
+            symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new VarSymbol(line, false, identifier->getName(), Token::getType(identifier->getType())));
         else
             throwSemanticError(line, "Value in '" + identifier->getName() + "' must have type '" + getDataTypeStr(Token::getType(identifier->getType())) + "'.");
     }
@@ -658,19 +649,18 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTab
     {
         for (int i = 0; i < visibleScope.size(); i++)
         {
-            auto currentScope = scope[visibleScope[i]];
-            for (int j = 0; j < currentScope.size(); j++)
+            auto scope = symbolTable[visibleScope[i]];
+            for (Symbol *symbol : scope.getSymbols())
             {
-                auto currentIdentifier = currentScope[j];
-                if (currentIdentifier.size() >= 5 && currentIdentifier[2] == "var" && identifier->getName() == currentIdentifier[3])
+                if (symbol->getType() == "VAR" && symbol->getName() == identifier->getName())
                 {
-                    if (value->checkType(scope, visibleScope, currentIdentifier[4]))
+                    if (value->checkType(symbolTable, visibleScope, symbol->getDataType()))
                     {
-                        identifier->setType(Token::getTokenDataType(currentIdentifier[4]));
+                        identifier->setType(Token::getTokenDataType(symbol->getDataType()));
                         return;
                     }
                     else
-                        throwSemanticError(line, "'" + identifier->getName() + "' has already been declared with type '" + getDataTypeStr(currentIdentifier[4]) + "'.");
+                        throwSemanticError(line, "'" + identifier->getName() + "' has already been declared with type '" + getDataTypeStr(symbol->getDataType()) + "'.");
                 }
             }
         }
@@ -707,7 +697,7 @@ void BlockNode::print(int depth) const
 void BlockNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
     for (Node *statement : statements)
-        statement->checkSemantics(scope, visibleScope);
+        statement->checkSemantics(symbolTable, visibleScope);
 }
 void StmtNode::print(int depth) const
 {
@@ -733,12 +723,12 @@ void IfStmtNode::print(int depth) const
 }
 void IfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
-    if (!condition->checkType(scope, visibleScope, "BOOLTYPE"))
+    if (!condition->checkType(symbolTable, visibleScope, "BOOLTYPE"))
         throwSemanticError(line, "If Statement condition doesn't evaluate to a boolean.");
 
     visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
     for (Node *stmtNode : body->getStatements())
-        stmtNode->checkSemantics(scope, visibleScope);
+        stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
 
@@ -761,12 +751,12 @@ void ElseIfStmtNode::print(int depth) const
 }
 void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
-    if (!condition->checkType(scope, visibleScope, "BOOLTYPE"))
+    if (!condition->checkType(symbolTable, visibleScope, "BOOLTYPE"))
         throwSemanticError(line, "Else If Statement condition doesn't evaluate to a boolean.");
 
     visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
     for (Node *stmtNode : body->getStatements())
-        stmtNode->checkSemantics(scope, visibleScope);
+        stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
 
@@ -788,7 +778,7 @@ void ElseStmtNode::checkSemantics(std::unordered_map<std::string, Scope> symbolT
 {
     visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
     for (Node *stmtNode : body->getStatements())
-        stmtNode->checkSemantics(scope, visibleScope);
+        stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
 
@@ -811,12 +801,12 @@ void WhileNode::print(int depth) const
 }
 void WhileNode::checkSemantics(std::unordered_map<std::string, Scope> symbolTable, std::vector<std::string> &visibleScope)
 {
-    if (!condition->checkType(scope, visibleScope, "BOOLTYPE"))
+    if (!condition->checkType(symbolTable, visibleScope, "BOOLTYPE"))
         throwSemanticError(line, "While loop condition doesn't evaluate to a boolean.");
 
     visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
     for (Node *stmtNode : body->getStatements())
-        stmtNode->checkSemantics(scope, visibleScope);
+        stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
 
@@ -839,18 +829,18 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> symbo
 
     for (int i = 0; i < visibleScope.size(); i++)
     {
-        auto currentScope = scope[visibleScope[i]];
-        for (int j = 0; j < currentScope.size(); j++)
+        auto scope = symbolTable[visibleScope[i]];
+        for (Symbol *symbol : scope.getSymbols())
         {
-            auto currentIdentifier = currentScope[j];
-            if (currentIdentifier.size() >= 6 && currentIdentifier[3] == "func")
+            if (symbol->getType() == "FUNC")
             {
-                if (currentIdentifier[5] == "UNKNOWN")
+                if (symbol->getDataType() == "UNKNOWN")
                     throwSemanticError(line, "Return statement found in a function that doesn't have a return type.");
-                if (!identifier->checkType(scope, visibleScope, currentIdentifier[5]))
+                if (!identifier->checkType(symbolTable, visibleScope, symbol->getDataType()))
                     throwSemanticError(line, "Return statement doesn't return the required return type.");
 
-                scope[visibleScope[i]][j][2] = "true";
+                FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
+                derivedSymbol->setHasReturnFlag(true);
             }
         }
     }

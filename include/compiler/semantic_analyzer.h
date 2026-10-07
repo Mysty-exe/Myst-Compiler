@@ -9,27 +9,28 @@ struct Symbol
 protected:
     int line;
     bool used;
-    std::string name;
+    std::string name, type;
 
 public:
-    Symbol(int line, bool used, std::string name);
+    Symbol(int line, bool used, std::string name, std::string type);
     virtual ~Symbol();
     int getLine() const;
     bool isUsed() const;
     std::string getName() const;
+    std::string getDataType() const;
     void setUsed(bool flag);
     virtual std::string getType() = 0;
 };
 
-struct VarSymbol : public Symbol
+struct VarSymbol : Symbol
 {
 public:
-    VarSymbol(int line, bool used, std::string name);
+    VarSymbol(int line, bool used, std::string name, std::string type);
     ~VarSymbol() override;
     virtual std::string getType() override;
 };
 
-struct FuncSymbol : public Symbol
+struct FuncSymbol : Symbol
 {
 private:
     bool hasReturnIfNeeded;
@@ -37,12 +38,13 @@ private:
     std::vector<std::string> parameterTypes;
 
 public:
-    FuncSymbol(int line, bool used, std::string name, bool hasReturnIfNeeded, std::string returnType, std::vector<std::string> parameterTypes);
+    FuncSymbol(int line, bool used, std::string name, std::string type, bool hasReturnIfNeeded, std::vector<std::string> parameterTypes);
     ~FuncSymbol() override;
-    std::string getReturnType() const;
     bool hasReturn() const;
     void setReturnType(std::string type);
     void setHasReturnFlag(bool flag);
+    std::vector<std::string> getParameters() const;
+    int getNumParameters() const;
     virtual std::string getType() override;
 };
 
@@ -53,6 +55,7 @@ private:
 
 public:
     std::vector<Symbol *> getSymbols();
+    void addSymbol(Symbol *symbol);
 };
 
 class SemanticAnalyzer

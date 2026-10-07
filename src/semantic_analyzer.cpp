@@ -1,10 +1,11 @@
 #include "compiler/semantic_analyzer.h"
 
-Symbol::Symbol(int line, bool used, std::string name)
+Symbol::Symbol(int line, bool used, std::string name, std::string type)
 {
     this->line = line;
     this->used = used;
     this->name = name;
+    this->type = type;
 }
 Symbol::~Symbol()
 {
@@ -21,12 +22,16 @@ std::string Symbol::getName() const
 {
     return name;
 }
+std::string Symbol::getDataType() const
+{
+    return type;
+}
 void Symbol::setUsed(bool flag)
 {
     this->used = flag;
 }
 
-VarSymbol::VarSymbol(int line, bool used, std::string name) : Symbol(line, used, name)
+VarSymbol::VarSymbol(int line, bool used, std::string name, std::string type) : Symbol(line, used, name, type)
 {
 }
 VarSymbol::~VarSymbol()
@@ -37,15 +42,13 @@ std::string VarSymbol::getType()
     return "VAR";
 }
 
-FuncSymbol::FuncSymbol(int line, bool used, std::string name, bool hasReturnIfNeeded, std::string returnType, std::vector<std::string> parameterTypes) : Symbol(line, used, name)
+FuncSymbol::FuncSymbol(int line, bool used, std::string name, std::string type, bool hasReturnIfNeeded, std::vector<std::string> parameterTypes) : Symbol(line, used, name, type)
 {
+    this->hasReturnIfNeeded = hasReturnIfNeeded;
+    this->parameterTypes = parameterTypes;
 }
 FuncSymbol::~FuncSymbol()
 {
-}
-std::string FuncSymbol::getReturnType() const
-{
-    return returnType;
 }
 bool FuncSymbol::hasReturn() const
 {
@@ -59,6 +62,14 @@ void FuncSymbol::setHasReturnFlag(bool flag)
 {
     this->hasReturnIfNeeded = flag;
 }
+std::vector<std::string> FuncSymbol::getParameters() const
+{
+    return parameterTypes;
+}
+int FuncSymbol::getNumParameters() const
+{
+    return parameterTypes.size();
+}
 std::string FuncSymbol::getType()
 {
     return "FUNC";
@@ -67,6 +78,10 @@ std::string FuncSymbol::getType()
 std::vector<Symbol *> Scope::getSymbols()
 {
     return symbols;
+}
+void Scope::addSymbol(Symbol *symbol)
+{
+    symbols.push_back(symbol);
 }
 
 void SemanticAnalyzer::analyzeTree(RootNode *root)
