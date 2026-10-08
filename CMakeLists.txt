@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(mystc src/lexer.cpp src/node.cpp src/ast.cpp src/llvm.cpp src/main.cpp)
 
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Wextra")
+
 target_compile_features(mystc PRIVATE cxx_std_17)
 
 target_sources(mystc PRIVATE

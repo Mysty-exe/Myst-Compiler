@@ -19,6 +19,7 @@ void LLVM::mapToIR(RootNode *root)
 
     for (Node *node : root->getChildren())
     {
+        FuncNode *fucntion = static_cast<FuncNode *>(node);
     }
 }
 

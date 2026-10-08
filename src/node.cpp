@@ -89,9 +89,6 @@ std::string getDataTypeStr(const std::string &str)
 Node::Node()
 {
 }
-Node::~Node()
-{
-}
 int Node::getLine() const
 {
     return line;
@@ -123,12 +120,21 @@ RootNode::RootNode()
 }
 RootNode::~RootNode()
 {
+    for (Node *node : children)
+    {
+        delete node;
+        node = nullptr;
+    }
 }
 void RootNode::addNode(Node *node)
 {
     children.push_back(node);
 }
 std::vector<Node *> RootNode::getChildren()
+{
+    return children;
+}
+std::vector<Node *> &RootNode::getChildrenRef()
 {
     return children;
 }
@@ -140,7 +146,6 @@ void RootNode::print(int depth) const
         std::cout << std::endl;
     }
 }
-
 void RootNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
     visibleScope.push_back("1");
@@ -158,9 +163,18 @@ void RootNode::sendWarnings(std::unordered_map<std::string, Scope> symbolTable)
         {
             if (!symbol->isUsed())
                 if (symbol->getType() == "VAR")
-                    throwSemanticWarning(symbol->getLine(), "Unused function '" + symbol->getName() + "' found.");
-                else
                     throwSemanticWarning(symbol->getLine(), "Unused variable '" + symbol->getName() + "' found.");
+                else
+                {
+                    FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
+                    std::string errorMsg = "Unused function " + symbol->getName() + "(";
+                    for (int i = 0; i < derivedSymbol->getNumParameters(); i++)
+                        if (i == derivedSymbol->getNumParameters() - 1)
+                            errorMsg += getDataTypeStr(derivedSymbol->getParameters()[i]);
+                        else
+                            errorMsg += getDataTypeStr(derivedSymbol->getParameters()[i]) + ", ";
+                    throwSemanticWarning(symbol->getLine(), errorMsg + ")");
+                }
             if (symbol->getType() == "FUNC")
             {
                 FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
@@ -273,6 +287,10 @@ BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
 }
 BinaryExprNode::~BinaryExprNode()
 {
+    delete left;
+    left = nullptr;
+    delete right;
+    right = nullptr;
 }
 void BinaryExprNode::print(int depth) const
 {
@@ -341,6 +359,8 @@ UnaryExprNode::UnaryExprNode(std::string op, Node *right)
 }
 UnaryExprNode::~UnaryExprNode()
 {
+    delete right;
+    right = nullptr;
 }
 void UnaryExprNode::print(int depth) const
 {
@@ -477,6 +497,13 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
 }
 FuncNode::~FuncNode()
 {
+    for (ParamNode *param : parameters)
+    {
+        delete param;
+        param = nullptr;
+    }
+
+    delete body;
 }
 void FuncNode::print(int depth) const
 {
@@ -538,6 +565,11 @@ CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
 }
 CallExprNode::~CallExprNode()
 {
+    for (Node *arg : arguments)
+    {
+        delete arg;
+        arg = nullptr;
+    }
 }
 void CallExprNode::print(int depth) const
 {
@@ -628,6 +660,10 @@ AssignNode::AssignNode(std::string name, std::string type, Node *value)
 }
 AssignNode::~AssignNode()
 {
+    delete identifier;
+    identifier = nullptr;
+    delete value;
+    value = nullptr;
 }
 void AssignNode::print(int depth) const
 {
@@ -694,10 +730,19 @@ BlockNode::BlockNode()
 }
 BlockNode::~BlockNode()
 {
+    for (Node *stmt : statements)
+    {
+        delete stmt;
+        stmt = nullptr;
+    }
 }
 void BlockNode::addStatement(Node *stmt)
 {
     statements.push_back(stmt);
+}
+void BlockNode::clearStatments()
+{
+    statements.clear();
 }
 int BlockNode::getNumStatements() const
 {
@@ -735,6 +780,10 @@ IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
 }
 IfStmtNode::~IfStmtNode()
 {
+    delete condition;
+    condition = nullptr;
+    delete body;
+    body = nullptr;
 }
 void IfStmtNode::print(int depth) const
 {
@@ -767,6 +816,10 @@ ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
 }
 ElseIfStmtNode::~ElseIfStmtNode()
 {
+    delete condition;
+    condition = nullptr;
+    delete body;
+    body = nullptr;
 }
 void ElseIfStmtNode::print(int depth) const
 {
@@ -798,6 +851,8 @@ ElseStmtNode::ElseStmtNode(BlockNode *body)
 }
 ElseStmtNode::~ElseStmtNode()
 {
+    delete body;
+    body = nullptr;
 }
 void ElseStmtNode::print(int depth) const
 {
@@ -825,6 +880,8 @@ WhileNode::WhileNode(Node *condition, BlockNode *body)
 }
 WhileNode::~WhileNode()
 {
+    delete condition;
+    delete body;
 }
 void WhileNode::print(int depth) const
 {
@@ -856,6 +913,8 @@ ReturnStmtNode::ReturnStmtNode(Node *identifier)
 }
 ReturnStmtNode::~ReturnStmtNode()
 {
+    delete identifier;
+    identifier = nullptr;
 }
 void ReturnStmtNode::print(int depth) const
 {
@@ -877,9 +936,9 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         {
             if (symbol->getType() == "FUNC")
             {
-                if (symbol->getDataType() == "UNKNOWN")
+                if (symbol->getDataType() == "UNKNOWN" && identifier != nullptr)
                     throwSemanticError(line, "Return statement found in a function that doesn't have a return type.");
-                if (!identifier->checkType(symbolTable, visibleScope, symbol->getDataType()))
+                if (identifier != nullptr && !identifier->checkType(symbolTable, visibleScope, symbol->getDataType()))
                     throwSemanticError(line, "Return statement doesn't return the required return type.");
 
                 FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);

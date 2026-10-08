@@ -1,7 +1,8 @@
 func main() -> string:
 	int x = 0
+	x = 5
 
-func main(string r) -> string:
-	return "SFDLK"
+func main(string r):
+	return
 
-main("TEST")
+main("FDSKJDS")

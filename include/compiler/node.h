@@ -17,7 +17,7 @@ protected:
 
 public:
     Node();
-    virtual ~Node();
+    virtual ~Node() = default;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope);
     virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) const;
@@ -37,6 +37,7 @@ public:
     ~RootNode() override;
     void addNode(Node *node);
     std::vector<Node *> getChildren();
+    std::vector<Node *> &getChildrenRef();
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     void sendWarnings(std::unordered_map<std::string, Scope> symbolTable);
@@ -216,6 +217,7 @@ public:
     BlockNode();
     ~BlockNode() override;
     void addStatement(Node *stmt);
+    void clearStatments();
     int getNumStatements() const;
     std::vector<Node *> getStatements() const;
     virtual void print(int depth = 0) const override;

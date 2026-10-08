@@ -25,5 +25,7 @@ public:
     Node *buildIdentifier(const std::vector<Token> &line, int start, int end);
     BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false);
     void buildTree(const std::vector<std::vector<Token>> &tokens);
+    void format();
     void printTree() const;
+    void freeMemory();
 };

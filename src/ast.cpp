@@ -544,7 +544,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
             {
                 ParamNode *parameter = new ParamNode(information[i]);
                 parameter->setLine(line + 1);
-                parameters.push_back(new ParamNode(information[i]));
+                parameters.push_back(parameter);
             }
 
             BlockNode *body = buildBlock(tokens, line, 1, true);
@@ -562,7 +562,35 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
     }
 }
 
+void AbstractSyntaxTree::format()
+{
+    BlockNode *globalCode = new BlockNode();
+    for (auto it = root->getChildrenRef().begin(); it != root->getChildrenRef().end();)
+    {
+        if (BlockNode *d = dynamic_cast<BlockNode *>(*it))
+        {
+            for (Node *stmt : d->getStatements())
+                globalCode->addStatement(stmt);
+
+            d->clearStatments();
+
+            delete *it;
+            it = root->getChildrenRef().erase(it);
+        }
+        else
+            ++it;
+    }
+
+    FuncNode *entranceFunc = new FuncNode("__main__", "INTTYPE", {}, globalCode);
+    root->addNode(entranceFunc);
+}
+
 void AbstractSyntaxTree::printTree() const
 {
     root->print();
+}
+
+void AbstractSyntaxTree::freeMemory()
+{
+    delete root;
 }

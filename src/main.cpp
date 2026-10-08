@@ -38,7 +38,12 @@ Parameters parameters = Parameters();
 
 void printHelp()
 {
-    std::cout << "Usage: mystc [file]" << std::endl;
+    std::cout << "Usage: mystc [file] {flags}" << std::endl;
+    std::cout << "\nFlags:" << std::endl;
+    std::cout << "-w = Disables Warnings" << std::endl;
+    std::cout << "-t = Prints the Tokens" << std::endl;
+    std::cout << "-a = Prints the Abstract Syntax Tree" << std::endl;
+    std::cout << "-o {file} = Set Executable Name" << std::endl;
 }
 
 std::string getExtension(const std::string &file)
@@ -63,6 +68,12 @@ void analyzeTree(AbstractSyntaxTree &ast)
     ast.getRoot()->checkSemantics(symbolTable, visibleScope);
     if (!parameters.disableWarnings)
         ast.getRoot()->sendWarnings(symbolTable);
+
+    for (auto &[_, scope] : symbolTable)
+    {
+        for (Symbol *symbol : scope.getSymbols())
+            delete symbol;
+    }
 }
 
 AbstractSyntaxTree parseFile(std::ifstream &inputFile)
@@ -140,8 +151,11 @@ int main(int argc, char *argv[])
     AbstractSyntaxTree ast = parseFile(inputFile);
     analyzeTree(ast);
 
+    ast.format();
     std::string output = (parameters.outputFile.size() == 0) ? parameters.inputFile.substr(0, parameters.inputFile.size() - 3) : parameters.outputFile;
     LLVM::runLLVM(output, ast.getRoot());
+
+    ast.freeMemory();
 
     return 0;
 }
