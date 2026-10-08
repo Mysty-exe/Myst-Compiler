@@ -4,7 +4,7 @@ project(MystCompiler LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-add_executable(mystc src/lexer.cpp src/node.cpp src/ast.cpp src/semantic_analyzer.cpp src/main.cpp)
+add_executable(mystc src/lexer.cpp src/node.cpp src/ast.cpp src/llvm.cpp src/main.cpp)
 
 target_compile_features(mystc PRIVATE cxx_std_17)
 
@@ -14,7 +14,7 @@ target_sources(mystc PRIVATE
     include/compiler/node.h
     include/compiler/lexer.h
     include/compiler/ast.h
-    include/compiler/semantic_analyzer.h
+    include/compiler/llvm.h
 )
 
 target_include_directories(mystc PRIVATE

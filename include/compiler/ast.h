@@ -1,7 +1,7 @@
 #pragma once
-#include "semantic_analyzer.h"
-#include "lexer.h"
-#include "error.h"
+#include "compiler/node.h"
+#include "compiler/lexer.h"
+#include "compiler/error.h"
 
 class AbstractSyntaxTree
 {

@@ -21,6 +21,7 @@ public:
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope);
     virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) const;
+    virtual std::string getIR();
     virtual void print(int depth = 0) const = 0;
     int getLine() const;
     void setLine(int line);
@@ -96,6 +97,11 @@ public:
 
         return "";
     }
+
+    virtual std::string getIR()
+    {
+        return "";
+    }
 };
 
 struct IdentifierNode : Node
@@ -115,6 +121,7 @@ public:
     virtual void print(int depth = 0) const override;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) const override;
+    virtual std::string getIR();
 };
 
 struct BinaryExprNode : Node
@@ -129,6 +136,7 @@ public:
     virtual void print(int depth = 0) const override;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) const override;
+    virtual std::string getIR();
 };
 
 struct UnaryExprNode : Node
@@ -143,6 +151,7 @@ public:
     virtual void print(int depth = 0) const override;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) const override;
+    virtual std::string getIR();
 };
 
 struct StmtNode : Node
@@ -168,6 +177,7 @@ public:
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) const override;
+    virtual std::string getIR();
 };
 
 struct AssignNode : StmtNode
@@ -181,6 +191,7 @@ public:
     ~AssignNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    virtual std::string getIR();
 };
 
 struct ReturnStmtNode : StmtNode
@@ -193,6 +204,7 @@ public:
     ~ReturnStmtNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    virtual std::string getIR();
 };
 
 struct BlockNode : Node
@@ -208,6 +220,7 @@ public:
     std::vector<Node *> getStatements() const;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    virtual std::string getIR();
 };
 
 struct ParamNode : Node
@@ -223,6 +236,7 @@ public:
     std::string getName() const;
     TokenType getType() const;
     virtual void print(int depth = 0) const override;
+    virtual std::string getIR();
 };
 
 struct FuncNode : Node
@@ -238,6 +252,7 @@ public:
     ~FuncNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    virtual std::string getIR();
 };
 
 struct IfStmtNode : Node
@@ -251,6 +266,7 @@ public:
     ~IfStmtNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    virtual std::string getIR();
 };
 
 struct ElseIfStmtNode : Node
@@ -264,6 +280,7 @@ public:
     ~ElseIfStmtNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    virtual std::string getIR();
 };
 
 struct ElseStmtNode : Node
@@ -276,6 +293,7 @@ public:
     ~ElseStmtNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    virtual std::string getIR();
 };
 
 struct WhileNode : Node
@@ -289,4 +307,5 @@ public:
     ~WhileNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    virtual std::string getIR();
 };

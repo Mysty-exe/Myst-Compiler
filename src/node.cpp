@@ -9,8 +9,9 @@ void throwLexicalError(int line, std::string message)
     catch (const LexicalError &e)
     {
         std::cerr << "\033[31m";
-        std::cerr << "Lexical Error on line " << line << ": " << e.what() << std::endl;
+        std::cerr << "Lexical Error on line " << line << ": ";
         std::cerr << "\033[0m";
+        std::cout << e.what() << std::endl;
         exit(-1);
     }
 }
@@ -24,8 +25,9 @@ void throwSyntaxError(int line, std::string message)
     catch (const SyntaxError &e)
     {
         std::cerr << "\033[31m";
-        std::cerr << "Syntax Error on line " << line << ": " << e.what() << std::endl;
+        std::cerr << "Syntax Error on line " << line << ": ";
         std::cerr << "\033[0m";
+        std::cout << e.what() << std::endl;
         exit(-1);
     }
 }
@@ -33,8 +35,9 @@ void throwSyntaxError(int line, std::string message)
 void throwSemanticWarning(int line, std::string message)
 {
     std::cout << "\033[38;5;208m";
-    std::cout << "Warning on line " << line << ": " << message << std::endl;
+    std::cout << "Warning on line " << line << ": ";
     std::cerr << "\033[0m";
+    std::cout << message << std::endl;
 }
 
 void throwSemanticError(int line, std::string message)
@@ -46,8 +49,9 @@ void throwSemanticError(int line, std::string message)
     catch (const SemanticError &e)
     {
         std::cerr << "\033[31m";
-        std::cerr << "Semantic Error on line " << line << ": " << e.what() << std::endl;
+        std::cerr << "Semantic Error on line " << line << ": ";
         std::cerr << "\033[0m";
+        std::cout << e.what() << std::endl;
         exit(-1);
     }
 }
@@ -106,6 +110,10 @@ void Node::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, s
 {
 }
 std::string Node::inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) const
+{
+    return "";
+}
+std::string Node::getIR()
 {
     return "";
 }
@@ -252,6 +260,10 @@ std::string IdentifierNode::inferType(std::unordered_map<std::string, Scope> &sy
     throwSemanticError(line, "'" + name + "' hasn't been declared.");
     return "";
 }
+std::string IdentifierNode::getIR()
+{
+    return "";
+}
 
 BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
 {
@@ -317,6 +329,10 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &sy
 
     return leftType;
 }
+std::string BinaryExprNode::getIR()
+{
+    return "";
+}
 
 UnaryExprNode::UnaryExprNode(std::string op, Node *right)
 {
@@ -363,6 +379,10 @@ std::string UnaryExprNode::inferType(std::unordered_map<std::string, Scope> &sym
     }
 
     return rightType;
+}
+std::string UnaryExprNode::getIR()
+{
+    return "";
 }
 
 StmtNode::StmtNode()
@@ -418,6 +438,10 @@ ParamNode::ParamNode(std::string name, std::string type)
     if (type == "bool")
         this->type = TokenType::BOOLTYPE;
 }
+std::string ParamNode::getIR()
+{
+    return "";
+}
 std::string ParamNode::getName() const
 {
     return name;
@@ -464,7 +488,6 @@ void FuncNode::print(int depth) const
         parameters[i]->print(depth + 2);
     body->print(depth + 1);
 }
-
 void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
     for (int i = 0; i < visibleScope.size(); i++)
@@ -473,7 +496,22 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
         for (Symbol *symbol : scope.getSymbols())
         {
             if (symbol->getType() == "FUNC" && symbol->getName() == name)
-                throwSemanticError(line, "'" + name + "' has already been declared as a function.");
+            {
+                FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
+                if (derivedSymbol->getNumParameters() == parameters.size())
+                {
+                    bool sameFuncFlag = true;
+                    for (int i = 0; i < parameters.size(); i++)
+                        if (Token::getType(parameters[i]->getType()) != derivedSymbol->getParameters()[i])
+                        {
+                            sameFuncFlag = false;
+                            break;
+                        }
+
+                    if (sameFuncFlag)
+                        throwSemanticError(line, "'" + name + "' has already been declared as a function.");
+                }
+            }
         }
     }
 
@@ -483,8 +521,14 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
 
     symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new FuncSymbol(line, false, name, Token::getType(returnType), false, parameterTypes));
     visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
+    for (ParamNode *parameter : parameters)
+        symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new VarSymbol(line, false, parameter->getName(), Token::getType(parameter->getType())));
     body->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
+}
+std::string FuncNode::getIR()
+{
+    return "";
 }
 
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
@@ -505,6 +549,7 @@ void CallExprNode::print(int depth) const
 }
 bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
+    bool overridenFunction = false;
     for (int i = 0; i < visibleScope.size(); i++)
     {
         auto scope = symbolTable[visibleScope[i]];
@@ -512,12 +557,14 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
         {
             if (symbol->getType() == "FUNC" && symbol->getName() == name)
             {
+                overridenFunction = true;
                 if (type == "" || symbol->getDataType() == type)
                 {
                     FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
                     if (arguments.size() != derivedSymbol->getNumParameters())
-                        throwSemanticError(line, "Unexpected number of arguments: got " + std::to_string(arguments.size()) + ", expected " + std::to_string(derivedSymbol->getNumParameters()) + ".");
+                        continue;
 
+                    bool wrongType = false;
                     for (int k = 0; k < derivedSymbol->getParameters().size(); k++)
                     {
                         if (arguments[k]->checkType(symbolTable, visibleScope, derivedSymbol->getParameters()[k]))
@@ -526,8 +573,15 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                             return true;
                         }
                         else
-                            throwSemanticError(line, "Unexpected type found in function call: '" + name + "'.");
+                        {
+                            wrongType = true;
+                            continue;
+                        }
                     }
+
+                    if (wrongType)
+                        continue;
+                    ;
                     return true;
                 }
                 else
@@ -535,6 +589,9 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
             }
         }
     }
+
+    if (overridenFunction)
+        throwSemanticError(line, "Coulnd't find proper function signature for '" + name + "' call expression.");
 
     throwSemanticError(line, "function '" + name + "' hasn't been declared.");
     return false;
@@ -558,6 +615,10 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
 
     throwSemanticError(line, "function '" + name + "' hasn't been declared.");
     return "false";
+}
+std::string CallExprNode::getIR()
+{
+    return "";
 }
 
 AssignNode::AssignNode(std::string name, std::string type, Node *value)
@@ -623,6 +684,10 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
         throwSemanticError(line, "'" + identifier->getName() + "' hasn't been declared.");
     }
 }
+std::string AssignNode::getIR()
+{
+    return "";
+}
 
 BlockNode::BlockNode()
 {
@@ -658,6 +723,10 @@ void StmtNode::print(int depth) const
 {
     std::cout << "StatementNode: \n";
 }
+std::string BlockNode::getIR()
+{
+    return "";
+}
 
 IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
 {
@@ -685,6 +754,10 @@ void IfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
     for (Node *stmtNode : body->getStatements())
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
+}
+std::string IfStmtNode::getIR()
+{
+    return "";
 }
 
 ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
@@ -714,6 +787,10 @@ void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
+std::string ElseIfStmtNode::getIR()
+{
+    return "";
+}
 
 ElseStmtNode::ElseStmtNode(BlockNode *body)
 {
@@ -735,6 +812,10 @@ void ElseStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbol
     for (Node *stmtNode : body->getStatements())
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
+}
+std::string ElseStmtNode::getIR()
+{
+    return "";
 }
 
 WhileNode::WhileNode(Node *condition, BlockNode *body)
@@ -763,6 +844,10 @@ void WhileNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTab
     for (Node *stmtNode : body->getStatements())
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
+}
+std::string WhileNode::getIR()
+{
+    return "";
 }
 
 ReturnStmtNode::ReturnStmtNode(Node *identifier)
@@ -802,4 +887,8 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
             }
         }
     }
+}
+std::string ReturnStmtNode::getIR()
+{
+    return "";
 }
