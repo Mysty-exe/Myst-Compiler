@@ -1,8 +1,7 @@
-func main() -> string:
-	int x = 0
-	x = 5
+int x = 2
+decimal y = 1.23
+char n = 'd'
+bool test = false
 
-func main(string r):
-	return
-
-main("FDSKJDS")
+func testingFunc() -> string:
+	return "SOMETHING"

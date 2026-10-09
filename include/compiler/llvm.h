@@ -1,6 +1,14 @@
+#pragma once
 #include <fstream>
 #include <filesystem>
-#include <compiler/node.h>
+#include <array>
+#include <memory>
+#include "compiler/node.h"
+
+#ifdef _WIN32
+#define popen _popen
+#define pclose _pclose
+#endif
 
 class LLVM
 {

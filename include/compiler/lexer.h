@@ -71,7 +71,7 @@ public:
     std::string getToken() const;
     std::string getValue() const;
     int getLineNumber() const;
-    static const std::vector<std::string> keywords, dataTypes, operators, oneCharOperators, twoCharOperators;
+    static const std::vector<std::string> reservedFunctions, keywords, dataTypes, operators, oneCharOperators, twoCharOperators;
 };
 
 class Lexer

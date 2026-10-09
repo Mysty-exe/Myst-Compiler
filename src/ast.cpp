@@ -536,6 +536,9 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
         if (getNthToken(tokens[line], 1).getValue() == "func")
         {
             std::vector<std::string> information = getFunctionInformation(tokens[line]);
+            if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), information[0]) != Token::reservedFunctions.end())
+                throwSyntaxError(line, "Reserved function name used: '" + information[0] + "'.");
+
             line++;
 
             std::vector<ParamNode *> parameters;
@@ -581,8 +584,7 @@ void AbstractSyntaxTree::format()
             ++it;
     }
 
-    FuncNode *entranceFunc = new FuncNode("__main__", "INTTYPE", {}, globalCode);
-    root->addNode(entranceFunc);
+    root->setGlobalCode(globalCode);
 }
 
 void AbstractSyntaxTree::printTree() const

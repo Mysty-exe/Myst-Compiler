@@ -20,6 +20,7 @@ bool validNumber(const std::string &number)
             if (decimal)
                 return false;
             decimal = true;
+            continue;
         }
 
         if (!(number[i] >= '0' && number[i] <= '9'))
@@ -28,6 +29,7 @@ bool validNumber(const std::string &number)
     return true;
 }
 
+const std::vector<std::string> Token::reservedFunctions = {"__main__"};
 const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "return", "import", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "<", ">", "!", "==", "<=", ">=", "&&", "||", "and", "or", "not"};
@@ -155,6 +157,8 @@ TokenType Token::getTokenDataType(std::string type)
         return TokenType::DECIMALTYPE;
     if (type == "BOOLTYPE")
         return TokenType::BOOLTYPE;
+
+    return TokenType::UNKNOWN;
 }
 
 std::string Token::getType(TokenType type)
@@ -316,7 +320,7 @@ int Lexer::countSubstrings(const std::string &str, const std::string &substr) co
 
 bool Lexer::isNegativeNumber(const std::string &line, int col) const
 {
-    return (line.size() - col > 1 && line[col] == '-' && std::isdigit(line[col + 1]));
+    return (line.size() - col > 1 && (line[col] == '-' || line[col] == '.') && std::isdigit(line[col + 1]));
 }
 
 bool Lexer::startedNewString(const std::string &line, int col) const
