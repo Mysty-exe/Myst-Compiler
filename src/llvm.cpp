@@ -39,14 +39,14 @@ void LLVM::mapToIR(RootNode *root)
 
     BlockNode *global = static_cast<BlockNode *>(root->getGlobalCode());
     std::string ir = global->mapToGlobalIR();
-    tempFile << ir;
 
     for (Node *node : root->getChildren())
     {
         FuncNode *function = static_cast<FuncNode *>(node);
     }
 
-    tempFile << global->mapToIR(true);
+    global->mapToIR(ir, true);
+    tempFile << ir;
     tempFile.close();
 }
 

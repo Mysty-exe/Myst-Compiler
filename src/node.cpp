@@ -110,9 +110,11 @@ std::string Node::inferType(std::unordered_map<std::string, Scope> &symbolTable,
 {
     return "";
 }
-std::string Node::mapToIR(bool global)
+void Node::loadVariables(std::string &ir)
 {
-    return "";
+}
+void Node::mapToIR(std::string &ir, bool global)
+{
 }
 
 RootNode::RootNode()
@@ -285,9 +287,19 @@ std::string IdentifierNode::inferType(std::unordered_map<std::string, Scope> &sy
     throwSemanticError(line, "'" + name + "' hasn't been declared.");
     return "";
 }
-std::string IdentifierNode::mapToIR(bool global)
+void IdentifierNode::loadVariables(std::string &ir)
 {
-    return "";
+    if (type == TokenType::CHARTYPE)
+        ir += "%" + name + "_val = load i1, ptr @" + name + ", align 1\n";
+    if (type == TokenType::INTTYPE)
+        ir += "%" + name + "_val = load i32, ptr @" + name + ", align 4\n";
+    if (type == TokenType::DECIMALTYPE)
+        ir += "%" + name + "_val = load double, ptr @" + name + ", align 4\n";
+    if (type == TokenType::BOOLTYPE)
+        ir += "%" + name + "_val = load i1, ptr @" + name + ", align 1\n";
+}
+void IdentifierNode::mapToIR(std::string &ir, bool global)
+{
 }
 
 BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
@@ -358,9 +370,13 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &sy
 
     return leftType;
 }
-std::string BinaryExprNode::mapToIR(bool global)
+void BinaryExprNode::loadVariables(std::string &ir)
 {
-    return "";
+    left->loadVariables(ir);
+    right->loadVariables(ir);
+}
+void BinaryExprNode::mapToIR(std::string &ir, bool global)
+{
 }
 
 UnaryExprNode::UnaryExprNode(std::string op, Node *right)
@@ -411,9 +427,12 @@ std::string UnaryExprNode::inferType(std::unordered_map<std::string, Scope> &sym
 
     return rightType;
 }
-std::string UnaryExprNode::mapToIR(bool global)
+void UnaryExprNode::loadVariables(std::string &ir)
 {
-    return "";
+    right->loadVariables(ir);
+}
+void UnaryExprNode::mapToIR(std::string &ir, bool global)
+{
 }
 
 StmtNode::StmtNode()
@@ -469,9 +488,8 @@ ParamNode::ParamNode(std::string name, std::string type)
     if (type == "bool")
         this->type = TokenType::BOOLTYPE;
 }
-std::string ParamNode::mapToIR(bool global)
+void ParamNode::mapToIR(std::string &ir, bool global)
 {
-    return "";
 }
 std::string ParamNode::getName() const
 {
@@ -564,9 +582,8 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
     body->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-std::string FuncNode::mapToIR(bool global)
+void FuncNode::mapToIR(std::string &ir, bool global)
 {
-    return "";
 }
 
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
@@ -659,13 +676,20 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
     throwSemanticError(line, "function '" + name + "' hasn't been declared.");
     return "false";
 }
-std::string CallExprNode::mapToIR(bool global)
+void CallExprNode::loadVariables(std::string &ir)
 {
-    return "";
+    for (Node *arg : arguments)
+        arg->loadVariables(ir);
+}
+void CallExprNode::mapToIR(std::string &ir, bool global)
+{
 }
 
 AssignNode::AssignNode(std::string name, std::string type, Node *value)
 {
+    declared = true;
+    if (type == "")
+        declared = false;
     this->identifier = new IdentifierNode(name, type);
     this->value = value;
 }
@@ -683,6 +707,10 @@ std::string AssignNode::getName() const
 std::string AssignNode::getType() const
 {
     return Token::getType(identifier->getType());
+}
+bool AssignNode::isDeclared() const
+{
+    return declared;
 }
 void AssignNode::print(int depth) const
 {
@@ -739,17 +767,12 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
         throwSemanticError(line, "'" + identifier->getName() + "' hasn't been declared.");
     }
 }
-std::string AssignNode::mapToIR(bool global)
+void AssignNode::mapToIR(std::string &ir, bool global)
 {
-    std::string ir;
-    if (identifier->getType() == TokenType::CHARTYPE)
-        ir += "store i1 " + identifier->mapToIR() + ", ptr @" + identifier->getName() + ", align 1\n";
-    if (identifier->getType() == TokenType::INTTYPE)
-        ir += "store i32 " + identifier->mapToIR() + ", ptr @" + identifier->getName() + ", align 4\n";
-    if (identifier->getType() == TokenType::DECIMALTYPE)
-        ir += "store double " + identifier->mapToIR() + ", ptr @" + identifier->getName() + ", align 4\n";
-    if (identifier->getType() == TokenType::BOOLTYPE)
-        ir += "store i1 " + identifier->mapToIR() + ", ptr @" + identifier->getName() + ", align 1\n";
+    value->loadVariables(ir);
+
+    if (IdentifierNode *literal = dynamic_cast<IdentifierNode *>(value))
+        ir += "store i32 %" + literal->getName() + "_val, ptr @" + identifier->getName() + ", align 4\n";
 }
 
 BlockNode::BlockNode()
@@ -802,6 +825,8 @@ std::string BlockNode::mapToGlobalIR()
     {
         if (AssignNode *assignment = dynamic_cast<AssignNode *>(node))
         {
+            if (!assignment->isDeclared())
+                continue;
             if (assignment->getType() == "CHARTYPE")
                 ir += "@" + assignment->getName() + " = global i8 0, align 1\n";
             if (assignment->getType() == "INTTYPE")
@@ -817,18 +842,15 @@ std::string BlockNode::mapToGlobalIR()
 
     return ir;
 }
-std::string BlockNode::mapToIR(bool global)
+void BlockNode::mapToIR(std::string &ir, bool global)
 {
-    std::string ir;
     ir += "define i32 @main() {\n";
 
     for (Node *node : statements)
-        node->mapToIR(true);
+        node->mapToIR(ir, true);
 
     ir += "ret i32 0\n";
     ir += "}";
-
-    return ir;
 }
 
 IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
@@ -862,9 +884,8 @@ void IfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-std::string IfStmtNode::mapToIR(bool global)
+void IfStmtNode::mapToIR(std::string &ir, bool global)
 {
-    return "";
 }
 
 ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
@@ -898,9 +919,8 @@ void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-std::string ElseIfStmtNode::mapToIR(bool global)
+void ElseIfStmtNode::mapToIR(std::string &ir, bool global)
 {
-    return "";
 }
 
 ElseStmtNode::ElseStmtNode(BlockNode *body)
@@ -926,9 +946,8 @@ void ElseStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbol
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-std::string ElseStmtNode::mapToIR(bool global)
+void ElseStmtNode::mapToIR(std::string &ir, bool global)
 {
-    return "";
 }
 
 WhileNode::WhileNode(Node *condition, BlockNode *body)
@@ -960,9 +979,8 @@ void WhileNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTab
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-std::string WhileNode::mapToIR(bool global)
+void WhileNode::mapToIR(std::string &ir, bool global)
 {
-    return "";
 }
 
 ReturnStmtNode::ReturnStmtNode(Node *identifier)
@@ -1005,7 +1023,6 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         }
     }
 }
-std::string ReturnStmtNode::mapToIR(bool global)
+void ReturnStmtNode::mapToIR(std::string &ir, bool global)
 {
-    return "";
 }
