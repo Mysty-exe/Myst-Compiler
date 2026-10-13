@@ -110,10 +110,13 @@ std::string Node::inferType(std::unordered_map<std::string, Scope> &symbolTable,
 {
     return "";
 }
-void Node::loadVariables(std::string &ir)
+void Node::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::string>> &tempvarMap)
 {
 }
-void Node::mapToIR(std::string &ir, bool global)
+void Node::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap)
+{
+}
+void Node::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 
@@ -287,18 +290,37 @@ std::string IdentifierNode::inferType(std::unordered_map<std::string, Scope> &sy
     throwSemanticError(line, "'" + name + "' hasn't been declared.");
     return "";
 }
-void IdentifierNode::loadVariables(std::string &ir)
+void IdentifierNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::string>> &tempvarMap)
 {
+    if (std::find(loadedVars.begin(), loadedVars.end(), name) != loadedVars.end())
+        return;
+
+    std::string tempVarName = std::to_string(tempvarMap.size() + 1);
     if (type == TokenType::CHARTYPE)
-        ir += "%" + name + "_val = load i1, ptr @" + name + ", align 1\n";
+        ir += "%" + tempVarName + " = load i1, ptr @" + name + ", align 1\n";
     if (type == TokenType::INTTYPE)
-        ir += "%" + name + "_val = load i32, ptr @" + name + ", align 4\n";
+        ir += "%" + tempVarName + " = load i32, ptr @" + name + ", align 4\n";
     if (type == TokenType::DECIMALTYPE)
-        ir += "%" + name + "_val = load double, ptr @" + name + ", align 4\n";
+        ir += "%" + tempVarName + " = load double, ptr @" + name + ", align 4\n";
     if (type == TokenType::BOOLTYPE)
-        ir += "%" + name + "_val = load i1, ptr @" + name + ", align 1\n";
+        ir += "%" + tempVarName + " = load i1, ptr @" + name + ", align 1\n";
+
+    tempvarMap.push_back({name});
+    loadedVars.push_back(name);
 }
-void IdentifierNode::mapToIR(std::string &ir, bool global)
+void IdentifierNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap)
+{
+    std::string tempVarName = std::to_string(tempvarMap.size());
+    if (type == TokenType::CHARTYPE)
+        ir += "store i1 %" + tempVarName + ", ptr @" + assignmentName + ", align 1\n";
+    if (type == TokenType::INTTYPE)
+        ir += "store i32 %" + tempVarName + ", ptr @" + assignmentName + ", align 4\n";
+    if (type == TokenType::DECIMALTYPE)
+        ir += "store double %" + tempVarName + ", ptr @" + assignmentName + ", align 8\n";
+    if (type == TokenType::BOOLTYPE)
+        ir += "store i1 %" + tempVarName + ", ptr @" + assignmentName + ", align 1\n";
+}
+void IdentifierNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 
@@ -319,6 +341,7 @@ void BinaryExprNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "BinaryExpressionNode: " << op << std::endl;
+    std::cout << depthTabs << "Type: " << getDataTypeStr(type) << std::endl;
     std::cout << depthTabs << "\tLeft:\n";
     left->print(depth + 2);
     std::cout << depthTabs << "\tRight:\n";
@@ -336,6 +359,9 @@ bool BinaryExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTab
         throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
         return false;
     }
+
+    this->type = type;
+
     if (op == "==" || op == "!=")
     {
         if (right->inferType(symbolTable, visibleScope) != left->inferType(symbolTable, visibleScope))
@@ -370,12 +396,27 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &sy
 
     return leftType;
 }
-void BinaryExprNode::loadVariables(std::string &ir)
+void BinaryExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::string>> &tempvarMap)
 {
-    left->loadVariables(ir);
-    right->loadVariables(ir);
+    left->loadVariables(ir, loadedVars, tempvarMap);
+    right->loadVariables(ir, loadedVars, tempvarMap);
 }
-void BinaryExprNode::mapToIR(std::string &ir, bool global)
+void BinaryExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap)
+{
+    std::string tempVarName = std::to_string(tempvarMap.size() + 1);
+    if ((dynamic_cast<BinaryExprNode *>(left) == nullptr && dynamic_cast<BinaryExprNode *>(right) == nullptr) && (dynamic_cast<UnaryExprNode *>(left) == nullptr && dynamic_cast<UnaryExprNode *>(right) == nullptr))
+    {
+        std::string leftLiteral, rightLiteral;
+        left->mapToIR(leftLiteral, tempvarMap);
+        right->mapToIR(rightLiteral, tempvarMap);
+        ir += "%" + tempVarName + " = add i32 " + leftLiteral + ", " + rightLiteral + "\n";
+        tempvarMap.push_back({op, leftLiteral, rightLiteral});
+    }
+
+    left->storeValue(ir, assignmentName, tempvarMap);
+    right->storeValue(ir, assignmentName, tempvarMap);
+}
+void BinaryExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 
@@ -393,6 +434,7 @@ void UnaryExprNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "UnaryExpressionNode: " << op << std::endl;
+    std::cout << depthTabs << "Type: " << getDataTypeStr(type) << std::endl;
     std::cout << depthTabs << "\tRight:" << std::endl;
     right->print(depth + 2);
 }
@@ -408,6 +450,8 @@ bool UnaryExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTabl
         throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
         return false;
     }
+
+    this->type = type;
 
     return right->checkType(symbolTable, visibleScope, type);
 }
@@ -427,11 +471,14 @@ std::string UnaryExprNode::inferType(std::unordered_map<std::string, Scope> &sym
 
     return rightType;
 }
-void UnaryExprNode::loadVariables(std::string &ir)
+void UnaryExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::string>> &tempvarMap)
 {
-    right->loadVariables(ir);
+    right->loadVariables(ir, loadedVars, tempvarMap);
 }
-void UnaryExprNode::mapToIR(std::string &ir, bool global)
+void UnaryExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap)
+{
+}
+void UnaryExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 
@@ -488,7 +535,7 @@ ParamNode::ParamNode(std::string name, std::string type)
     if (type == "bool")
         this->type = TokenType::BOOLTYPE;
 }
-void ParamNode::mapToIR(std::string &ir, bool global)
+void ParamNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 std::string ParamNode::getName() const
@@ -582,7 +629,7 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
     body->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void FuncNode::mapToIR(std::string &ir, bool global)
+void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 
@@ -676,12 +723,15 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
     throwSemanticError(line, "function '" + name + "' hasn't been declared.");
     return "false";
 }
-void CallExprNode::loadVariables(std::string &ir)
+void CallExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::string>> &tempvarMap)
 {
     for (Node *arg : arguments)
-        arg->loadVariables(ir);
+        arg->loadVariables(ir, loadedVars, tempvarMap);
 }
-void CallExprNode::mapToIR(std::string &ir, bool global)
+void CallExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap)
+{
+}
+void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 
@@ -767,12 +817,11 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
         throwSemanticError(line, "'" + identifier->getName() + "' hasn't been declared.");
     }
 }
-void AssignNode::mapToIR(std::string &ir, bool global)
+void AssignNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
-    value->loadVariables(ir);
-
-    if (IdentifierNode *literal = dynamic_cast<IdentifierNode *>(value))
-        ir += "store i32 %" + literal->getName() + "_val, ptr @" + identifier->getName() + ", align 4\n";
+    std::vector<std::string> loadedVars;
+    value->loadVariables(ir, loadedVars, tempvarMap);
+    value->storeValue(ir, identifier->getName(), tempvarMap);
 }
 
 BlockNode::BlockNode()
@@ -842,12 +891,12 @@ std::string BlockNode::mapToGlobalIR()
 
     return ir;
 }
-void BlockNode::mapToIR(std::string &ir, bool global)
+void BlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
     ir += "define i32 @main() {\n";
 
     for (Node *node : statements)
-        node->mapToIR(ir, true);
+        node->mapToIR(ir, tempvarMap, true);
 
     ir += "ret i32 0\n";
     ir += "}";
@@ -884,7 +933,7 @@ void IfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void IfStmtNode::mapToIR(std::string &ir, bool global)
+void IfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 
@@ -919,7 +968,7 @@ void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void ElseIfStmtNode::mapToIR(std::string &ir, bool global)
+void ElseIfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 
@@ -946,7 +995,7 @@ void ElseStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbol
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void ElseStmtNode::mapToIR(std::string &ir, bool global)
+void ElseStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 
@@ -979,7 +1028,7 @@ void WhileNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTab
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void WhileNode::mapToIR(std::string &ir, bool global)
+void WhileNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }
 
@@ -1023,6 +1072,6 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         }
     }
 }
-void ReturnStmtNode::mapToIR(std::string &ir, bool global)
+void ReturnStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
 }

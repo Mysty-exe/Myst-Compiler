@@ -28,6 +28,7 @@ void LLVM::runLLVM(const std::string &outputFile, RootNode *root)
 
 void LLVM::mapToIR(RootNode *root)
 {
+    std::vector<std::vector<std::string>> tempvarMap;
     std::ofstream tempFile("temp.ll");
     if (!tempFile.is_open())
     {
@@ -45,7 +46,7 @@ void LLVM::mapToIR(RootNode *root)
         FuncNode *function = static_cast<FuncNode *>(node);
     }
 
-    global->mapToIR(ir, true);
+    global->mapToIR(ir, tempvarMap, true);
     tempFile << ir;
     tempFile.close();
 }

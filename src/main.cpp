@@ -66,6 +66,10 @@ void analyzeTree(AbstractSyntaxTree &ast)
     std::vector<std::string> visibleScope;
 
     ast.getRoot()->checkSemantics(symbolTable, visibleScope);
+
+    if (parameters.seeAST)
+        ast.printTree();
+
     if (!parameters.disableWarnings)
         ast.getRoot()->sendWarnings(symbolTable);
 
@@ -85,8 +89,6 @@ AbstractSyntaxTree parseFile(std::ifstream &inputFile)
         lexer.readTokens();
 
     AbstractSyntaxTree ast = AbstractSyntaxTree(lexer.getTokens());
-    if (parameters.seeAST)
-        ast.printTree();
 
     return ast;
 }
