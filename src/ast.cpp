@@ -311,7 +311,9 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
             }
         }
 
-        return new BinaryExprNode(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
+        BinaryExprNode *binaryExpr = new BinaryExprNode(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
+        binaryExpr->setLine(line[start].getLineNumber());
+        return binaryExpr;
     }
     else
     {

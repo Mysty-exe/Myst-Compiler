@@ -223,6 +223,10 @@ std::string Token::getType(TokenType type)
         return "LESSTHAN";
     case TokenType::GREATERTHAN:
         return "GREATERTHAN";
+    case TokenType::LESSTHANEQ:
+        return "LESSTHANEQ";
+    case TokenType::GREATERTHANEQ:
+        return "GREATERTHANEQ";
     case TokenType::AND:
         return "AND";
     case TokenType::OR:
