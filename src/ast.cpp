@@ -301,7 +301,7 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
                 {
                     if (line[i].getToken() == operatorPrecedence[level][op])
                     {
-                        if (level > currentLevel)
+                        if (level >= currentLevel)
                         {
                             splitIndex = i;
                             currentLevel = level;

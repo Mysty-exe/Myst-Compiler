@@ -161,6 +161,7 @@ private:
 public:
     BinaryExprNode(std::string op, Node *left, Node *right);
     ~BinaryExprNode() override;
+    void traverseOperands(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap);
     virtual void print(int depth = 0) const override;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) const override;

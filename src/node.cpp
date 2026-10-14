@@ -322,6 +322,7 @@ void IdentifierNode::storeValue(std::string &ir, const std::string &assignmentNa
 }
 void IdentifierNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
+    ir += name;
 }
 
 BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
@@ -401,20 +402,65 @@ void BinaryExprNode::loadVariables(std::string &ir, std::vector<std::string> &lo
     left->loadVariables(ir, loadedVars, tempvarMap);
     right->loadVariables(ir, loadedVars, tempvarMap);
 }
+void BinaryExprNode::traverseOperands(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap)
+{
+    if (dynamic_cast<BinaryExprNode *>(left) != nullptr || dynamic_cast<BinaryExprNode *>(right) != nullptr)
+    {
+        if (BinaryExprNode *binaryExpr = dynamic_cast<BinaryExprNode *>(left))
+            binaryExpr->traverseOperands(ir, tempvarMap);
+
+        if (BinaryExprNode *binaryExpr = dynamic_cast<BinaryExprNode *>(right))
+            binaryExpr->traverseOperands(ir, tempvarMap);
+    }
+    else
+    {
+    }
+}
 void BinaryExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap)
 {
-    std::string tempVarName = std::to_string(tempvarMap.size() + 1);
-    if ((dynamic_cast<BinaryExprNode *>(left) == nullptr && dynamic_cast<BinaryExprNode *>(right) == nullptr) && (dynamic_cast<UnaryExprNode *>(left) == nullptr && dynamic_cast<UnaryExprNode *>(right) == nullptr))
+    if (dynamic_cast<BinaryExprNode *>(left) != nullptr || dynamic_cast<BinaryExprNode *>(right) != nullptr)
+    {
+        if (dynamic_cast<BinaryExprNode *>(left) != nullptr && dynamic_cast<BinaryExprNode *>(right) != nullptr)
+        {
+            left->storeValue(ir, assignmentName, tempvarMap);
+            right->storeValue(ir, assignmentName, tempvarMap);
+
+            ir += "%" + std::to_string(tempvarMap.size() + 1) + " = add i32 %" + std::to_string(tempvarMap.size() - 1) + ", %" + std::to_string(tempvarMap.size()) + "\n";
+            tempvarMap.push_back({op, std::to_string(tempvarMap.size() - 1), std::to_string(tempvarMap.size() + 1)});
+        }
+        else if (dynamic_cast<BinaryExprNode *>(left) != nullptr)
+        {
+            left->storeValue(ir, assignmentName, tempvarMap);
+
+            std::string rightLiteral;
+            right->mapToIR(rightLiteral, tempvarMap);
+            BinaryExprNode *leftExpr = static_cast<BinaryExprNode *>(left);
+            ir += "%" + std::to_string(tempvarMap.size() + 1) + " = add i32 %" + std::to_string(tempvarMap.size()) + ", " + rightLiteral + "\n";
+            tempvarMap.push_back({op, std::to_string(tempvarMap.size()), rightLiteral});
+        }
+        else if (dynamic_cast<BinaryExprNode *>(right) != nullptr)
+        {
+            right->storeValue(ir, assignmentName, tempvarMap);
+
+            std::string leftLiteral;
+            left->mapToIR(leftLiteral, tempvarMap);
+            BinaryExprNode *rightExpr = static_cast<BinaryExprNode *>(right);
+            ir += "%" + std::to_string(tempvarMap.size() + 1) + " = add i32 " + leftLiteral + ", %" + std::to_string(tempvarMap.size()) + "\n";
+            tempvarMap.push_back({op, leftLiteral, std::to_string(tempvarMap.size())});
+        }
+    }
+    else
     {
         std::string leftLiteral, rightLiteral;
         left->mapToIR(leftLiteral, tempvarMap);
         right->mapToIR(rightLiteral, tempvarMap);
-        ir += "%" + tempVarName + " = add i32 " + leftLiteral + ", " + rightLiteral + "\n";
+        ir += "%" + std::to_string(tempvarMap.size() + 1) + " = add i32 " + leftLiteral + ", " + rightLiteral + "\n";
         tempvarMap.push_back({op, leftLiteral, rightLiteral});
     }
 
-    left->storeValue(ir, assignmentName, tempvarMap);
-    right->storeValue(ir, assignmentName, tempvarMap);
+    if (tempvarMap[tempvarMap.size() - 1].size() == 1)
+    {
+    }
 }
 void BinaryExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
 {
