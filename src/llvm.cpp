@@ -44,11 +44,21 @@ void LLVM::mapToIR(RootNode *root)
     for (Node *node : root->getChildren())
     {
         FuncNode *function = static_cast<FuncNode *>(node);
+        function->mapToIR(ir, tempvarMap, false);
     }
 
     global->mapToIR(ir, tempvarMap, true);
     tempFile << ir;
     tempFile.close();
+
+    for (int i = 0; i < tempvarMap.size(); i++)
+    {
+        std::cout << i + 1 << ": ";
+        for (int j = 0; j < tempvarMap[i].size(); j++)
+            std::cout << tempvarMap[i][j] << " ";
+
+        std::cout << std::endl;
+    }
 }
 
 void LLVM::generateExecutable(const std::string &outputFile)
