@@ -218,13 +218,13 @@ std::string Node::inferType(std::unordered_map<std::string, Scope> &symbolTable,
 {
     return "";
 }
-void Node::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void Node::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
-void Node::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void Node::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
-void Node::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void Node::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
 
@@ -398,33 +398,74 @@ std::string IdentifierNode::inferType(std::unordered_map<std::string, Scope> &sy
     throwSemanticError(line, "'" + name + "' hasn't been declared.");
     return "";
 }
-void IdentifierNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void IdentifierNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     if (std::find(loadedVars.begin(), loadedVars.end(), name) != loadedVars.end())
         return;
 
-    std::string loadName = "@" + name;
-    std::string tempVarName = std::to_string(tempvarMap.size() + 1);
-    if (!global)
+    std::string tempVarName = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+    if (global)
     {
-        for (int i = tempvarMap.size() - 1; i >= 0; i--)
+        ir += "%" + tempVarName + " = load " + mapTypeIR(Token::getType(type)) + ", ptr @" + name + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+        tempvarMap[tempvarMap.size() - 1].push_back({name});
+        loadedVars.push_back(name);
+        return;
+    }
+
+    bool globalVar = true;
+    for (int i = 0; i < tempvarMap.size(); i++)
+    {
+        for (int j = 0; j < tempvarMap[i].size(); j++)
         {
-            if (tempvarMap[i].size() == 1 && tempvarMap[i][0] == name)
-                loadName = "%" + std::to_string(i + 1);
+            if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == name)
+            {
+                globalVar = false;
+                ir += "%" + tempVarName + " = load " + mapTypeIR(Token::getType(type)) + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+                break;
+            }
         }
     }
-    ir += "%" + tempVarName + " = load " + mapTypeIR(Token::getType(type)) + ", ptr " + loadName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
 
-    tempvarMap.push_back({name});
+    if (globalVar)
+        ir += "%" + tempVarName + " = load " + mapTypeIR(Token::getType(type)) + ", ptr @" + name + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+
+    tempvarMap[tempvarMap.size() - 1].push_back({name});
     loadedVars.push_back(name);
 }
-void IdentifierNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void IdentifierNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    std::string tempVarName = std::to_string(tempvarMap.size());
-    std::string tempOrGlobal = (global) ? "@" : "%";
-    ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr " + tempOrGlobal + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n ";
+    std::string tempVarName = std::to_string(tempvarMap[tempvarMap.size() - 1].size());
+
+    if (assignmentName == ".return")
+    {
+        ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+        return;
+    }
+
+    if (global)
+    {
+        ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+        return;
+    }
+
+    bool globalVar = true;
+    for (int i = tempvarMap.size() - 1; i >= 0; i--)
+    {
+        for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
+        {
+            if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == assignmentName)
+            {
+                globalVar = false;
+                ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+                break;
+            }
+        }
+    }
+
+    if (globalVar)
+        ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
 }
-void IdentifierNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void IdentifierNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     ir += name;
 }
@@ -514,12 +555,12 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &sy
 
     return leftType;
 }
-void BinaryExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void BinaryExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     left->loadVariables(ir, loadedVars, tempvarMap, global);
     right->loadVariables(ir, loadedVars, tempvarMap, global);
 }
-void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap)
+void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap)
 {
     if (dynamic_cast<BinaryExprNode *>(left) != nullptr || dynamic_cast<BinaryExprNode *>(right) != nullptr)
     {
@@ -531,8 +572,8 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
             leftIdentifier->traverseBinary(ir, tempvarMap);
             rightIdentifier->traverseBinary(ir, tempvarMap);
 
-            ir += "%" + std::to_string(tempvarMap.size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " %" + std::to_string(tempvarMap.size() - 1) + ", %" + std::to_string(tempvarMap.size()) + "\n";
-            tempvarMap.push_back({op, std::to_string(tempvarMap.size() - 1), std::to_string(tempvarMap.size())});
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() - 1) + ", %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + "\n";
+            tempvarMap[tempvarMap.size() - 1].push_back({op, std::to_string(tempvarMap[tempvarMap.size() - 1].size() - 1), std::to_string(tempvarMap.size())});
         }
         else if (dynamic_cast<BinaryExprNode *>(left) != nullptr)
         {
@@ -544,16 +585,19 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
             if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(left))
             {
                 rightIdentifier->traverseUnary(ir, tempvarMap);
-                r = "%" + std::to_string(tempvarMap.size());
+                r = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
             else if (IdentifierNode *rightIdentifier = dynamic_cast<IdentifierNode *>(right))
             {
                 for (int i = tempvarMap.size() - 1; i >= 0; i--)
                 {
-                    if (tempvarMap[i].size() == 1 && tempvarMap[i][0] == rightIdentifier->getName() && r.size() == 0)
+                    for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
                     {
-                        r = "%" + std::to_string(i + 1);
-                        break;
+                        if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == rightIdentifier->getName() && r.size() == 0)
+                        {
+                            r = "%" + std::to_string(j + 1);
+                            break;
+                        }
                     }
                 }
             }
@@ -562,8 +606,8 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
                 right->mapToIR(r, tempvarMap);
             }
 
-            ir += "%" + std::to_string(tempvarMap.size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + "  %" + std::to_string(tempvarMap.size()) + ", " + r + "\n";
-            tempvarMap.push_back({op, std::to_string(tempvarMap.size()), r});
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + "  %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", " + r + "\n";
+            tempvarMap[tempvarMap.size() - 1].push_back({op, std::to_string(tempvarMap[tempvarMap.size() - 1].size()), r});
         }
         else if (dynamic_cast<BinaryExprNode *>(right) != nullptr)
         {
@@ -575,16 +619,19 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
             if (UnaryExprNode *leftIdentifier = dynamic_cast<UnaryExprNode *>(left))
             {
                 leftIdentifier->traverseUnary(ir, tempvarMap);
-                l = "%" + std::to_string(tempvarMap.size());
+                l = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
             else if (IdentifierNode *leftIdentifier = dynamic_cast<IdentifierNode *>(left))
             {
                 for (int i = tempvarMap.size() - 1; i >= 0; i--)
                 {
-                    if (tempvarMap[i].size() == 1 && tempvarMap[i][0] == leftIdentifier->getName() && l.size() == 0)
+                    for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
                     {
-                        l = "%" + std::to_string(i + 1);
-                        break;
+                        if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == leftIdentifier->getName() && l.size() == 0)
+                        {
+                            l = "%" + std::to_string(j + 1);
+                            break;
+                        }
                     }
                 }
             }
@@ -592,7 +639,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
                 left->mapToIR(l, tempvarMap);
 
             ir += "%" + std::to_string(tempvarMap.size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " " + l + ", %" + std::to_string(tempvarMap.size()) + "\n";
-            tempvarMap.push_back({op, l, std::to_string(tempvarMap.size())});
+            tempvarMap[tempvarMap.size() - 1].push_back({op, l, std::to_string(tempvarMap[tempvarMap.size() - 1].size())});
         }
     }
     else
@@ -602,16 +649,19 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
         if (UnaryExprNode *leftIdentifier = dynamic_cast<UnaryExprNode *>(left))
         {
             leftIdentifier->traverseUnary(ir, tempvarMap);
-            l = "%" + std::to_string(tempvarMap.size());
+            l = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
         }
         else if (IdentifierNode *leftIdentifier = dynamic_cast<IdentifierNode *>(left))
         {
             for (int i = tempvarMap.size() - 1; i >= 0; i--)
             {
-                if (tempvarMap[i].size() == 1 && tempvarMap[i][0] == leftIdentifier->getName() && r.size() == 0)
+                for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
                 {
-                    l = "%" + std::to_string(i + 1);
-                    break;
+                    if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == leftIdentifier->getName() && r.size() == 0)
+                    {
+                        l = "%" + std::to_string(j + 1);
+                        break;
+                    }
                 }
             }
         }
@@ -623,16 +673,19 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
         if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(right))
         {
             rightIdentifier->traverseUnary(ir, tempvarMap);
-            r = "%" + std::to_string(tempvarMap.size());
+            r = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
         }
         else if (IdentifierNode *rightIdentifier = dynamic_cast<IdentifierNode *>(right))
         {
             for (int i = tempvarMap.size() - 1; i >= 0; i--)
             {
-                if (tempvarMap[i].size() == 1 && tempvarMap[i][0] == rightIdentifier->getName() && r.size() == 0)
+                for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
                 {
-                    r = "%" + std::to_string(i + 1);
-                    break;
+                    if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == rightIdentifier->getName() && r.size() == 0)
+                    {
+                        r = "%" + std::to_string(j + 1);
+                        break;
+                    }
                 }
             }
         }
@@ -641,17 +694,43 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
             right->mapToIR(r, tempvarMap);
         }
 
-        ir += "%" + std::to_string(tempvarMap.size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " " + l + ", " + r + "\n";
-        tempvarMap.push_back({op, l, r});
+        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " " + l + ", " + r + "\n";
+        tempvarMap[tempvarMap.size() - 1].push_back({op, l, r});
     }
 }
-void BinaryExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void BinaryExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     traverseBinary(ir, tempvarMap);
-    std::string tempOrGlobal = (global) ? "@" : "%";
-    ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap.size()) + ", ptr " + tempOrGlobal + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
+    bool globalVar = true;
+    if (assignmentName == ".return")
+    {
+        ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
+        return;
+    }
+
+    if (global)
+    {
+        ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
+        return;
+    }
+
+    for (int i = 0; i < tempvarMap.size(); i++)
+    {
+        for (int j = 0; j < tempvarMap[i].size(); j++)
+        {
+            if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == assignmentName)
+            {
+                globalVar = false;
+                ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(resultType) + "\n";
+                break;
+            }
+        }
+    }
+
+    if (globalVar)
+        ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
 }
-void BinaryExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void BinaryExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
 
@@ -709,11 +788,11 @@ std::string UnaryExprNode::inferType(std::unordered_map<std::string, Scope> &sym
 
     return rightType;
 }
-void UnaryExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void UnaryExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     right->loadVariables(ir, loadedVars, tempvarMap, global);
 }
-void UnaryExprNode::traverseUnary(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap)
+void UnaryExprNode::traverseUnary(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap)
 {
     if (dynamic_cast<BinaryExprNode *>(right) != nullptr || dynamic_cast<UnaryExprNode *>(right) != nullptr)
     {
@@ -725,30 +804,33 @@ void UnaryExprNode::traverseUnary(std::string &ir, std::vector<std::vector<std::
         if (op == "-")
         {
             if (operandType == "INTTYPE")
-                ir += "%" + std::to_string(tempvarMap.size() + 1) + " = sub " + mapTypeIR(operandType) + " 0, %" + std::to_string(tempvarMap.size()) + "\n";
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sub " + mapTypeIR(operandType) + " 0, %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + "\n";
             if (operandType == "DECIMALTYPE")
-                ir += "%" + std::to_string(tempvarMap.size() + 1) + " = fneg " + mapTypeIR(operandType) + " %" + std::to_string(tempvarMap.size()) + "\n";
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fneg " + mapTypeIR(operandType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + "\n";
         }
         else if (op != "+")
         {
-            ir += "%" + std::to_string(tempvarMap.size() + 1) + " = xor " + mapTypeIR(operandType) + " %" + std::to_string(tempvarMap.size()) + ", true\n";
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = xor " + mapTypeIR(operandType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", true\n";
         }
-        tempvarMap.push_back({op, std::to_string(tempvarMap.size())});
+        tempvarMap[tempvarMap.size() - 1].push_back({op, "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size())});
     }
     else if (IdentifierNode *rightIdentifier = dynamic_cast<IdentifierNode *>(right))
     {
         std::string r;
         for (int i = tempvarMap.size() - 1; i >= 0; i--)
         {
-            if (tempvarMap[i].size() == 1 && tempvarMap[i][0] == rightIdentifier->getName() && r.size() == 0)
+            for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
             {
-                r = "%" + std::to_string(i + 1);
-                break;
+                if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == rightIdentifier->getName() && r.size() == 0)
+                {
+                    r = "%" + std::to_string(j + 1);
+                    break;
+                }
             }
         }
 
-        ir += "%" + std::to_string(tempvarMap.size() + 1) + " = neg " + mapTypeIR(operandType) + " " + r + "\n";
-        tempvarMap.push_back({op, r});
+        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = neg " + mapTypeIR(operandType) + " " + r + "\n";
+        tempvarMap[tempvarMap.size() - 1].push_back({op, r});
     }
     else
     {
@@ -756,16 +838,36 @@ void UnaryExprNode::traverseUnary(std::string &ir, std::vector<std::vector<std::
         right->mapToIR(r, tempvarMap);
 
         ir += "%" + std::to_string(tempvarMap.size() + 1) + " = neg " + mapTypeIR(operandType) + " " + r + "\n";
-        tempvarMap.push_back({op, r});
+        tempvarMap[tempvarMap.size() - 1].push_back({op, r});
     }
 }
-void UnaryExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void UnaryExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     traverseUnary(ir, tempvarMap);
-    std::string tempOrGlobal = (global) ? "@" : "%";
-    ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap.size()) + ", ptr " + tempOrGlobal + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
+    bool globalVar = true;
+    if (assignmentName == ".return")
+    {
+        ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
+        return;
+    }
+
+    for (int i = 0; i < tempvarMap.size(); i++)
+    {
+        for (int j = 0; j < tempvarMap[i].size(); j++)
+        {
+            if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == assignmentName)
+            {
+                globalVar = false;
+                ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(resultType) + "\n";
+                break;
+            }
+        }
+    }
+
+    if (globalVar)
+        ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
 }
-void UnaryExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void UnaryExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
 
@@ -822,7 +924,7 @@ ParamNode::ParamNode(std::string name, std::string type)
     if (type == "bool")
         this->type = TokenType::BOOLTYPE;
 }
-void ParamNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void ParamNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
 std::string ParamNode::getName() const
@@ -916,9 +1018,10 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
     body->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     ir += "define " + mapTypeIR(Token::getType(returnType)) + " @" + name + "(";
+    tempvarMap.push_back({});
 
     for (int i = 0; i < parameters.size(); i++)
     {
@@ -931,9 +1034,9 @@ void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &t
     ir += ") {\n";
     for (int i = 0; i < parameters.size(); i++)
     {
-        ir += "%" + std::to_string(tempvarMap.size() + 1) + " = alloca " + mapTypeIR(Token::getType(parameters[i]->getType())) + ", align " + mapNumBytesIR(Token::getType(parameters[i]->getType())) + "\n";
-        ir += "store " + mapTypeIR(Token::getType(parameters[i]->getType())) + " %" + parameters[i]->getName() + ", ptr %" + std::to_string(tempvarMap.size() + 1) + ", align " + mapNumBytesIR(Token::getType(parameters[i]->getType())) + "\n";
-        tempvarMap.push_back({parameters[i]->getName()});
+        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = alloca " + mapTypeIR(Token::getType(parameters[i]->getType())) + ", align " + mapNumBytesIR(Token::getType(parameters[i]->getType())) + "\n";
+        ir += "store " + mapTypeIR(Token::getType(parameters[i]->getType())) + " %" + parameters[i]->getName() + ", ptr %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + ", align " + mapNumBytesIR(Token::getType(parameters[i]->getType())) + "\n";
+        tempvarMap[tempvarMap.size() - 1].push_back({parameters[i]->getName()});
     }
 
     for (Node *stmt : body->getStatements())
@@ -944,13 +1047,23 @@ void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &t
                 continue;
             ir += "%" + assignment->getName() + " = alloca " + mapTypeIR(assignment->getType()) + ", align " + mapNumBytesIR(assignment->getType()) + "\n";
         }
+
+        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(stmt))
+        {
+            returnStmt->setType(Token::getType(returnType));
+            ir += "%.return = alloca " + mapTypeIR(Token::getType(returnType)) + ", align " + mapNumBytesIR(Token::getType(returnType)) + "\n";
+        }
     }
 
     for (Node *node : body->getStatements())
-        node->mapToIR(ir, tempvarMap);
+        node->mapToIR(ir, tempvarMap, false);
 
-    ir += "ret " + mapTypeIR(Token::getType(returnType)) + " 0\n";
+    if (Token::getType(returnType) == "UNKNOWN")
+        ir += "ret void";
+
     ir += "}\n\n";
+
+    tempvarMap.pop_back();
 }
 
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
@@ -1043,15 +1156,15 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
     throwSemanticError(line, "function '" + name + "' hasn't been declared.");
     return "false";
 }
-void CallExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void CallExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     for (Node *arg : arguments)
         arg->loadVariables(ir, loadedVars, tempvarMap);
 }
-void CallExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void CallExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
-void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
 
@@ -1137,7 +1250,7 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
         throwSemanticError(line, "'" + identifier->getName() + "' hasn't been declared.");
     }
 }
-void AssignNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void AssignNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     std::vector<std::string> loadedVars;
     value->loadVariables(ir, loadedVars, tempvarMap, global);
@@ -1211,7 +1324,7 @@ std::string BlockNode::mapToGlobalIR()
 
     return ir;
 }
-void BlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void BlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     ir += "define i32 @main() {\n";
 
@@ -1253,7 +1366,7 @@ void IfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void IfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void IfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
 
@@ -1288,7 +1401,7 @@ void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void ElseIfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void ElseIfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
 
@@ -1315,7 +1428,7 @@ void ElseStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbol
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void ElseStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void ElseStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
 
@@ -1348,7 +1461,7 @@ void WhileNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTab
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void WhileNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void WhileNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
 
@@ -1360,6 +1473,10 @@ ReturnStmtNode::~ReturnStmtNode()
 {
     delete identifier;
     identifier = nullptr;
+}
+void ReturnStmtNode::setType(std::string type)
+{
+    this->returnType = type;
 }
 void ReturnStmtNode::print(int depth) const
 {
@@ -1392,6 +1509,13 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         }
     }
 }
-void ReturnStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::string>> &tempvarMap, bool global)
+void ReturnStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
+    std::string type = mapTypeIR(returnType);
+    std::vector<std::string> loadedVars;
+    identifier->loadVariables(ir, loadedVars, tempvarMap, false);
+    identifier->storeValue(ir, ".return", tempvarMap, false);
+
+    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + type + ", ptr %.return, align " + mapNumBytesIR(returnType) + "\n";
+    ir += "ret " + type + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + "\n";
 }

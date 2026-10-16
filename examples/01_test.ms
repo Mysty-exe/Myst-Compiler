@@ -1,11 +1,13 @@
-int r = 4
+int r = 3
+int x = 323
 
-func add(int x, int y) -> int:
-	x = 34
-	int r = y
-	int answer = x + x + y
-	return answer
+func add(int x, int y):
+	y = 2334 - y + x
+	x = 3242 - x
+	x = -(x + x - y)
 
-decimal x = 4.9
-decimal y = 6.7
+func sub(int x, int y):
+	x = 343
+	y = 234
+
 bool z = 5 == 4

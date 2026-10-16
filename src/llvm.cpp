@@ -28,7 +28,7 @@ void LLVM::runLLVM(const std::string &outputFile, RootNode *root)
 
 void LLVM::mapToIR(RootNode *root)
 {
-    std::vector<std::vector<std::string>> tempvarMap;
+    std::vector<std::vector<std::vector<std::string>>> tempvarMap = {{}};
     std::ofstream tempFile("temp.ll");
     if (!tempFile.is_open())
     {
@@ -53,9 +53,14 @@ void LLVM::mapToIR(RootNode *root)
 
     for (int i = 0; i < tempvarMap.size(); i++)
     {
-        std::cout << i + 1 << ": ";
+        std::cout << "Scope " << i + 1 << ": ";
         for (int j = 0; j < tempvarMap[i].size(); j++)
-            std::cout << tempvarMap[i][j] << " ";
+        {
+            for (int k = 0; k < tempvarMap[i][j].size(); k++)
+                std::cout << tempvarMap[i][j][k] << " ";
+
+            std::cout << std::endl;
+        }
 
         std::cout << std::endl;
     }
