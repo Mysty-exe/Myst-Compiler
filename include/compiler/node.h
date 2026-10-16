@@ -122,7 +122,7 @@ public:
                     {
                         globalVar = false;
                         localOrGlobal = "%";
-                        name = std::to_string(i + 1);
+                        name = std::to_string(j + 1);
                         break;
                     }
                 }
@@ -231,12 +231,14 @@ public:
 struct CallExprNode : StmtNode
 {
 private:
-    std::string name;
+    std::string name, returnType;
+    std::vector<std::string> argTypes;
     std::vector<Node *> arguments;
 
 public:
     CallExprNode(std::string name, std::vector<Node *> arguments);
     ~CallExprNode() override;
+    std::string getName() const;
     virtual void print(int depth = 0) const override;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
