@@ -589,6 +589,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
             }
             else if (CallExprNode *rightIdentifier = dynamic_cast<CallExprNode *>(right))
             {
+                rightIdentifier->mapToIR(ir, tempvarMap, false);
                 for (int i = tempvarMap.size() - 1; i >= 0; i--)
                 {
                     for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
@@ -637,6 +638,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
             }
             else if (CallExprNode *leftIdentifier = dynamic_cast<CallExprNode *>(left))
             {
+                leftIdentifier->mapToIR(ir, tempvarMap, false);
                 for (int i = tempvarMap.size() - 1; i >= 0; i--)
                 {
                     for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
@@ -681,6 +683,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
         }
         else if (CallExprNode *leftIdentifier = dynamic_cast<CallExprNode *>(left))
         {
+            leftIdentifier->mapToIR(ir, tempvarMap, false);
             for (int i = tempvarMap.size() - 1; i >= 0; i--)
             {
                 for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
@@ -719,6 +722,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
         }
         else if (CallExprNode *rightIdentifier = dynamic_cast<CallExprNode *>(right))
         {
+            rightIdentifier->mapToIR(ir, tempvarMap, false);
             for (int i = tempvarMap.size() - 1; i >= 0; i--)
             {
                 for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
@@ -1033,6 +1037,12 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
         this->returnType = TokenType::BOOLTYPE;
     if (returnType == "void")
         this->returnType = TokenType::UNKNOWN;
+
+    for (Node *stmt : body->getStatements())
+    {
+        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(stmt))
+            returnStmt->setType(Token::getType(this->returnType));
+    }
 }
 FuncNode::~FuncNode()
 {
@@ -1115,18 +1125,8 @@ void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std:
 
     for (Node *stmt : body->getStatements())
     {
-        if (AssignNode *assignment = dynamic_cast<AssignNode *>(stmt))
-        {
-            if (!assignment->isDeclared())
-                continue;
-            ir += "%" + assignment->getName() + " = alloca " + mapTypeIR(assignment->getType()) + ", align " + mapNumBytesIR(assignment->getType()) + "\n";
-        }
-
         if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(stmt))
-        {
-            returnStmt->setType(Token::getType(returnType));
             ir += "%.return = alloca " + mapTypeIR(Token::getType(returnType)) + ", align " + mapNumBytesIR(Token::getType(returnType)) + "\n";
-        }
     }
 
     for (Node *node : body->getStatements())
@@ -1136,6 +1136,20 @@ void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std:
         ir += "ret void\n";
 
     ir += "}\n\n";
+
+    for (int i = 0; i < tempvarMap.size(); i++)
+    {
+        std::cout << "Scope " << i + 1 << ":\n";
+        for (int j = 0; j < tempvarMap[i].size(); j++)
+        {
+            for (int k = 0; k < tempvarMap[i][j].size(); k++)
+                std::cout << j + 1 << ": " << tempvarMap[i][j][k] << " ";
+
+            std::cout << std::endl;
+        }
+
+        std::cout << std::endl;
+    }
 
     tempvarMap.pop_back();
 }
@@ -1189,10 +1203,7 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                     {
                         this->argTypes.push_back(derivedSymbol->getParameters()[k]);
                         if (arguments[k]->checkType(symbolTable, visibleScope, derivedSymbol->getParameters()[k]))
-                        {
                             symbol->setUsed(true);
-                            return true;
-                        }
                         else
                         {
                             wrongType = true;
@@ -1239,14 +1250,6 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
 }
 void CallExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    for (Node *arg : arguments)
-        arg->loadVariables(ir, loadedVars, tempvarMap);
-
-    if (returnType != "")
-    {
-        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = call " + mapTypeIR(returnType) + " @" + name + "()\n";
-        tempvarMap[tempvarMap.size() - 1].push_back({name});
-    }
 }
 void CallExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
@@ -1287,8 +1290,40 @@ void CallExprNode::storeValue(std::string &ir, const std::string &assignmentName
 }
 void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    if (returnType == "")
-        ir += "call " + mapTypeIR(returnType) + " @" + name + "()\n";
+    std::vector<std::string> args;
+    std::cout << argTypes.size() << std::endl;
+    for (int i = 0; i < arguments.size(); i++)
+    {
+        std::string callArg = ".callarg_" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+        std::string loadTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = alloca " + mapTypeIR(argTypes[i]) + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
+        tempvarMap[tempvarMap.size() - 1].push_back({callArg});
+
+        std::vector<std::string> loadedVars;
+        arguments[i]->loadVariables(ir, loadedVars, tempvarMap, global);
+
+        arguments[i]->storeValue(ir, callArg, tempvarMap, false);
+        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + mapTypeIR(argTypes[i]) + ", ptr %" + loadTemp + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
+        args.push_back("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1));
+        tempvarMap[tempvarMap.size() - 1].push_back({callArg});
+    }
+
+    if (returnType != "")
+    {
+        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = call " + mapTypeIR(returnType) + " @" + name + "(";
+        tempvarMap[tempvarMap.size() - 1].push_back({name});
+    }
+    else
+        ir += "call " + mapTypeIR(returnType) + " @" + name + "(";
+
+    for (int i = 0; i < args.size(); i++)
+    {
+        if (i == args.size() - 1)
+            ir += mapTypeIR(argTypes[i]) + " " + args[i];
+        else
+            ir += mapTypeIR(argTypes[i]) + " " + args[i] + ", ";
+    }
+    ir += ")\n";
 }
 
 AssignNode::AssignNode(std::string name, std::string type, Node *value)
@@ -1375,6 +1410,12 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
 }
 void AssignNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
+    if (!global && declared)
+    {
+        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = alloca " + mapTypeIR(Token::getType(identifier->getType())) + ", align " + mapNumBytesIR(Token::getType(identifier->getType())) + "\n";
+        tempvarMap[tempvarMap.size() - 1].push_back({identifier->getName()});
+    }
+
     std::vector<std::string> loadedVars;
     value->loadVariables(ir, loadedVars, tempvarMap, global);
     value->storeValue(ir, identifier->getName(), tempvarMap, global);
@@ -1621,9 +1662,9 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         {
             if (symbol->getType() == "FUNC")
             {
-                if (symbol->getDataType() == "UNKNOWN" && identifier != nullptr)
+                if (returnType == "UNKNOWN" && identifier != nullptr)
                     throwSemanticError(line, "Return statement found in a function that doesn't have a return type.");
-                if (identifier != nullptr && !identifier->checkType(symbolTable, visibleScope, symbol->getDataType()))
+                if (identifier != nullptr && !identifier->checkType(symbolTable, visibleScope, returnType))
                     throwSemanticError(line, "Return statement doesn't return the required return type.");
 
                 FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
