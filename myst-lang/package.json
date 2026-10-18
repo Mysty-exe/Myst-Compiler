@@ -1,0 +1,29 @@
+{
+  "name": "myst-lang",
+  "displayName": "myst-lang",
+  "description": "Syntax highlighting for the Myst programming language",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.140.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "contributes": {
+    "languages": [{
+      "id": "myst",
+      "aliases": ["Myst", "myst"],
+      "extensions": [".ms",".myst"],
+      "configuration": "./language-configuration.json",
+      "icon": {
+        "dark": "./icons/myst-icon.svg",
+        "light": "./icons/myst-icon.svg"
+      }
+    }],
+    "grammars": [{
+      "language": "myst",
+      "scopeName": "source.ms",
+      "path": "./syntaxes/myst.tmLanguage.json"
+    }]
+  }
+}

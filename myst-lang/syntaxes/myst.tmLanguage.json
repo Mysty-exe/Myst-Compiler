@@ -1,0 +1,86 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Myst",
+  "scopeName": "source.ms",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#keywords" },
+    { "include": "#types" },
+    { "include": "#constants" },
+    { "include": "#operators" },
+    { "include": "#numbers" },
+    { "include": "#strings" },
+    { "include": "#chars" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [{
+        "name": "comment.line.number-sign.ms",
+        "match": "#.*$"
+      }]
+    },
+    "keywords": {
+      "patterns": [{
+        "name": "keyword.control.ms",
+        "match": "\\b(func|struct|const|var|if|elseif|else|while|for|break|return|import|and|or|not)\\b"
+      }]
+    },
+    "types": {
+      "patterns": [{
+        "name": "storage.type.ms",
+        "match": "\\b(string|char|int|decimal|bool)\\b"
+      }]
+    },
+    "constants": {
+      "patterns": [{
+        "name": "constant.language.boolean.ms",
+        "match": "\\b(true|false)\\b"
+      }]
+    },
+    "operators": {
+      "patterns": [
+        {
+          "name": "keyword.operator.arrow.ms",
+          "match": "->"
+        },
+        {
+          "name": "keyword.operator.comparison.ms",
+          "match": "==|!=|<=|>=|<|>"
+        },
+        {
+          "name": "keyword.operator.logical.ms",
+          "match": "&&|\\|\\|"
+        },
+        {
+          "name": "keyword.operator.arithmetic.ms",
+          "match": "[\\+\\-\\*\\/\\=]"
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.decimal.ms",
+          "match": "\\b[0-9]+\\.[0-9]+\\b"
+        },
+        {
+          "name": "constant.numeric.integer.ms",
+          "match": "\\b[0-9]+\\b"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [{
+        "name": "string.quoted.double.ms",
+        "begin": "\"",
+        "end": "\""
+      }]
+    },
+    "chars": {
+      "patterns": [{
+        "name": "string.quoted.single.ms",
+        "match": "'([^'\\\\]|\\\\.)'"
+      }]
+    }
+  }
+}
