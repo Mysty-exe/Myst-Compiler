@@ -1,8 +1,9 @@
 #include "compiler/ast.h"
 
-AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens)
+AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens, std::string fileName)
 {
     root = new RootNode();
+    RootNode::setFileName(fileName);
     buildTree(tokens);
 }
 

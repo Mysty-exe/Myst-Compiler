@@ -35,9 +35,14 @@ private:
     std::vector<Node *> children;
     Node *globalCode;
 
+protected:
+    static std::string fileName;
+
 public:
     RootNode();
     ~RootNode() override;
+    static std::string getFileName();
+    static void setFileName(std::string name);
     void addNode(Node *node);
     Node *getGlobalCode();
     void setGlobalCode(Node *block);

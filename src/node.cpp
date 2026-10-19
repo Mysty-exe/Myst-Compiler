@@ -9,7 +9,7 @@ void throwLexicalError(int line, std::string message)
     catch (const LexicalError &e)
     {
         std::cerr << "\033[31m";
-        std::cerr << "Lexical Error on line " << line << ": ";
+        std::cerr << RootNode::getFileName() << " - Lexical Error on line " << line << ": ";
         std::cerr << "\033[0m";
         std::cout << e.what() << std::endl;
         exit(-1);
@@ -25,7 +25,7 @@ void throwSyntaxError(int line, std::string message)
     catch (const SyntaxError &e)
     {
         std::cerr << "\033[31m";
-        std::cerr << "Syntax Error on line " << line << ": ";
+        std::cerr << RootNode::getFileName() << " - Syntax Error on line " << line << ": ";
         std::cerr << "\033[0m";
         std::cout << e.what() << std::endl;
         exit(-1);
@@ -35,7 +35,7 @@ void throwSyntaxError(int line, std::string message)
 void throwSemanticWarning(int line, std::string message)
 {
     std::cout << "\033[38;5;208m";
-    std::cout << "Warning on line " << line << ": ";
+    std::cout << RootNode::getFileName() << " - Warning on line " << line << ": ";
     std::cerr << "\033[0m";
     std::cout << message << std::endl;
 }
@@ -49,7 +49,7 @@ void throwSemanticError(int line, std::string message)
     catch (const SemanticError &e)
     {
         std::cerr << "\033[31m";
-        std::cerr << "Semantic Error on line " << line << ": ";
+        std::cerr << RootNode::getFileName() << " - Semantic Error on line " << line << ": ";
         std::cerr << "\033[0m";
         std::cout << e.what() << std::endl;
         exit(-1);
@@ -228,6 +228,8 @@ void Node::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::str
 {
 }
 
+std::string RootNode::fileName = "";
+
 RootNode::RootNode()
 {
 }
@@ -241,6 +243,14 @@ RootNode::~RootNode()
 
     delete globalCode;
     globalCode = nullptr;
+}
+std::string RootNode::getFileName()
+{
+    return fileName;
+}
+void RootNode::setFileName(std::string name)
+{
+    fileName = name;
 }
 void RootNode::addNode(Node *node)
 {
@@ -275,7 +285,29 @@ void RootNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
     visibleScope.push_back("1");
     for (Node *child : children)
     {
-        child->checkSemantics(symbolTable, visibleScope);
+        if (BlockNode *block = dynamic_cast<BlockNode *>(child))
+        {
+            for (Node *stmt : block->getStatements())
+            {
+                if (AssignNode *assignment = dynamic_cast<AssignNode *>(stmt))
+                    assignment->checkSemantics(symbolTable, visibleScope);
+            }
+        }
+    }
+
+    for (Node *child : children)
+    {
+        if (BlockNode *block = dynamic_cast<BlockNode *>(child))
+        {
+            for (Node *stmt : block->getStatements())
+            {
+                if (dynamic_cast<AssignNode *>(stmt) == nullptr)
+                    stmt->checkSemantics(symbolTable, visibleScope);
+            }
+        }
+
+        if (FuncNode *func = dynamic_cast<FuncNode *>(child))
+            func->checkSemantics(symbolTable, visibleScope);
     }
 }
 
@@ -1370,7 +1402,7 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
             auto scope = symbolTable[visibleScope[i]];
             for (Symbol *symbol : scope.getSymbols())
             {
-                if (symbol->getType() == "VAR" && symbol->getName() == identifier->getName())
+                if (symbol->getType() == "VAR" && symbol->getName() == identifier->getName() && !(visibleScope.size() > 1 && i == 0))
                     throwSemanticError(line, "'" + identifier->getName() + "' has already been declared.");
             }
         }

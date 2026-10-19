@@ -88,7 +88,7 @@ AbstractSyntaxTree parseFile(std::ifstream &inputFile)
     if (parameters.seeTokens)
         lexer.readTokens();
 
-    AbstractSyntaxTree ast = AbstractSyntaxTree(lexer.getTokens());
+    AbstractSyntaxTree ast = AbstractSyntaxTree(lexer.getTokens(), parameters.inputFile);
 
     return ast;
 }
