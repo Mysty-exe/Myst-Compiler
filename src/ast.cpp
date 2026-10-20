@@ -396,9 +396,12 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'if' statement.");
 
+            BranchBlockNode *branchBlock = new BranchBlockNode();
             IfStmtNode *ifStmt = new IfStmtNode(condition, block);
             ifStmt->setLine(line);
-            blockNode->addStatement(ifStmt);
+
+            branchBlock->addBranch(ifStmt);
+            blockNode->addStatement(branchBlock);
             startLine = line;
             line--;
             continue;
@@ -412,7 +415,7 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
 
             line++;
 
-            if (blockNode->getNumStatements() == 0 || !dynamic_cast<IfStmtNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
+            if (blockNode->getNumStatements() == 0 || !dynamic_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
                 throwSyntaxError(line, "'elseif' statement found without a preceding 'if' statement.");
             if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
                 throwSyntaxError(line, "Expected ':' at the end of elseif statement.");
@@ -425,7 +428,11 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
 
             ElseIfStmtNode *elseIfStmt = new ElseIfStmtNode(condition, block);
             elseIfStmt->setLine(line);
-            blockNode->addStatement(elseIfStmt);
+
+            std::cout << "DSKJFD" << std::endl;
+            BranchBlockNode *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
+            branchBlock->addBranch(elseIfStmt);
+
             startLine = line;
             line--;
             continue;
@@ -453,7 +460,10 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
 
             ElseStmtNode *elseStmt = new ElseStmtNode(block);
             elseStmt->setLine(line);
-            blockNode->addStatement(elseStmt);
+
+            BranchBlockNode *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
+            branchBlock->addBranch(elseStmt);
+
             startLine = line;
             line--;
             continue;
