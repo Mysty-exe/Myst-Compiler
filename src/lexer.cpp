@@ -32,9 +32,9 @@ bool validNumber(const std::string &number)
 const std::vector<std::string> Token::reservedFunctions = {"__main__"};
 const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "return", "import", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
-const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "<", ">", "!", "==", "<=", ">=", "&&", "||", "and", "or", "not"};
+const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "<", ">", "!", "==", "!=", "<=", ">=", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", ":", "<", ">", "(", ")", ",", ".", "!"};
-const std::vector<std::string> Token::twoCharOperators = {"==", "<=", ">=", "&&", "||", "->"};
+const std::vector<std::string> Token::twoCharOperators = {"==", "!=", "<=", ">=", "&&", "||", "->"};
 
 Token::Token()
 {

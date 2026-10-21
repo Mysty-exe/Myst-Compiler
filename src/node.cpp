@@ -1548,36 +1548,6 @@ void BlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std
     }
 }
 
-BranchBlockNode::BranchBlockNode()
-{
-}
-
-BranchBlockNode::~BranchBlockNode()
-{
-    delete branches;
-}
-
-void BranchBlockNode::print(int depth) const
-{
-}
-
-void BranchBlockNode::addBranch(Node *branch)
-{
-    branches->addStatement(branch);
-
-    if (dynamic_cast<ElseIfStmtNode *>(branch) != nullptr)
-        numElifs++;
-}
-
-void BranchBlockNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
-{
-    for (Node *node : branches->getStatements())
-    {
-        node->checkSemantics(symbolTable, visibleScope);
-    }
-}
-
-int IfStmtNode::count = 0;
 IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
 {
     this->condition = condition;
@@ -1589,10 +1559,6 @@ IfStmtNode::~IfStmtNode()
     condition = nullptr;
     delete body;
     body = nullptr;
-}
-int IfStmtNode::getCount()
-{
-    return count;
 }
 void IfStmtNode::print(int depth) const
 {
@@ -1613,10 +1579,9 @@ void IfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
-void IfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void IfStmtNode::mapCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    count++;
-    std::string currentCount = std::to_string(count);
+    std::string currentCount = std::to_string(BranchBlockNode::getNumberIf());
     std::vector<std::string> loadedVars;
     std::string loadTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
     ir += "%" + loadTemp + " = alloca i1, align 1" + "\n";
@@ -1625,15 +1590,12 @@ void IfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<st
     condition->loadVariables(ir, loadedVars, tempvarMap, global);
     condition->storeValue(ir, ".ifnode_" + loadTemp, tempvarMap, false);
     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
-    ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + ", label %if_true_" + currentCount + ", label %if_end_" + currentCount + "\n";
     tempvarMap[tempvarMap.size() - 1].push_back({".ifnode_" + loadTemp});
-
-    ir += "if_true_" + currentCount + ":\n";
+}
+void IfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+{
     for (Node *stmt : body->getStatements())
         stmt->mapToIR(ir, tempvarMap, global);
-
-    ir += "br label %if_end_" + currentCount + "\n";
-    ir += "if_end_" + currentCount + ":\n";
 }
 
 ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
@@ -1657,6 +1619,24 @@ void ElseIfStmtNode::print(int depth) const
     std::cout << depthTabs << "\tBody:" << std::endl;
     body->print(depth + 2);
 }
+void ElseIfStmtNode::mapCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+{
+    std::string currentCount = std::to_string(BranchBlockNode::getNumberIf());
+    std::vector<std::string> loadedVars;
+    std::string loadTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+    ir += "%" + loadTemp + " = alloca i1, align 1" + "\n";
+    tempvarMap[tempvarMap.size() - 1].push_back({".elseifnode_" + loadTemp});
+
+    condition->loadVariables(ir, loadedVars, tempvarMap, global);
+    condition->storeValue(ir, ".elseifnode_" + loadTemp, tempvarMap, false);
+    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
+    tempvarMap[tempvarMap.size() - 1].push_back({".elseifnode_" + loadTemp});
+}
+void ElseIfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+{
+    for (Node *stmt : body->getStatements())
+        stmt->mapToIR(ir, tempvarMap, global);
+}
 void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
     if (!condition->checkType(symbolTable, visibleScope, "BOOLTYPE"))
@@ -1666,9 +1646,6 @@ void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
     for (Node *stmtNode : body->getStatements())
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
-}
-void ElseIfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
-{
 }
 
 ElseStmtNode::ElseStmtNode(BlockNode *body)
@@ -1696,8 +1673,105 @@ void ElseStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbol
 }
 void ElseStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
+    for (Node *stmt : body->getStatements())
+        stmt->mapToIR(ir, tempvarMap, global);
 }
 
+int BranchBlockNode::numIfStmt = 0;
+BranchBlockNode::BranchBlockNode()
+{
+    branches = new BlockNode();
+}
+
+BranchBlockNode::~BranchBlockNode()
+{
+    delete branches;
+    branches = nullptr;
+}
+
+void BranchBlockNode::print(int depth) const
+{
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "BranchBlockNode:" << std::endl;
+    branches->print(depth + 1);
+}
+int BranchBlockNode::getNumberIf()
+{
+    return numIfStmt;
+}
+void BranchBlockNode::addBranch(Node *branch)
+{
+    branches->addStatement(branch);
+}
+
+void BranchBlockNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
+{
+    for (Node *node : branches->getStatements())
+        node->checkSemantics(symbolTable, visibleScope);
+}
+
+void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+{
+    BranchBlockNode::numIfStmt++;
+    int numElseIfStmt = 1;
+    std::string currentIf = std::to_string(numIfStmt);
+    std::string currentElseIf = std::to_string(numElseIfStmt);
+    std::string nextElseIf = std::to_string(numElseIfStmt + 1);
+    for (int i = 0; i < branches->getNumStatements(); i++)
+    {
+        Node *node = branches->getStatements()[i];
+
+        if (dynamic_cast<IfStmtNode *>(node) != nullptr)
+        {
+            IfStmtNode *ifStmt = static_cast<IfStmtNode *>(node);
+            ifStmt->mapCondition(ir, tempvarMap, global);
+
+            if (branches->getNumStatements() == 1)
+                ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %if_true_" + currentIf + ", label %if_end_" + currentIf + "\n";
+            else if (branches->getNumStatements() == 2 && dynamic_cast<ElseStmtNode *>(branches->getStatements()[i + 1]) != nullptr)
+                ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %if_true_" + currentIf + ", label %else_" + currentIf + "\n";
+            else
+                ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %if_true_" + currentIf + ", label %if_next_" + currentIf + "_" + currentElseIf + "\n";
+
+            ir += "if_true_" + currentIf + ":\n";
+            ifStmt->mapToIR(ir, tempvarMap, global);
+            ir += "br label %if_end_" + currentIf + "\n";
+        }
+
+        if (dynamic_cast<ElseIfStmtNode *>(node) != nullptr)
+        {
+            ir += "if_next_" + currentIf + "_" + currentElseIf + ":\n";
+            ElseIfStmtNode *elseifStmt = static_cast<ElseIfStmtNode *>(node);
+            elseifStmt->mapCondition(ir, tempvarMap, global);
+
+            if (i == branches->getNumStatements() - 1)
+                ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %elseif_true_" + currentIf + "_" + currentElseIf + ", label %if_end_" + currentIf + "\n";
+            else if (branches->getNumStatements() >= 3 && dynamic_cast<ElseStmtNode *>(branches->getStatements()[i + 1]) != nullptr)
+                ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %elseif_true_" + currentIf + "_" + currentElseIf + ", label %else_" + currentIf + "\n";
+            else
+                ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %elseif_true_" + currentIf + "_" + currentElseIf + ", label %if_next_" + currentIf + "_" + nextElseIf + "\n";
+
+            ir += "elseif_true_" + currentIf + "_" + currentElseIf + ":\n";
+            elseifStmt->mapToIR(ir, tempvarMap, global);
+            ir += "br label %if_end_" + currentIf + "\n";
+
+            numElseIfStmt++;
+            currentElseIf = std::to_string(numElseIfStmt);
+            nextElseIf = std::to_string(numElseIfStmt + 1);
+        }
+
+        if (dynamic_cast<ElseStmtNode *>(node) != nullptr)
+        {
+            ir += "else_" + currentIf + ":\n";
+            node->mapToIR(ir, tempvarMap, global);
+            ir += "br label %if_end_" + currentIf + "\n";
+        }
+    }
+
+    ir += "if_end_" + currentIf + ":\n";
+}
+
+int WhileNode::numWhileStmt = 0;
 WhileNode::WhileNode(Node *condition, BlockNode *body)
 {
     this->condition = condition;
@@ -1729,6 +1803,35 @@ void WhileNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTab
 }
 void WhileNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
+    numWhileStmt++;
+    std::string currentCount = std::to_string(WhileNode::numWhileStmt);
+    std::vector<std::string> loadedVars;
+    std::string loadTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+    ir += "%" + loadTemp + " = alloca i1, align 1" + "\n";
+    tempvarMap[tempvarMap.size() - 1].push_back({".whilenode_" + loadTemp});
+
+    condition->loadVariables(ir, loadedVars, tempvarMap, global);
+    condition->storeValue(ir, ".whilenode_" + loadTemp, tempvarMap, false);
+
+    std::string condTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+    ir += "%" + condTemp + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
+    tempvarMap[tempvarMap.size() - 1].push_back({".whilenode_" + loadTemp});
+    ir += "br i1 %" + condTemp + ", label %while_true_" + currentCount + ", label %while_end_" + currentCount + "\n";
+    ir += "while_true_" + currentCount + ":\n";
+
+    for (Node *stmt : body->getStatements())
+        stmt->mapToIR(ir, tempvarMap, global);
+
+    loadedVars.clear();
+    condition->loadVariables(ir, loadedVars, tempvarMap, global);
+    condition->storeValue(ir, ".whilenode_" + loadTemp, tempvarMap, false);
+
+    condTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+    ir += "%" + condTemp + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
+    tempvarMap[tempvarMap.size() - 1].push_back({".whilenode_" + loadTemp});
+
+    ir += "br i1 %" + condTemp + ", label %while_true_" + currentCount + ", label %while_end_" + currentCount + "\n";
+    ir += "while_end_" + currentCount + ":\n";
 }
 
 ReturnStmtNode::ReturnStmtNode(Node *identifier)

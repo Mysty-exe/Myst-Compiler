@@ -6,13 +6,5 @@ func add(int x, int y):
 
 int a = 343
 
-if a > b:
-	add(3, 1)
-	if true:
-		a = 343
-
-if a == b:
-	add(3, 1)
-
-if b == b:
-	add(3, 1)
+while a != b:
+	a = a + 1

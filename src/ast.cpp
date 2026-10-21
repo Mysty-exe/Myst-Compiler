@@ -429,7 +429,6 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             ElseIfStmtNode *elseIfStmt = new ElseIfStmtNode(condition, block);
             elseIfStmt->setLine(line);
 
-            std::cout << "DSKJFD" << std::endl;
             BranchBlockNode *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
             branchBlock->addBranch(elseIfStmt);
 
@@ -444,7 +443,7 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
                 throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'else' statement found.");
 
             line++;
-            if (blockNode->getNumStatements() == 0 || !dynamic_cast<IfStmtNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
+            if (blockNode->getNumStatements() == 0 || !dynamic_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
                 throwSyntaxError(line, "'else' statement found without a preceding 'if' statement.");
             int colonIndex = getTokenIndex(tokens[line - 1], "COLON");
             if (colonIndex == -1)
