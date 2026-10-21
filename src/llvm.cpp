@@ -1,5 +1,16 @@
 #include <compiler/llvm.h>
 
+std::string getTargetTriple()
+{
+#if defined(_WIN32)
+    return "x86_64-pc-windows-msvc";
+#elif defined(__linux__)
+    return "x86_64-pc-linux-gnu";
+#else
+    return "x86_64-unknown-unknown";
+#endif
+}
+
 std::string execCommand(const std::string &cmd)
 {
     std::array<char, 128> buffer;
@@ -48,6 +59,7 @@ void LLVM::mapToIR(RootNode *root)
     }
 
     global->mapToIR(ir, tempvarMap, true);
+    tempFile << "target triple = \"" << getTargetTriple() << "\"\n\n";
     tempFile << ir;
     tempFile.close();
 }
