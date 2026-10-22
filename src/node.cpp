@@ -561,7 +561,7 @@ bool BinaryExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTab
         if (right->inferType(symbolTable, visibleScope) != left->inferType(symbolTable, visibleScope))
             throwSemanticError(line, "Can't compare these two types with '" + op + "' operator.");
 
-        return true;
+        return right->checkType(symbolTable, visibleScope, left->inferType(symbolTable, visibleScope)) && left->checkType(symbolTable, visibleScope, right->inferType(symbolTable, visibleScope));
     }
 
     return right->checkType(symbolTable, visibleScope, type) && left->checkType(symbolTable, visibleScope, type);
@@ -587,12 +587,8 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &sy
     }
     if (op == "==" || op == "!=" || op == ">" || op == "<" || op == ">=" || op == "<=")
     {
-        resultType = "BOOLTYPE";
         return "BOOLTYPE";
     }
-
-    operandType = leftType;
-    resultType = leftType;
 
     return leftType;
 }
