@@ -1,2 +1,2 @@
-var x = 4
-print(x)
+if 3 + 4 == 8:
+	print(4)

@@ -586,7 +586,13 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &sy
         return "";
     }
     if (op == "==" || op == "!=" || op == ">" || op == "<" || op == ">=" || op == "<=")
+    {
+        resultType = "BOOLTYPE";
         return "BOOLTYPE";
+    }
+
+    operandType = leftType;
+    resultType = leftType;
 
     return leftType;
 }
