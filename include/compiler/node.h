@@ -93,17 +93,15 @@ public:
         return false;
     }
 
-    std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) const
+    virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
     {
-        if (this->type == "CHAR")
-            return "CHARTYPE";
-        if (this->type == "STRING")
-            return "STRINGTYPE";
-        if (this->type == "INT")
+        if constexpr (std::is_same_v<T, int>)
             return "INTTYPE";
-        if (this->type == "DECIMAL")
+        if constexpr (std::is_same_v<T, double>)
             return "DECIMALTYPE";
-        if (this->type == "BOOL")
+        if constexpr (std::is_same_v<T, char>)
+            return "CHARTYPE";
+        if constexpr (std::is_same_v<T, bool>)
             return "BOOLTYPE";
 
         return "";
@@ -264,6 +262,7 @@ public:
     AssignNode(std::string name, std::string type, Node *value);
     std::string getName() const;
     std::string getType() const;
+    Node *getValue() const;
     bool isDeclared() const;
     ~AssignNode() override;
     virtual void print(int depth = 0) const override;
@@ -300,7 +299,7 @@ public:
     std::vector<Node *> getStatements() const;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
-    std::string mapToGlobalIR();
+    void mapToGlobalIR(std::string &ir);
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
 };
 
@@ -311,8 +310,8 @@ private:
     std::string name;
 
 public:
-    ParamNode(std::string identifier);
-    ParamNode(std::string name, std::string type);
+    ParamNode(std::string identifier, int line);
+    ParamNode(std::string name, std::string type, int line);
     ~ParamNode() override;
     std::string getName() const;
     TokenType getType() const;

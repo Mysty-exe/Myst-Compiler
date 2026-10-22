@@ -30,11 +30,13 @@ bool validNumber(const std::string &number)
 }
 
 const std::vector<std::string> Token::reservedFunctions = {"__main__"};
+const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"input"}, {"exit", "INTTYPE"}};
 const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "return", "import", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "<", ">", "!", "==", "!=", "<=", ">=", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", ":", "<", ">", "(", ")", ",", ".", "!"};
 const std::vector<std::string> Token::twoCharOperators = {"==", "!=", "<=", ">=", "&&", "||", "->"};
+const std::vector<char> Token::escapeSequences = {'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', '\'', '"', '?', '0'};
 
 Token::Token()
 {
@@ -48,10 +50,21 @@ Token::Token(std::string value, int line, int col)
 
     if (value.size() > 1 && value.substr(0, 2) == "//")
         type = TokenType::COMMENT;
-    else if (value.size() == 3 && value[0] == '\'' && value[value.size() - 1] == '\'')
+    else if (value[0] == '\'' && value[value.size() - 1] == '\'')
     {
-        value = value[1];
-        type = TokenType::CHAR;
+        if (value[1] == '\\')
+        {
+            if (value.size() == 4 && std::find(escapeSequences.begin(), escapeSequences.end(), value[2]) != escapeSequences.end())
+            {
+                value = value.substr(1, 2);
+                type = TokenType::CHAR;
+            }
+        }
+        else if (value.size() == 3)
+        {
+            value = value[1];
+            type = TokenType::CHAR;
+        }
     }
     else if ((value[0] == '\"' && value[value.size() - 1] == '\"'))
     {

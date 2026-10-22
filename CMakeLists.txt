@@ -8,6 +8,12 @@ add_executable(mystc src/lexer.cpp src/node.cpp src/ast.cpp src/llvm.cpp src/mai
 
 target_compile_features(mystc PRIVATE cxx_std_17)
 
+set_target_properties(mystc PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/"
+    RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/"
+    RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/"
+)
+
 target_sources(mystc PRIVATE
     include/compiler/error.h
     include/compiler/scope.h

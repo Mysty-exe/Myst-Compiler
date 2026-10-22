@@ -1,5 +1,41 @@
 #include "compiler/ast.h"
 
+char extractChar(const std::string &str)
+{
+    if (str.size() == 1)
+        return str[0];
+
+    if (str[0] == '\\')
+    {
+        if (str[1] == 'a')
+            return '\a';
+        if (str[1] == 'b')
+            return '\b';
+        if (str[1] == 'f')
+            return '\f';
+        if (str[1] == 'n')
+            return '\n';
+        if (str[1] == 'r')
+            return '\r';
+        if (str[1] == 't')
+            return '\t';
+        if (str[1] == 'v')
+            return '\v';
+        if (str[1] == '\\')
+            return '\\';
+        if (str[1] == '\'')
+            return '\'';
+        if (str[1] == '"')
+            return '\"';
+        if (str[1] == '?')
+            return '\?';
+        if (str[1] == '0')
+            return '\0';
+    }
+
+    return ' ';
+}
+
 AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens, std::string fileName)
 {
     root = new RootNode();
@@ -234,7 +270,8 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
         }
         else if (tokenType == "CHAR")
         {
-            LiteralNode<char> *literal = new LiteralNode(line[start].getValue()[0], line[start].getToken());
+            char c = extractChar(line[start].getValue().substr(1, line[start].getValue().size() - 2));
+            LiteralNode<char> *literal = new LiteralNode(c, line[start].getToken());
             literal->setLine(line[start].getLineNumber());
             return literal;
         }
@@ -557,8 +594,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
 
             for (int i = 2; i < information.size(); i++)
             {
-                ParamNode *parameter = new ParamNode(information[i]);
-                parameter->setLine(line + 1);
+                ParamNode *parameter = new ParamNode(information[i], line + 1);
                 parameters.push_back(parameter);
             }
 

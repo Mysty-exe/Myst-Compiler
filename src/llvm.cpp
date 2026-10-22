@@ -11,6 +11,60 @@ std::string getTargetTriple()
 #endif
 }
 
+void addPrintFunction(std::string &ir)
+{
+    ir += R"(declare i32 @printf(ptr, ...)
+
+@char_fmt = private unnamed_addr constant [3 x i8] c"%c\00", align 1
+@int_fmt    = private unnamed_addr constant [3 x i8] c"%d\00", align 1
+@double_fmt = private unnamed_addr constant [4 x i8] c"%lf\00", align 1
+
+define void @print_char(i8 %val) {
+    %val_ext = zext i8 %val to i32    
+    call i32 (ptr, ...) @printf(ptr @char_fmt, i32 %val_ext)
+    ret void
+}
+
+define void @print_int(i32 %val) {
+    call i32 (ptr, ...) @printf(ptr @int_fmt, i32 %val)
+    ret void
+}
+
+define void @print_double(double %val) {
+    call i32 (ptr, ...) @printf(ptr @double_fmt, double %val)
+    ret void
+}
+
+)";
+}
+
+void addExitFunction(std::string &ir)
+{
+#if defined(_WIN32)
+    ir += R"(declare void @ExitProcess(i32)
+
+define void @myst_exit(i64 %status) {
+    ; Cast the 64-bit status down to a 32-bit integer for Windows
+    %status32 = trunc i64 %status to i32
+    
+    ; Call Windows ExitProcess
+    call void @ExitProcess(i32 %status32)
+    unreachable
+}
+)";
+#else
+    ir += R"(define void @exit(i64 %status) {
+    call void asm sideeffect "syscall", "{rax},{rdi},~{dirflag},~{fpsr},~{flags},~{memory}" (
+        i64 60,
+        i64 %status
+    )
+    unreachable
+}
+
+)";
+#endif
+}
+
 std::string execCommand(const std::string &cmd)
 {
     std::array<char, 128> buffer;
@@ -49,8 +103,12 @@ void LLVM::mapToIR(RootNode *root)
         std::cout << "Couldn't open intermediate artifact." << std::endl;
     }
 
+    std::string ir;
+    addExitFunction(ir);
+    addPrintFunction(ir);
+
     BlockNode *global = static_cast<BlockNode *>(root->getGlobalCode());
-    std::string ir = global->mapToGlobalIR();
+    global->mapToGlobalIR(ir);
 
     for (Node *node : root->getChildren())
     {

@@ -991,8 +991,9 @@ StmtNode::~StmtNode()
 {
 }
 
-ParamNode::ParamNode(std::string identifier)
+ParamNode::ParamNode(std::string identifier, int line)
 {
+    this->line = line;
     for (int i = identifier.size() - 1; i > -1; i--)
     {
         if (identifier[i] == ' ')
@@ -1022,9 +1023,10 @@ ParamNode::ParamNode(std::string identifier)
 ParamNode::~ParamNode()
 {
 }
-ParamNode::ParamNode(std::string name, std::string type)
+ParamNode::ParamNode(std::string name, std::string type, int line)
 {
     this->name = name;
+    this->line = line;
 
     if (type == "char")
         this->type = TokenType::CHARTYPE;
@@ -1076,7 +1078,9 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
     for (Node *stmt : body->getStatements())
     {
         if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(stmt))
+        {
             returnStmt->setType(Token::getType(this->returnType));
+        }
     }
 }
 FuncNode::~FuncNode()
@@ -1172,20 +1176,6 @@ void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std:
 
     ir += "}\n\n";
 
-    for (int i = 0; i < tempvarMap.size(); i++)
-    {
-        std::cout << "Scope " << i + 1 << ":\n";
-        for (int j = 0; j < tempvarMap[i].size(); j++)
-        {
-            for (int k = 0; k < tempvarMap[i][j].size(); k++)
-                std::cout << j + 1 << ": " << tempvarMap[i][j][k] << " ";
-
-            std::cout << std::endl;
-        }
-
-        std::cout << std::endl;
-    }
-
     tempvarMap.pop_back();
 }
 
@@ -1217,6 +1207,37 @@ void CallExprNode::print(int depth) const
 bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
     this->returnType = type;
+
+    if (name == "print" || name == "input" || name == "exit")
+    {
+        for (int i = 0; i < Token::builtInFunctions.size(); i++)
+        {
+            if (Token::builtInFunctions[i][0] != name)
+                continue;
+            else
+            {
+                for (int j = 1; j < Token::builtInFunctions[i].size(); j++)
+                {
+                    std::string currentType = arguments[j - 1]->inferType(symbolTable, visibleScope);
+                    if ((Token::builtInFunctions[i][j] == "var" || Token::builtInFunctions[i][j] == currentType) && arguments.size() == Token::builtInFunctions[i].size() - 1)
+                    {
+                        argTypes.push_back(currentType);
+                        continue;
+                    }
+                    else
+                    {
+                        throwSemanticError(line, "function '" + name + "' has the wrong arguments passed in.");
+                        return false;
+                    }
+                }
+
+                for (Node *arg : arguments)
+                    arg->checkType(symbolTable, visibleScope, arg->inferType(symbolTable, visibleScope));
+
+                return true;
+            }
+        }
+    }
 
     bool overridenFunction = false;
     for (int i = 0; i < visibleScope.size(); i++)
@@ -1270,6 +1291,11 @@ void CallExprNode::checkSemantics(std::unordered_map<std::string, Scope> &symbol
 
 std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
+    if (name == "input" || name == "exit")
+        return "void";
+    if (name == "print")
+        return argTypes[0];
+
     for (int i = 0; i < visibleScope.size(); i++)
     {
         auto scope = symbolTable[visibleScope[i]];
@@ -1281,7 +1307,7 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
     }
 
     throwSemanticError(line, "function '" + name + "' hasn't been declared.");
-    return "false";
+    return "";
 }
 void CallExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
@@ -1325,8 +1351,18 @@ void CallExprNode::storeValue(std::string &ir, const std::string &assignmentName
 }
 void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
+    std::string callName = name;
+    if (name == "print")
+    {
+        if (argTypes[0] == "CHARTYPE")
+            callName = "print_char";
+        else if (argTypes[0] == "DECIMALTYPE")
+            callName = "print_decimal";
+        else
+            callName = "print_int";
+    }
+
     std::vector<std::string> args;
-    std::cout << argTypes.size() << std::endl;
     for (int i = 0; i < arguments.size(); i++)
     {
         std::string callArg = ".callarg_" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
@@ -1345,11 +1381,11 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
 
     if (returnType != "")
     {
-        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = call " + mapTypeIR(returnType) + " @" + name + "(";
-        tempvarMap[tempvarMap.size() - 1].push_back({name});
+        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = call " + mapTypeIR(returnType) + " @" + callName + "(";
+        tempvarMap[tempvarMap.size() - 1].push_back({callName});
     }
     else
-        ir += "call " + mapTypeIR(returnType) + " @" + name + "(";
+        ir += "call " + mapTypeIR(returnType) + " @" + callName + "(";
 
     for (int i = 0; i < args.size(); i++)
     {
@@ -1384,6 +1420,10 @@ std::string AssignNode::getType() const
 {
     return Token::getType(identifier->getType());
 }
+Node *AssignNode::getValue() const
+{
+    return value;
+}
 bool AssignNode::isDeclared() const
 {
     return declared;
@@ -1413,6 +1453,7 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
         if (identifier->getType() == TokenType::VAR)
         {
             std::string t = value->inferType(symbolTable, visibleScope);
+            identifier->setType(Token::getTokenDataType(t));
             symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new VarSymbol(line, false, identifier->getName(), t));
         }
         else if (value->checkType(symbolTable, visibleScope, Token::getType(identifier->getType())))
@@ -1499,9 +1540,8 @@ void StmtNode::print(int depth) const
 {
     std::cout << "StatementNode: \n";
 }
-std::string BlockNode::mapToGlobalIR()
+void BlockNode::mapToGlobalIR(std::string &ir)
 {
-    std::string ir;
     for (Node *node : statements)
     {
         if (AssignNode *assignment = dynamic_cast<AssignNode *>(node))
@@ -1520,8 +1560,6 @@ std::string BlockNode::mapToGlobalIR()
     }
 
     ir += "\n";
-
-    return ir;
 }
 void BlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
@@ -1532,20 +1570,6 @@ void BlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std
 
     ir += "ret i32 0\n";
     ir += "}";
-
-    for (int i = 0; i < tempvarMap.size(); i++)
-    {
-        std::cout << "Scope " << i + 1 << ":\n";
-        for (int j = 0; j < tempvarMap[i].size(); j++)
-        {
-            for (int k = 0; k < tempvarMap[i][j].size(); k++)
-                std::cout << j + 1 << ": " << tempvarMap[i][j][k] << " ";
-
-            std::cout << std::endl;
-        }
-
-        std::cout << std::endl;
-    }
 }
 
 IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
@@ -1859,7 +1883,6 @@ void ReturnStmtNode::print(int depth) const
 }
 void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
-
     for (int i = 0; i < visibleScope.size(); i++)
     {
         auto scope = symbolTable[visibleScope[i]];
@@ -1869,7 +1892,7 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
             {
                 if (returnType == "UNKNOWN" && identifier != nullptr)
                     throwSemanticError(line, "Return statement found in a function that doesn't have a return type.");
-                if (identifier != nullptr && !identifier->checkType(symbolTable, visibleScope, returnType))
+                if (identifier != nullptr && identifier->inferType(symbolTable, visibleScope) != returnType)
                     throwSemanticError(line, "Return statement doesn't return the required return type.");
 
                 FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
