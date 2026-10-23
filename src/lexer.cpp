@@ -30,7 +30,7 @@ bool validNumber(const std::string &number)
 }
 
 const std::vector<std::string> Token::reservedFunctions = {"__main__"};
-const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"input"}, {"exit", "INTTYPE"}};
+const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"print", "var", "CHARTYPE"}, {"input"}, {"exit", "INTTYPE"}};
 const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "return", "import", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "<", ">", "!", "==", "!=", "<=", ">=", "&&", "||", "and", "or", "not"};

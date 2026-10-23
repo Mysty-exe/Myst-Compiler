@@ -24,6 +24,7 @@ public:
     virtual void loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false);
     virtual void storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false);
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false);
+    virtual void findReturnStmts(std::vector<Node *> &stmts);
     virtual void print(int depth = 0) const = 0;
     int getLine() const;
     void setLine(int line);
@@ -48,8 +49,8 @@ public:
     void setGlobalCode(Node *block);
     std::vector<Node *> getChildren();
     std::vector<Node *> &getChildrenRef();
-    virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    virtual void print(int depth = 0) const override;
     void sendWarnings(std::unordered_map<std::string, Scope> symbolTable);
 };
 
@@ -280,9 +281,10 @@ public:
     ReturnStmtNode(Node *identifier = nullptr);
     ~ReturnStmtNode() override;
     void setType(std::string type);
-    virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual void print(int depth = 0) const override;
 };
 
 struct BlockNode : Node
@@ -297,10 +299,11 @@ public:
     void clearStatments();
     int getNumStatements() const;
     std::vector<Node *> getStatements() const;
-    virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     void mapToGlobalIR(std::string &ir);
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual void print(int depth = 0) const override;
 };
 
 struct ParamNode : Node
@@ -328,11 +331,13 @@ private:
     BlockNode *body;
 
 public:
-    FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body);
+    FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line);
     ~FuncNode() override;
     virtual void print(int depth = 0) const override;
+    void addSignatureToTable(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct IfStmtNode : Node
@@ -348,6 +353,7 @@ public:
     void mapCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct ElseIfStmtNode : Node
@@ -363,6 +369,7 @@ public:
     void mapCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct ElseStmtNode : Node
@@ -376,6 +383,7 @@ public:
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct BranchBlockNode : Node
@@ -392,6 +400,7 @@ public:
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct WhileNode : Node
@@ -407,4 +416,5 @@ public:
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };

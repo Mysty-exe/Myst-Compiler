@@ -603,8 +603,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
                 throwSyntaxError(line, "Missing body in function '" + information[0] + "'.");
             line--;
 
-            FuncNode *func = new FuncNode(information[0], information[1], parameters, body);
-            func->setLine(line - 1);
+            FuncNode *func = new FuncNode(information[0], information[1], parameters, body, line - 1);
             root->addNode(func);
             continue;
         }

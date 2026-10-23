@@ -122,9 +122,14 @@ private:
     std::vector<Symbol *> symbols;
 
 public:
-    std::vector<Symbol *> getSymbols()
+    std::vector<Symbol *> getSymbols() const
     {
         return symbols;
+    }
+
+    void setSymbols(std::vector<Symbol *> symbols)
+    {
+        this->symbols = symbols;
     }
 
     void addSymbol(Symbol *symbol)

@@ -228,6 +228,10 @@ void Node::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::str
 {
 }
 
+void Node::findReturnStmts(std::vector<Node *> &stmts)
+{
+}
+
 std::string RootNode::fileName = "";
 
 RootNode::RootNode()
@@ -285,6 +289,9 @@ void RootNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
     visibleScope.push_back("1");
     for (Node *child : children)
     {
+        if (FuncNode *func = dynamic_cast<FuncNode *>(child))
+            func->addSignatureToTable(symbolTable, visibleScope);
+
         if (BlockNode *block = dynamic_cast<BlockNode *>(child))
         {
             for (Node *stmt : block->getStatements())
@@ -293,6 +300,22 @@ void RootNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
                     assignment->checkSemantics(symbolTable, visibleScope);
             }
         }
+    }
+
+    for (int i = 0; i < visibleScope.size(); i++)
+    {
+        auto scope = symbolTable[visibleScope[i]];
+        auto symbols = scope.getSymbols();
+        auto it = symbols.begin();
+        while (it != symbols.end())
+        {
+            if (FuncSymbol *symbol = dynamic_cast<FuncSymbol *>(*it))
+                it = symbols.erase(it);
+            else
+                ++it;
+        }
+        scope.setSymbols(symbols);
+        symbolTable[visibleScope[i]] = scope;
     }
 
     for (Node *child : children)
@@ -334,7 +357,7 @@ void RootNode::sendWarnings(std::unordered_map<std::string, Scope> symbolTable)
             if (symbol->getType() == "FUNC")
             {
                 FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
-                if (!derivedSymbol->hasReturn())
+                if (!derivedSymbol->hasReturn() && getDataTypeStr(derivedSymbol->getDataType()) != "void")
                     throwSemanticWarning(derivedSymbol->getLine(), "Function '" + symbol->getName() + "' returns '" + getDataTypeStr(derivedSymbol->getDataType()) + "' but return statement not found.");
             }
         }
@@ -1058,7 +1081,7 @@ void ParamNode::print(int depth) const
     std::cout << depthTabs << "ParameterNode: " << getDataTypeStr(Token::getType(type)) << " " << name << std::endl;
 }
 
-FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body)
+FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line)
 {
     this->name = name;
     this->parameters = parameters;
@@ -1077,12 +1100,21 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
     if (returnType == "void")
         this->returnType = TokenType::UNKNOWN;
 
-    for (Node *stmt : body->getStatements())
+    std::vector<Node *> returnStmts;
+    findReturnStmts(returnStmts);
+
+    if (returnStmts.size() != 0)
     {
-        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(stmt))
+        for (int i = 0; i < returnStmts.size(); i++)
         {
+            ReturnStmtNode *returnStmt = static_cast<ReturnStmtNode *>(returnStmts[i]);
             returnStmt->setType(Token::getType(this->returnType));
         }
+    }
+    else
+    {
+        if (Token::getType(this->returnType) != "UNKNOWN")
+            throwSemanticError(line, "Return Statement not found in function.");
     }
 }
 FuncNode::~FuncNode()
@@ -1104,6 +1136,19 @@ void FuncNode::print(int depth) const
     for (int i = 0; i < parameters.size(); i++)
         parameters[i]->print(depth + 2);
     body->print(depth + 1);
+}
+void FuncNode::addSignatureToTable(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
+{
+    std::vector<std::string> parameterTypes;
+    for (ParamNode *parameter : parameters)
+        parameterTypes.push_back(Token::getType(parameter->getType()));
+
+    symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new FuncSymbol(line, false, name, Token::getType(returnType), false, parameterTypes));
+    visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
+    for (ParamNode *parameter : parameters)
+        symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new VarSymbol(line, false, parameter->getName(), Token::getType(parameter->getType())));
+    body->checkSemantics(symbolTable, visibleScope);
+    visibleScope.pop_back();
 }
 void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
@@ -1132,16 +1177,7 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
         }
     }
 
-    std::vector<std::string> parameterTypes;
-    for (ParamNode *parameter : parameters)
-        parameterTypes.push_back(Token::getType(parameter->getType()));
-
-    symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new FuncSymbol(line, false, name, Token::getType(returnType), false, parameterTypes));
-    visibleScope.push_back(std::to_string(std::stoi(visibleScope[visibleScope.size() - 1]) + 1));
-    for (ParamNode *parameter : parameters)
-        symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new VarSymbol(line, false, parameter->getName(), Token::getType(parameter->getType())));
-    body->checkSemantics(symbolTable, visibleScope);
-    visibleScope.pop_back();
+    addSignatureToTable(symbolTable, visibleScope);
 }
 void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
@@ -1164,12 +1200,6 @@ void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std:
         tempvarMap[tempvarMap.size() - 1].push_back({parameters[i]->getName()});
     }
 
-    for (Node *stmt : body->getStatements())
-    {
-        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(stmt))
-            ir += "%.return = alloca " + mapTypeIR(Token::getType(returnType)) + ", align " + mapNumBytesIR(Token::getType(returnType)) + "\n";
-    }
-
     for (Node *node : body->getStatements())
         node->mapToIR(ir, tempvarMap, false);
 
@@ -1179,6 +1209,22 @@ void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std:
     ir += "}\n\n";
 
     tempvarMap.pop_back();
+}
+void FuncNode::findReturnStmts(std::vector<Node *> &stmts)
+{
+    for (int i = 0; i < body->getStatements().size(); i++)
+    {
+        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[i]))
+        {
+            if (i != body->getStatements().size() - 1)
+                throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
+        }
+    }
+
+    for (int i = 0; i < body->getStatements().size(); i++)
+    {
+        body->getStatements()[i]->findReturnStmts(stmts);
+    }
 }
 
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
@@ -1210,10 +1256,12 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
 {
     this->returnType = type;
 
+    bool found = true;
     if (name == "print" || name == "input" || name == "exit")
     {
         for (int i = 0; i < Token::builtInFunctions.size(); i++)
         {
+            found = true;
             if (Token::builtInFunctions[i][0] != name)
                 continue;
             else
@@ -1227,19 +1275,20 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                         continue;
                     }
                     else
-                    {
-                        throwSemanticError(line, "function '" + name + "' has the wrong arguments passed in.");
-                        return false;
-                    }
+                        found = false;
                 }
 
                 for (Node *arg : arguments)
                     arg->checkType(symbolTable, visibleScope, arg->inferType(symbolTable, visibleScope));
 
-                return true;
+                if (found)
+                    return true;
             }
         }
     }
+
+    if (name == "print" || name == "input" || name == "exit")
+        throwSemanticError(line, "function '" + name + "' has the wrong arguments passed in.");
 
     bool overridenFunction = false;
     for (int i = 0; i < visibleScope.size(); i++)
@@ -1362,6 +1411,9 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
             callName = "print_decimal";
         else
             callName = "print_int";
+
+        if (argTypes.size() > 1)
+            callName += "_end";
     }
 
     std::vector<std::string> args;
@@ -1573,6 +1625,22 @@ void BlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std
     ir += "ret i32 0\n";
     ir += "}";
 }
+void BlockNode::findReturnStmts(std::vector<Node *> &stmts)
+{
+    for (int i = 0; i < statements.size(); i++)
+    {
+        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(statements[i]))
+        {
+            if (i != statements.size() - 1)
+                throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
+        }
+    }
+
+    for (int i = 0; i < statements.size(); i++)
+    {
+        statements[i]->findReturnStmts(stmts);
+    }
+}
 
 IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
 {
@@ -1622,6 +1690,22 @@ void IfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<st
 {
     for (Node *stmt : body->getStatements())
         stmt->mapToIR(ir, tempvarMap, global);
+}
+void IfStmtNode::findReturnStmts(std::vector<Node *> &stmts)
+{
+    for (int i = 0; i < body->getStatements().size(); i++)
+    {
+        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[i]))
+        {
+            if (i != body->getStatements().size() - 1)
+                throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
+        }
+    }
+
+    for (int i = 0; i < body->getStatements().size(); i++)
+    {
+        body->getStatements()[i]->findReturnStmts(stmts);
+    }
 }
 
 ElseIfStmtNode::ElseIfStmtNode(Node *condition, BlockNode *body)
@@ -1673,6 +1757,22 @@ void ElseIfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         stmtNode->checkSemantics(symbolTable, visibleScope);
     visibleScope.pop_back();
 }
+void ElseIfStmtNode::findReturnStmts(std::vector<Node *> &stmts)
+{
+    for (int i = 0; i < body->getStatements().size(); i++)
+    {
+        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[i]))
+        {
+            if (i != body->getStatements().size() - 1)
+                throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
+        }
+    }
+
+    for (int i = 0; i < body->getStatements().size(); i++)
+    {
+        body->getStatements()[i]->findReturnStmts(stmts);
+    }
+}
 
 ElseStmtNode::ElseStmtNode(BlockNode *body)
 {
@@ -1701,6 +1801,22 @@ void ElseStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
 {
     for (Node *stmt : body->getStatements())
         stmt->mapToIR(ir, tempvarMap, global);
+}
+void ElseStmtNode::findReturnStmts(std::vector<Node *> &stmts)
+{
+    for (int i = 0; i < body->getStatements().size(); i++)
+    {
+        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[i]))
+        {
+            if (i != body->getStatements().size() - 1)
+                throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
+        }
+    }
+
+    for (int i = 0; i < body->getStatements().size(); i++)
+    {
+        body->getStatements()[i]->findReturnStmts(stmts);
+    }
 }
 
 int BranchBlockNode::numIfStmt = 0;
@@ -1750,7 +1866,7 @@ void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vect
         if (dynamic_cast<IfStmtNode *>(node) != nullptr)
         {
             IfStmtNode *ifStmt = static_cast<IfStmtNode *>(node);
-            ifStmt->mapCondition(ir, tempvarMap, global);
+            ifStmt->mapCondition(ir, tempvarMap, false);
 
             if (branches->getNumStatements() == 1)
                 ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %if_true_" + currentIf + ", label %if_end_" + currentIf + "\n";
@@ -1760,7 +1876,7 @@ void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vect
                 ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %if_true_" + currentIf + ", label %if_next_" + currentIf + "_" + currentElseIf + "\n";
 
             ir += "if_true_" + currentIf + ":\n";
-            ifStmt->mapToIR(ir, tempvarMap, global);
+            ifStmt->mapToIR(ir, tempvarMap, false);
             ir += "br label %if_end_" + currentIf + "\n";
         }
 
@@ -1768,7 +1884,7 @@ void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vect
         {
             ir += "if_next_" + currentIf + "_" + currentElseIf + ":\n";
             ElseIfStmtNode *elseifStmt = static_cast<ElseIfStmtNode *>(node);
-            elseifStmt->mapCondition(ir, tempvarMap, global);
+            elseifStmt->mapCondition(ir, tempvarMap, false);
 
             if (i == branches->getNumStatements() - 1)
                 ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %elseif_true_" + currentIf + "_" + currentElseIf + ", label %if_end_" + currentIf + "\n";
@@ -1778,7 +1894,7 @@ void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vect
                 ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %elseif_true_" + currentIf + "_" + currentElseIf + ", label %if_next_" + currentIf + "_" + nextElseIf + "\n";
 
             ir += "elseif_true_" + currentIf + "_" + currentElseIf + ":\n";
-            elseifStmt->mapToIR(ir, tempvarMap, global);
+            elseifStmt->mapToIR(ir, tempvarMap, false);
             ir += "br label %if_end_" + currentIf + "\n";
 
             numElseIfStmt++;
@@ -1789,12 +1905,28 @@ void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vect
         if (dynamic_cast<ElseStmtNode *>(node) != nullptr)
         {
             ir += "else_" + currentIf + ":\n";
-            node->mapToIR(ir, tempvarMap, global);
+            node->mapToIR(ir, tempvarMap, false);
             ir += "br label %if_end_" + currentIf + "\n";
         }
     }
 
     ir += "if_end_" + currentIf + ":\n";
+}
+void BranchBlockNode::findReturnStmts(std::vector<Node *> &stmts)
+{
+    for (int i = 0; i < branches->getStatements().size(); i++)
+    {
+        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(branches->getStatements()[i]))
+        {
+            if (i != branches->getStatements().size() - 1)
+                throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
+        }
+    }
+
+    for (int i = 0; i < branches->getStatements().size(); i++)
+    {
+        branches->getStatements()[i]->findReturnStmts(stmts);
+    }
 }
 
 int WhileNode::numWhileStmt = 0;
@@ -1859,6 +1991,22 @@ void WhileNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std
     ir += "br i1 %" + condTemp + ", label %while_true_" + currentCount + ", label %while_end_" + currentCount + "\n";
     ir += "while_end_" + currentCount + ":\n";
 }
+void WhileNode::findReturnStmts(std::vector<Node *> &stmts)
+{
+    for (int i = 0; i < body->getStatements().size(); i++)
+    {
+        if (ReturnStmtNode *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[i]))
+        {
+            if (i != body->getStatements().size() - 1)
+                throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
+        }
+    }
+
+    for (int i = 0; i < body->getStatements().size(); i++)
+    {
+        body->getStatements()[i]->findReturnStmts(stmts);
+    }
+}
 
 ReturnStmtNode::ReturnStmtNode(Node *identifier)
 {
@@ -1892,9 +2040,13 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
         {
             if (symbol->getType() == "FUNC")
             {
+                if (identifier == nullptr && returnType != "UNKNOWN")
+                    throwSemanticError(line, "Return statement found without an identifier.");
+
                 if (returnType == "UNKNOWN" && identifier != nullptr)
                     throwSemanticError(line, "Return statement found in a function that doesn't have a return type.");
-                if (identifier != nullptr && identifier->inferType(symbolTable, visibleScope) != returnType)
+
+                if (identifier != nullptr && !identifier->checkType(symbolTable, visibleScope, returnType))
                     throwSemanticError(line, "Return statement doesn't return the required return type.");
 
                 FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
@@ -1907,9 +2059,24 @@ void ReturnStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vecto
 {
     std::string type = mapTypeIR(returnType);
     std::vector<std::string> loadedVars;
-    identifier->loadVariables(ir, loadedVars, tempvarMap, false);
-    identifier->storeValue(ir, ".return", tempvarMap, false);
 
-    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + type + ", ptr %.return, align " + mapNumBytesIR(returnType) + "\n";
-    ir += "ret " + type + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + "\n";
+    if (type == "UNKNOWN")
+        ir += "ret void\n";
+    else
+    {
+        std::string loadTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+        ir += "%" + loadTemp + " = alloca " + mapTypeIR(returnType) + ", align " + mapNumBytesIR(returnType) + "\n";
+        tempvarMap[tempvarMap.size() - 1].push_back({".return_" + loadTemp});
+
+        identifier->loadVariables(ir, loadedVars, tempvarMap, false);
+        identifier->storeValue(ir, ".return_" + loadTemp, tempvarMap, false);
+
+        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + type + ", ptr %" + loadTemp + ", align " + mapNumBytesIR(returnType) + "\n";
+        ir += "ret " + type + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + "\n";
+        tempvarMap[tempvarMap.size() - 1].push_back({".return_" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1)});
+    }
+}
+void ReturnStmtNode::findReturnStmts(std::vector<Node *> &stmts)
+{
+    stmts.push_back(this);
 }

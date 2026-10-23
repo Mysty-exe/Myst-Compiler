@@ -20,18 +20,54 @@ void addPrintFunction(std::string &ir)
 @double_fmt = private unnamed_addr constant [4 x i8] c"%lf\00", align 1
 
 define void @print_char(i8 %val) {
-    %val_ext = zext i8 %val to i32    
+    %val_ext = zext i8 %val to i32
+    %nl_ext = zext i8 10 to i32    
     call i32 (ptr, ...) @printf(ptr @char_fmt, i32 %val_ext)
+    call i32 (ptr, ...) @printf(ptr @char_fmt, i32 %nl_ext)
+    ret void
+}
+
+define void @print_char_end(i8 %val1, i8 %val2) {
+    %val1_ext = zext i8 %val1 to i32    
+    %val2_ext = zext i8 %val2 to i32    
+    call i32 (ptr, ...) @printf(ptr @char_fmt, i32 %val1_ext)
+    call i32 (ptr, ...) @printf(ptr @char_fmt, i32 %val2_ext)
     ret void
 }
 
 define void @print_int(i32 %val) {
     call i32 (ptr, ...) @printf(ptr @int_fmt, i32 %val)
+
+    %nl_ext = zext i8 10 to i32
+    call i32 (ptr, ...) @printf(ptr @char_fmt, i32 %nl_ext)
+
+    ret void
+}
+
+define void @print_int_end(i32 %val1, i8 %val2) {
+    call i32 (ptr, ...) @printf(ptr @int_fmt, i32 %val1)
+
+    %val2_ext = zext i8 %val2 to i32
+    call i32 (ptr, ...) @printf(ptr @char_fmt, i32 %val2_ext)
+
     ret void
 }
 
 define void @print_double(double %val) {
     call i32 (ptr, ...) @printf(ptr @double_fmt, double %val)
+
+    %nl_ext = zext i8 10 to i32
+    call i32 (ptr, ...) @printf(ptr @char_fmt, i32 %nl_ext)
+    
+    ret void
+}
+
+define void @print_double_end(double %val1, i8 %val2) {
+    call i32 (ptr, ...) @printf(ptr @double_fmt, double %val1)
+
+    %val2_ext = zext i8 %val2 to i32
+    call i32 (ptr, ...) @printf(ptr @char_fmt, i32 %val2_ext)
+
     ret void
 }
 

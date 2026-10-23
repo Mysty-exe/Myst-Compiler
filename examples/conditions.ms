@@ -1,2 +1,12 @@
-if 3 + 4 == 7:
-	print(4)
+func add(int x) -> int:
+	return x
+
+func sub(int x) -> int:
+	print(3)
+	return 3
+
+func min(int x) -> int:
+	print(2)
+	return x
+
+int x = add(3)
