@@ -15,7 +15,7 @@ The extension provides clean, theme-aware syntax highlighting for all core const
   - Integers and decimal numbers
   - Single-quoted character literals (e.g., `'a'`, `'\n'`)
 - **Comments:** Single-line comments starting with `//`
-- **Operators:** Arithmetic (`+`, `-`, `*`, `/`), comparison (`==`, `!=`, `<`, `>`, `<=`, `>=`), logical (`&&`, `||`), and assignment (`=`).
+- **Operators:** Arithmetic (`+`, `-`, `*`, `/`, `%`, `^`), comparison (`==`, `!=`, `<`, `>`, `<=`, `>=`), logical (`&&`, `||`), and assignment (`=`).
 
 ---
 

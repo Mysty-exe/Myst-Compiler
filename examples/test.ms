@@ -1,2 +1,2 @@
-decimal x = -12.3 % 5.0
+decimal x = 8.34 ^ 2.42
 print(x)

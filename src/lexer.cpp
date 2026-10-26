@@ -36,9 +36,9 @@ const std::vector<std::string> Token::reservedFunctions = {"__main__"};
 const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"print", "var", "CHARTYPE"}, {"input"}, {"exit", "INTTYPE"}};
 const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "return", "import", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
-const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "<", ">", "!", "==", "!=", "<=", ">=", "&&", "||", "and", "or", "not"};
-const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", ":", "<", ">", "(", ")", ",", ".", "!"};
-const std::vector<std::string> Token::twoCharOperators = {"==", "!=", "<=", ">=", "&&", "||", "->"};
+const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "^", "<", ">", "!", "==", "!=", "<=", ">=", "&&", "||", "and", "or", "not"};
+const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", "^", ":", "<", ">", "(", ")", ",", ".", "!"};
+const std::vector<std::string> Token::twoCharOperators = {"==", "!=", "<=", ">=", "&&", "||"};
 const std::vector<char> Token::escapeSequences = {'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', '\'', '"', '?', '0'};
 
 Token::Token()
@@ -125,6 +125,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::MODULUS;
     else if (value == "!=")
         type = TokenType::NEQUALS;
+    else if (value == "^")
+        type = TokenType::EXPONENT;
     else if (value == "==")
         type = TokenType::EQUALS;
     else if (value == "<")
@@ -143,8 +145,6 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::NOT;
     else if (value == ":")
         type = TokenType::COLON;
-    else if (value == "->")
-        type = TokenType::ARROW;
     else if (value == "(")
         type = TokenType::LPAREN;
     else if (value == ")")
@@ -235,6 +235,8 @@ std::string Token::getType(TokenType type)
         return "SLASH";
     case TokenType::MODULUS:
         return "MODULUS";
+    case TokenType::EXPONENT:
+        return "EXPONENT";
     case TokenType::EQUALS:
         return "EQUALS";
     case TokenType::NEQUALS:
@@ -255,8 +257,6 @@ std::string Token::getType(TokenType type)
         return "NOT";
     case TokenType::COLON:
         return "COLON";
-    case TokenType::ARROW:
-        return "ARROW";
     case TokenType::LPAREN:
         return "LPAREN";
     case TokenType::RPAREN:

@@ -21,7 +21,7 @@ define void @print_runtime_error(ptr %msg) {
 })";
 }
 
-void addPrintFunction(std::string &ir)
+void addPrintFunctions(std::string &ir)
 {
     ir += R"(declare i32 @printf(ptr, ...)
 
@@ -80,7 +80,40 @@ define void @print_double_end(double %val1, i8 %val2) {
 
     ret void
 }
+)";
+}
 
+void addExponentFunctions(std::string &ir)
+{
+    ir += R"(
+declare double @llvm.pow.f64(double, double)
+
+define i64 @pow_int(i64 %base, i64 %exp) {
+entry:
+    %cmp_zero = icmp sle i64 %exp, 0
+    br i1 %cmp_zero, label %exit, label %loop
+
+loop:
+    %res = phi i64 [ 1, %entry ], [ %res_mul, %loop ]
+    %i = phi i64 [ 0, %entry ], [ %i_next, %loop ]
+    
+    %res_mul = mul i64 %res, %base
+    %i_next = add i64 %i, 1
+    
+    %done = icmp eq i64 %i_next, %exp
+    br i1 %done, label %exit, label %loop
+
+exit:
+    %final = phi i64 [ 1, %entry ], [ %res_mul, %loop ]
+    ret i64 %final
+}
+
+define double @pow_double(double %base, double %exp) {
+entry:
+    ; Perform the power calculation using the intrinsic
+    %result = call double @llvm.pow.f64(double %base, double %exp)
+    ret double %result
+}
 )";
 }
 
@@ -152,7 +185,8 @@ void LLVM::mapToIR(RootNode *root)
     std::string ir;
     addExitFunction(ir);
     addRuntimeErrors(ir);
-    addPrintFunction(ir);
+    addPrintFunctions(ir);
+    addExponentFunctions(ir);
 
     BlockNode *global = static_cast<BlockNode *>(root->getGlobalCode());
     global->mapToGlobalIR(ir);
@@ -174,9 +208,9 @@ void LLVM::generateExecutable(const std::string &outputFile)
     try
     {
 #if defined(_WIN32)
-        std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile + ".exe");
+        std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile + ".exe -lm");
 #else
-        std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile);
+        std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile + " -lm");
 #endif
         std::cout << output;
     }
@@ -185,5 +219,5 @@ void LLVM::generateExecutable(const std::string &outputFile)
         std::cerr << "Error: " << e.what() << std::endl;
     }
 
-    std::filesystem::remove("temp.ll");
+    // std::filesystem::remove("temp.ll");
 }

@@ -40,10 +40,6 @@
     "operators": {
       "patterns": [
         {
-          "name": "keyword.operator.arrow.ms",
-          "match": "->"
-        },
-        {
           "name": "keyword.operator.comparison.ms",
           "match": "==|!=|<=|>=|<|>"
         },
@@ -53,7 +49,7 @@
         },
         {
           "name": "keyword.operator.arithmetic.ms",
-          "match": "[\\+\\-\\*\\/\\%\\=]"
+          "match": "[\\+\\-\\*\\/\\%\\=\\^]"
         }
       ]
     },

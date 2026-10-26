@@ -672,7 +672,16 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
 
             if (op == "/")
                 checkForDivisionByZero("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()), ir);
-            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() - 1) + ", %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + "\n";
+            if (op == "^")
+            {
+                if (operandType == "INTTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call i32 @pow_int(i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() - 1) + ", i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ")\n";
+                else if (operandType == "DECIMALTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call double @pow_double(double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() - 1) + ", double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ")\n";
+            }
+            else
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() - 1) + ", %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + "\n";
+
             tempvarMap[tempvarMap.size() - 1].push_back({op, std::to_string(tempvarMap[tempvarMap.size() - 1].size() - 1), std::to_string(tempvarMap.size())});
         }
         else if (dynamic_cast<BinaryExprNode *>(left) != nullptr)
@@ -723,7 +732,16 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
 
             if (op == "/")
                 checkForDivisionByZero(r, ir);
-            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + "  %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", " + r + "\n";
+            if (op == "^")
+            {
+                if (operandType == "INTTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call i32 @pow_int(i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", i32 " + r + ")\n";
+                else if (operandType == "DECIMALTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call double @pow_double(double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", double " + r + ")\n";
+            }
+            else
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + "  %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", " + r + "\n";
+
             tempvarMap[tempvarMap.size() - 1].push_back({op, std::to_string(tempvarMap[tempvarMap.size() - 1].size()), r});
         }
         else if (dynamic_cast<BinaryExprNode *>(right) != nullptr)
@@ -772,7 +790,16 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
 
             if (op == "/")
                 checkForDivisionByZero("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()), ir);
-            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " " + l + ", %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + "\n";
+            if (op == "^")
+            {
+                if (operandType == "INTTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call i32 @pow_int(i32 " + l + ", i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ")\n";
+                else if (operandType == "DECIMALTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call double @pow_double(double " + l + ", double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ")\n";
+            }
+            else
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " " + l + ", %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + "\n";
+
             tempvarMap[tempvarMap.size() - 1].push_back({op, l, std::to_string(tempvarMap[tempvarMap.size() - 1].size())});
         }
     }
@@ -860,7 +887,15 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
 
         if (op == "/")
             checkForDivisionByZero(r, ir);
-        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " " + l + ", " + r + "\n";
+        if (op == "^")
+        {
+            if (operandType == "INTTYPE")
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call i32 @pow_int(i32 " + l + ", i32 " + r + ")\n";
+            else if (operandType == "DECIMALTYPE")
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call double @pow_double(double " + l + ", double " + r + ")\n";
+        }
+        else
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " " + l + ", " + r + "\n";
         tempvarMap[tempvarMap.size() - 1].push_back({op, l, r});
     }
 }
