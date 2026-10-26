@@ -1824,9 +1824,20 @@ void IfStmtNode::setCurrentWhile(int currentStmt)
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'break' statement.");
         }
 
+        if (SkipNode *breakStmt = dynamic_cast<SkipNode *>(stmt))
+        {
+            if (body->getStatements()[body->getNumStatements() - 1] != stmt)
+                throwSemanticError(stmt->getLine(), "Unreachable code detected after 'skip' statement.");
+        }
+
         if (BranchBlockNode *branchBlock = dynamic_cast<BranchBlockNode *>(stmt))
             branchBlock->setCurrentWhile(currentStmt);
     }
+}
+void IfStmtNode::checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp)
+{
+    WhileNode *whileNode = dynamic_cast<WhileNode *>(whileBlock);
+    whileNode->checkCondition(ir, tempvarMap, global, currentWhile, loadTemp);
 }
 void IfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
@@ -1912,9 +1923,20 @@ void ElseIfStmtNode::setCurrentWhile(int currentStmt)
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'break' statement.");
         }
 
+        if (SkipNode *breakStmt = dynamic_cast<SkipNode *>(stmt))
+        {
+            if (body->getStatements()[body->getNumStatements() - 1] != stmt)
+                throwSemanticError(stmt->getLine(), "Unreachable code detected after 'skip' statement.");
+        }
+
         if (BranchBlockNode *branchBlock = dynamic_cast<BranchBlockNode *>(stmt))
             branchBlock->setCurrentWhile(currentStmt);
     }
+}
+void ElseIfStmtNode::checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp)
+{
+    WhileNode *whileNode = dynamic_cast<WhileNode *>(whileBlock);
+    whileNode->checkCondition(ir, tempvarMap, global, currentWhile, loadTemp);
 }
 bool ElseIfStmtNode::endsWithBranchStmt()
 {
@@ -1995,9 +2017,20 @@ void ElseStmtNode::setCurrentWhile(int currentStmt)
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'break' statement.");
         }
 
+        if (SkipNode *breakStmt = dynamic_cast<SkipNode *>(stmt))
+        {
+            if (body->getStatements()[body->getNumStatements() - 1] != stmt)
+                throwSemanticError(stmt->getLine(), "Unreachable code detected after 'skip' statement.");
+        }
+
         if (BranchBlockNode *branchBlock = dynamic_cast<BranchBlockNode *>(stmt))
             branchBlock->setCurrentWhile(currentStmt);
     }
+}
+void ElseStmtNode::checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp)
+{
+    WhileNode *whileNode = dynamic_cast<WhileNode *>(whileBlock);
+    whileNode->checkCondition(ir, tempvarMap, global, currentWhile, loadTemp);
 }
 bool ElseStmtNode::endsWithBranchStmt()
 {
@@ -2083,12 +2116,34 @@ void BranchBlockNode::setCurrentWhile(int currentWhile)
         }
     }
 }
+void BranchBlockNode::checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp)
+{
+    for (Node *stmt : branches->getStatements())
+    {
+        if (dynamic_cast<IfStmtNode *>(stmt) != nullptr)
+        {
+            IfStmtNode *ifStmt = static_cast<IfStmtNode *>(stmt);
+            ifStmt->checkForSkips(whileBlock, ir, tempvarMap, global, currentWhile, loadTemp);
+        }
+
+        if (dynamic_cast<ElseIfStmtNode *>(stmt) != nullptr)
+        {
+            ElseIfStmtNode *elseifStmt = static_cast<ElseIfStmtNode *>(stmt);
+            elseifStmt->checkForSkips(whileBlock, ir, tempvarMap, global, currentWhile, loadTemp);
+        }
+
+        if (dynamic_cast<ElseStmtNode *>(stmt) != nullptr)
+        {
+            ElseStmtNode *elseStmt = static_cast<ElseStmtNode *>(stmt);
+            elseStmt->checkForSkips(whileBlock, ir, tempvarMap, global, currentWhile, loadTemp);
+        }
+    }
+}
 void BranchBlockNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
     for (Node *node : branches->getStatements())
         node->checkSemantics(symbolTable, visibleScope);
 }
-
 void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     BranchBlockNode::numIfStmt++;
@@ -2229,34 +2284,43 @@ void WhileNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std
     {
         if (BreakNode *breakStmt = dynamic_cast<BreakNode *>(stmt))
         {
-            std::cout << numWhileStmt << std::endl;
             breakStmt->setCurrentWhile(numWhileStmt);
 
             if (body->getStatements()[body->getNumStatements() - 1] != stmt)
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'break' statement.");
         }
 
-        if (BranchBlockNode *branchBlock = dynamic_cast<BranchBlockNode *>(stmt))
-            branchBlock->setCurrentWhile(numWhileStmt);
+        if (SkipNode *breakStmt = dynamic_cast<SkipNode *>(stmt))
+        {
+            if (body->getStatements()[body->getNumStatements() - 1] != stmt)
+                throwSemanticError(stmt->getLine(), "Unreachable code detected after 'skip' statement.");
+        }
     }
 
     for (Node *stmt : body->getStatements())
-        stmt->mapToIR(ir, tempvarMap, global);
-
-    if (!endsWithBranchStmt())
     {
-        loadedVars.clear();
-        condition->loadVariables(ir, loadedVars, tempvarMap, global);
-        condition->storeValue(ir, ".whilenode_" + loadTemp, tempvarMap, false);
-
-        condTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
-        ir += "%" + condTemp + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
-        tempvarMap[tempvarMap.size() - 1].push_back({".whilenode_" + loadTemp});
-
-        ir += "br i1 %" + condTemp + ", label %while_true_" + currentCount + ", label %while_end_" + currentCount + "\n";
+        if (BranchBlockNode *branchBlock = dynamic_cast<BranchBlockNode *>(stmt))
+            branchBlock->checkForSkips(this, ir, tempvarMap, global, numWhileStmt, loadTemp);
+        else
+            stmt->mapToIR(ir, tempvarMap, global);
     }
 
+    if (!endsWithBranchStmt())
+        checkCondition(ir, tempvarMap, global, numWhileStmt, loadTemp);
+
     ir += "while_end_" + currentCount + ":\n";
+}
+void WhileNode::checkCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp)
+{
+    std::vector<std::string> loadedVars;
+    condition->loadVariables(ir, loadedVars, tempvarMap, global);
+    condition->storeValue(ir, ".whilenode_" + loadTemp, tempvarMap, false);
+
+    std::string condTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+    ir += "%" + condTemp + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
+    tempvarMap[tempvarMap.size() - 1].push_back({".whilenode_" + loadTemp});
+
+    ir += "br i1 %" + condTemp + ", label %while_true_" + std::to_string(currentWhile) + ", label %while_end_" + std::to_string(currentWhile) + "\n";
 }
 void WhileNode::findReturnStmts(std::vector<Node *> &stmts)
 {
@@ -2378,4 +2442,7 @@ void SkipNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "Skip Statement\n";
+}
+void SkipNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+{
 }

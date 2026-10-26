@@ -1,15 +1,6 @@
-while 1 + 1 == 2:
-    print(323)
-    while true:
-        print(432432)
-        if true:
-            print(-32113)
-            break
-        elseif false:
-            print(343232)
-            break
-
-    print(342)
-    break
-
-print(432)
+int i = 0
+while i < 5:
+    i = i + 1
+    if i == 3:
+        skip
+    print(i)

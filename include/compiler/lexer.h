@@ -16,6 +16,7 @@ enum class TokenType
     FOR,
     WHILE,
     BREAK,
+    SKIP,
     RETURN,
     IDENTIFIER,
     CHARTYPE,

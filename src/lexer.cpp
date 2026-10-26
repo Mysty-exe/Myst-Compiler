@@ -109,6 +109,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::FOR;
     else if (value == "break")
         type = TokenType::BREAK;
+    else if (value == "skip")
+        type = TokenType::SKIP;
     else if (value == "return")
         type = TokenType::RETURN;
     else if (value == "=")
@@ -221,6 +223,8 @@ std::string Token::getType(TokenType type)
         return "FOR";
     case TokenType::BREAK:
         return "BREAK";
+    case TokenType::SKIP:
+        return "SKIP";
     case TokenType::RETURN:
         return "RETURN";
     case TokenType::ASSIGN:
