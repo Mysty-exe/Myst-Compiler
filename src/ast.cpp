@@ -303,7 +303,7 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
             }
             else if (line[start].getValue() == "false")
             {
-                LiteralNode<bool> *literal = new LiteralNode(true, line[start].getToken());
+                LiteralNode<bool> *literal = new LiteralNode(false, line[start].getToken());
                 literal->setLine(line[start].getLineNumber());
                 return literal;
             }
@@ -594,7 +594,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
 
             for (int i = 2; i < information.size(); i++)
             {
-                ParamNode *parameter = new ParamNode(information[i], line + 1);
+                ParamNode *parameter = new ParamNode(information[i], line);
                 parameters.push_back(parameter);
             }
 

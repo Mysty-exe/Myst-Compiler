@@ -15,6 +15,9 @@ bool validNumber(const std::string &number)
     bool decimal = false;
     for (int i = 0; i < number.size(); i++)
     {
+        if (i == 0 && number[i] == '-' && number.size() > 1)
+            continue;
+
         if (number[i] == '.')
         {
             if (decimal)
@@ -293,11 +296,18 @@ void Lexer::addTabsInLine(const std::string &line, int lineNum, int &col)
     for (int i = 0; i < line.size(); i++)
     {
         if (line[i] == '\t')
+        {
             tokens[tokens.size() - 1].push_back(Token("\t", lineNum, col + 1));
+            col++;
+        }
+        else if (line.substr(i, 4) == "    ")
+        {
+            tokens[tokens.size() - 1].push_back(Token("\t", lineNum, col + 1));
+            col += 4;
+            i += 3;
+        }
         else
             break;
-
-        col++;
     }
 }
 

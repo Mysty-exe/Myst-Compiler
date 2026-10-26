@@ -11,6 +11,16 @@ std::string getTargetTriple()
 #endif
 }
 
+void addRuntimeErrors(std::string &ir)
+{
+    ir += R"(@div_by_zero_msg = private unnamed_addr constant [33 x i8] c"Runtime Error: Division by zero\0A\00", align 1
+
+define void @print_runtime_error(ptr %msg) {
+    call i32 (ptr, ...) @printf(ptr %msg)
+    ret void
+})";
+}
+
 void addPrintFunction(std::string &ir)
 {
     ir += R"(declare i32 @printf(ptr, ...)
@@ -141,6 +151,7 @@ void LLVM::mapToIR(RootNode *root)
 
     std::string ir;
     addExitFunction(ir);
+    addRuntimeErrors(ir);
     addPrintFunction(ir);
 
     BlockNode *global = static_cast<BlockNode *>(root->getGlobalCode());
@@ -162,7 +173,11 @@ void LLVM::generateExecutable(const std::string &outputFile)
 {
     try
     {
-        std::string output = execCommand("clang temp.ll -o " + outputFile);
+#if defined(_WIN32)
+        std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile + ".exe");
+#else
+        std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile);
+#endif
         std::cout << output;
     }
     catch (const std::exception &e)
@@ -170,5 +185,5 @@ void LLVM::generateExecutable(const std::string &outputFile)
         std::cerr << "Error: " << e.what() << std::endl;
     }
 
-    // std::filesystem::remove("temp.ll");
+    std::filesystem::remove("temp.ll");
 }

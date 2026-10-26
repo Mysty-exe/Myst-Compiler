@@ -1,12 +1,8 @@
-func add(int x) -> int:
-	return x
+func max(int a, int b) -> int:
+    if (a > b):
+        return a
+    return b
 
-func sub(int x) -> int:
-	print(3)
-	return 3
-
-func min(int x) -> int:
-	print(2)
-	return x
-
-int x = add(3)
+var result = max(42, 99)
+print(result)
+// Expected output: 99
