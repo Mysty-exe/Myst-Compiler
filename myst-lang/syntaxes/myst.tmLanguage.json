@@ -16,7 +16,7 @@
     "comments": {
       "patterns": [{
         "name": "comment.line.number-sign.ms",
-        "match": "#.*$"
+        "match": "//.*$"
       }]
     },
     "keywords": {
@@ -53,7 +53,7 @@
         },
         {
           "name": "keyword.operator.arithmetic.ms",
-          "match": "[\\+\\-\\*\\/\\=]"
+          "match": "[\\+\\-\\*\\/\\%\\=]"
         }
       ]
     },
@@ -73,12 +73,18 @@
       "patterns": [{
         "name": "string.quoted.double.ms",
         "begin": "\"",
-        "end": "\""
+        "end": "\"",
+        "patterns": [
+          {
+            "name": "constant.character.escape.ms",
+            "match": "\\\\."
+          }
+        ]
       }]
     },
     "chars": {
       "patterns": [{
-        "name": "string.quoted.single.ms",
+        "name": "constant.character.literal.ms",
         "match": "'([^'\\\\]|\\\\.)'"
       }]
     }
