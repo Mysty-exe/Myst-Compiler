@@ -159,6 +159,13 @@ std::string mapOperatorIR(const std::string &op, const std::string &type)
         if (type == "DECIMALTYPE")
             return "fdiv";
     }
+    if (op == "%")
+    {
+        if (type == "INTTYPE")
+            return "srem";
+        if (type == "DECIMALTYPE")
+            return "frem";
+    }
     if (op == "==")
     {
         if (type == "DECIMALTYPE")

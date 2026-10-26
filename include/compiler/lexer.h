@@ -34,6 +34,7 @@ enum class TokenType
     MINUS,
     STAR,
     SLASH,
+    MODULUS,
     NEQUALS,
     EQUALS,
     LESSTHAN,

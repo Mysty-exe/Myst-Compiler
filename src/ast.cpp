@@ -50,7 +50,7 @@ RootNode *AbstractSyntaxTree::getRoot() const
 
 const std::vector<std::vector<std::string>> AbstractSyntaxTree::operatorPrecedence =
     {
-        {"STAR", "SLASH"},
+        {"STAR", "SLASH", "MODULUS"},
         {"PLUS", "MINUS"},
         {"LESSTHAN", "GREATERTHAN", "LESSTHANEQ", "GREATERTHANEQ"},
         {"EQUALS", "NEQUALS"},
