@@ -23,7 +23,7 @@ public:
     AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens, std::string fileName);
     RootNode *getRoot() const;
     Node *buildIdentifier(const std::vector<Token> &line, int start, int end);
-    BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false);
+    BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false, bool inLoop = false);
     void buildTree(const std::vector<std::vector<Token>> &tokens);
     void format();
     void printTree() const;

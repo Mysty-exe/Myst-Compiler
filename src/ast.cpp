@@ -391,7 +391,7 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
     exit(-1);
 }
 
-BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction)
+BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction, bool inLoop)
 {
     BlockNode *blockNode = new BlockNode();
     blockNode->setLine(startLine + 1);
@@ -430,7 +430,7 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             Node *condition = buildIdentifier(tokens[line - 1], ifIndex + 1, tokens[line - 1].size() - 3);
             condition->setLine(line);
 
-            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction);
+            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'if' statement.");
 
@@ -460,7 +460,7 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             Node *condition = buildIdentifier(tokens[line - 1], elseIfIndex + 1, tokens[line - 1].size() - 3);
             condition->setLine(line);
 
-            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction);
+            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'elseif' statement.");
 
@@ -491,7 +491,7 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             if (numValidTokens != 2)
                 throwSyntaxError(line, "Line couldn't be parsed.");
 
-            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction);
+            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'else' statement.");
 
@@ -518,7 +518,7 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             Node *condition = buildIdentifier(tokens[line - 1], whileIndex + 1, tokens[line - 1].size() - 3);
             condition->setLine(line);
 
-            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction);
+            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, true);
             if (block->getNumStatements() == 0)
                 throwSyntaxError(line, "Missing body in 'while' loop.");
 
@@ -561,6 +561,38 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
                 ReturnStmtNode *returnStmt = new ReturnStmtNode(buildIdentifier(tokens[line], returnIndex + 1, tokens[line].size() - 2));
                 returnStmt->setLine(line + 1);
                 blockNode->addStatement(returnStmt);
+            }
+
+            continue;
+        }
+        int breakIndex = getTokenIndex(tokens[line], "BREAK");
+        if (breakIndex != -1)
+        {
+            if (!inLoop)
+                throwSyntaxError(tokens[line][0].getLineNumber(), "'break' statement found outside of loop.");
+            if (getNumValidTokens(tokens[line]) != 1)
+                throwSyntaxError(tokens[line][0].getLineNumber(), "'break' statement shouldn't have anything after it.");
+            else
+            {
+                BreakNode *breakStmt = new BreakNode();
+                breakStmt->setLine(line + 1);
+                blockNode->addStatement(breakStmt);
+            }
+
+            continue;
+        }
+        int skipIndex = getTokenIndex(tokens[line], "SKIP");
+        if (skipIndex != -1)
+        {
+            if (!inLoop)
+                throwSyntaxError(tokens[line][0].getLineNumber(), "'skip' statement found outside of loop.");
+            if (getNumValidTokens(tokens[line]) != 1)
+                throwSyntaxError(tokens[line][0].getLineNumber(), "'skip' statement shouldn't have anything after it.");
+            else
+            {
+                SkipNode *skipStmt = new SkipNode();
+                skipStmt->setLine(line + 1);
+                blockNode->addStatement(skipStmt);
             }
 
             continue;

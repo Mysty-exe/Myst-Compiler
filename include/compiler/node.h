@@ -355,6 +355,7 @@ public:
     IfStmtNode(Node *condition, BlockNode *body);
     ~IfStmtNode() override;
     virtual void print(int depth = 0) const override;
+    void setCurrentWhile(int currentStmt);
     bool endsWithBranchStmt();
     void mapCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
@@ -372,6 +373,7 @@ public:
     ElseIfStmtNode(Node *condition, BlockNode *body);
     ~ElseIfStmtNode() override;
     virtual void print(int depth = 0) const override;
+    void setCurrentWhile(int currentStmt);
     bool endsWithBranchStmt();
     void mapCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
@@ -388,6 +390,7 @@ public:
     ElseStmtNode(BlockNode *body);
     ~ElseStmtNode() override;
     virtual void print(int depth = 0) const override;
+    void setCurrentWhile(int currentStmt);
     bool endsWithBranchStmt();
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
@@ -404,6 +407,7 @@ public:
     BranchBlockNode();
     ~BranchBlockNode() override;
     static int getNumberIf();
+    void setCurrentWhile(int currentStmt);
     void addBranch(Node *branch);
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
@@ -426,4 +430,26 @@ public:
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+};
+
+struct BreakNode : Node
+{
+private:
+    int currentWhileStmt;
+
+public:
+    BreakNode();
+    ~BreakNode() override;
+    void setCurrentWhile(int currentStmt);
+    virtual void print(int depth = 0) const override;
+    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
+};
+
+struct SkipNode : Node
+{
+private:
+public:
+    SkipNode();
+    ~SkipNode() override;
+    virtual void print(int depth = 0) const override;
 };
