@@ -1834,11 +1834,6 @@ void IfStmtNode::setCurrentWhile(int currentStmt)
             branchBlock->setCurrentWhile(currentStmt);
     }
 }
-void IfStmtNode::checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp)
-{
-    WhileNode *whileNode = dynamic_cast<WhileNode *>(whileBlock);
-    whileNode->checkCondition(ir, tempvarMap, global, currentWhile, loadTemp);
-}
 void IfStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
     if (!condition->checkType(symbolTable, visibleScope, "BOOLTYPE"))
@@ -1867,6 +1862,22 @@ void IfStmtNode::mapCondition(std::string &ir, std::vector<std::vector<std::vect
     condition->storeValue(ir, ".ifnode_" + loadTemp, tempvarMap, false);
     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
     tempvarMap[tempvarMap.size() - 1].push_back({".ifnode_" + loadTemp});
+}
+void IfStmtNode::mapToIRInLoop(Node *loop, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+{
+    for (Node *stmt : body->getStatements())
+    {
+        if (BranchBlockNode *branchBlock = dynamic_cast<BranchBlockNode *>(stmt))
+            branchBlock->mapToIRInLoop(loop, ir, tempvarMap, global);
+        else
+            stmt->mapToIR(ir, tempvarMap, global);
+    }
+
+    if (dynamic_cast<SkipNode *>(body->getStatements()[body->getNumStatements() - 1]))
+    {
+        WhileNode *loopNode = static_cast<WhileNode *>(loop);
+        loopNode->setSkip(true);
+    }
 }
 void IfStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
@@ -1932,11 +1943,6 @@ void ElseIfStmtNode::setCurrentWhile(int currentStmt)
         if (BranchBlockNode *branchBlock = dynamic_cast<BranchBlockNode *>(stmt))
             branchBlock->setCurrentWhile(currentStmt);
     }
-}
-void ElseIfStmtNode::checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp)
-{
-    WhileNode *whileNode = dynamic_cast<WhileNode *>(whileBlock);
-    whileNode->checkCondition(ir, tempvarMap, global, currentWhile, loadTemp);
 }
 bool ElseIfStmtNode::endsWithBranchStmt()
 {
@@ -2027,11 +2033,6 @@ void ElseStmtNode::setCurrentWhile(int currentStmt)
             branchBlock->setCurrentWhile(currentStmt);
     }
 }
-void ElseStmtNode::checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp)
-{
-    WhileNode *whileNode = dynamic_cast<WhileNode *>(whileBlock);
-    whileNode->checkCondition(ir, tempvarMap, global, currentWhile, loadTemp);
-}
 bool ElseStmtNode::endsWithBranchStmt()
 {
     return (dynamic_cast<ReturnStmtNode *>(body->getStatements()[body->getNumStatements() - 1]) != nullptr) || (dynamic_cast<BreakNode *>(body->getStatements()[body->getNumStatements() - 1]) != nullptr);
@@ -2116,35 +2117,12 @@ void BranchBlockNode::setCurrentWhile(int currentWhile)
         }
     }
 }
-void BranchBlockNode::checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp)
-{
-    for (Node *stmt : branches->getStatements())
-    {
-        if (dynamic_cast<IfStmtNode *>(stmt) != nullptr)
-        {
-            IfStmtNode *ifStmt = static_cast<IfStmtNode *>(stmt);
-            ifStmt->checkForSkips(whileBlock, ir, tempvarMap, global, currentWhile, loadTemp);
-        }
-
-        if (dynamic_cast<ElseIfStmtNode *>(stmt) != nullptr)
-        {
-            ElseIfStmtNode *elseifStmt = static_cast<ElseIfStmtNode *>(stmt);
-            elseifStmt->checkForSkips(whileBlock, ir, tempvarMap, global, currentWhile, loadTemp);
-        }
-
-        if (dynamic_cast<ElseStmtNode *>(stmt) != nullptr)
-        {
-            ElseStmtNode *elseStmt = static_cast<ElseStmtNode *>(stmt);
-            elseStmt->checkForSkips(whileBlock, ir, tempvarMap, global, currentWhile, loadTemp);
-        }
-    }
-}
 void BranchBlockNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
     for (Node *node : branches->getStatements())
         node->checkSemantics(symbolTable, visibleScope);
 }
-void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void BranchBlockNode::mapToIRInLoop(Node *loop, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     BranchBlockNode::numIfStmt++;
     int numElseIfStmt = 1;
@@ -2158,7 +2136,7 @@ void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vect
         if (dynamic_cast<IfStmtNode *>(node) != nullptr)
         {
             IfStmtNode *ifStmt = static_cast<IfStmtNode *>(node);
-            ifStmt->mapCondition(ir, tempvarMap, false);
+            ifStmt->mapCondition(ir, tempvarMap, global);
 
             if (branches->getNumStatements() == 1)
                 ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %if_true_" + currentIf + ", label %if_end_" + currentIf + "\n";
@@ -2168,7 +2146,11 @@ void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vect
                 ir += "br i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", label %if_true_" + currentIf + ", label %if_next_" + currentIf + "_" + currentElseIf + "\n";
 
             ir += "if_true_" + currentIf + ":\n";
-            ifStmt->mapToIR(ir, tempvarMap, false);
+            if (loop != nullptr)
+                ifStmt->mapToIRInLoop(loop, ir, tempvarMap, global);
+            else
+                ifStmt->mapToIR(ir, tempvarMap, global);
+
             if (!ifStmt->endsWithBranchStmt())
                 ir += "br label %if_end_" + currentIf + "\n";
         }
@@ -2208,6 +2190,10 @@ void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vect
 
     ir += "if_end_" + currentIf + ":\n";
 }
+void BranchBlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+{
+    mapToIRInLoop(nullptr, ir, tempvarMap, global);
+}
 void BranchBlockNode::findReturnStmts(std::vector<Node *> &stmts)
 {
     for (int i = 0; i < branches->getStatements().size(); i++)
@@ -2235,6 +2221,15 @@ WhileNode::~WhileNode()
 {
     delete condition;
     delete body;
+}
+bool WhileNode::getSkip()
+{
+    return skip;
+}
+
+void WhileNode::setSkip(bool skip)
+{
+    this->skip = skip;
 }
 void WhileNode::print(int depth) const
 {
@@ -2282,6 +2277,9 @@ void WhileNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std
 
     for (Node *stmt : body->getStatements())
     {
+        if (BranchBlockNode *branchBlock = dynamic_cast<BranchBlockNode *>(stmt))
+            branchBlock->setCurrentWhile(numWhileStmt);
+
         if (BreakNode *breakStmt = dynamic_cast<BreakNode *>(stmt))
         {
             breakStmt->setCurrentWhile(numWhileStmt);
@@ -2299,8 +2297,11 @@ void WhileNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std
 
     for (Node *stmt : body->getStatements())
     {
+        if (skip)
+            break;
+
         if (BranchBlockNode *branchBlock = dynamic_cast<BranchBlockNode *>(stmt))
-            branchBlock->checkForSkips(this, ir, tempvarMap, global, numWhileStmt, loadTemp);
+            branchBlock->mapToIRInLoop(this, ir, tempvarMap, global);
         else
             stmt->mapToIR(ir, tempvarMap, global);
     }

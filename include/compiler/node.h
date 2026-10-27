@@ -356,10 +356,10 @@ public:
     ~IfStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
-    void checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp);
     bool endsWithBranchStmt();
     void mapCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    void mapToIRInLoop(Node *loop, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global);
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
@@ -393,7 +393,6 @@ public:
     ~ElseStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
-    void checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp);
     bool endsWithBranchStmt();
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
@@ -411,10 +410,10 @@ public:
     ~BranchBlockNode() override;
     static int getNumberIf();
     void setCurrentWhile(int currentStmt);
-    void checkForSkips(Node *whileBlock, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp);
     void addBranch(Node *branch);
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
+    void mapToIRInLoop(Node *loop, std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global);
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
@@ -425,10 +424,13 @@ private:
     static int numWhileStmt;
     Node *condition;
     BlockNode *body;
+    bool skip;
 
 public:
     WhileNode(Node *condition, BlockNode *body);
     ~WhileNode() override;
+    bool getSkip();
+    void setSkip(bool skip);
     virtual void print(int depth = 0) const override;
     bool endsWithBranchStmt();
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
