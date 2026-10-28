@@ -38,7 +38,7 @@ const std::vector<std::string> Token::keywords = {"func", "struct", "const", "va
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "^", "<", ">", "!", "==", "!=", "<=", ">=", "->", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", "^", ":", "<", ">", "(", ")", ",", ".", "!"};
-const std::vector<std::string> Token::twoCharOperators = {"==", "!=", "<=", ">=", "&&", "||", "->"};
+const std::vector<std::string> Token::twoCharOperators = {"+=", "-=", "*=", "/=", "^=", "==", "!=", "<=", ">=", "&&", "||", "->"};
 const std::vector<char> Token::escapeSequences = {'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', '\'', '"', '?', '0'};
 
 Token::Token()
@@ -115,6 +115,16 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::RETURN;
     else if (value == "=")
         type = TokenType::ASSIGN;
+    else if (value == "+=")
+        type = TokenType::PLUSASSIGN;
+    else if (value == "-=")
+        type = TokenType::MINUSASSIGN;
+    else if (value == "*=")
+        type = TokenType::STARASSIGN;
+    else if (value == "/=")
+        type = TokenType::SLASHASSIGN;
+    else if (value == "^=")
+        type = TokenType::EXPASSIGN;
     else if (value == "+")
         type = TokenType::PLUS;
     else if (value == "-")
@@ -231,6 +241,16 @@ std::string Token::getType(TokenType type)
         return "RETURN";
     case TokenType::ASSIGN:
         return "ASSIGN";
+    case TokenType::PLUSASSIGN:
+        return "PLUSASSIGN";
+    case TokenType::MINUSASSIGN:
+        return "MINUSASSIGN";
+    case TokenType::STARASSIGN:
+        return "STARASSIGN";
+    case TokenType::SLASHASSIGN:
+        return "SLASHASSIGN";
+    case TokenType::EXPASSIGN:
+        return "EXPASSIGN";
     case TokenType::PLUS:
         return "PLUS";
     case TokenType::MINUS:

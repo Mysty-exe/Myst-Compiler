@@ -64,7 +64,7 @@ br i1 %is_zero, label %div_error, label %div_normal
 
 div_error:
     call void @print_runtime_error(ptr @div_by_zero_msg)
-    call void @myst_exit(i64 1)
+    call void @exit(i64 1)
     unreachable
 
 div_normal:
@@ -1404,10 +1404,13 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                 continue;
             else
             {
+                if (arguments.size() != Token::builtInFunctions[i].size() - 1)
+                    continue;
+
                 for (int j = 1; j < Token::builtInFunctions[i].size(); j++)
                 {
                     std::string currentType = arguments[j - 1]->inferType(symbolTable, visibleScope);
-                    if ((Token::builtInFunctions[i][j] == "var" || Token::builtInFunctions[i][j] == currentType) && arguments.size() == Token::builtInFunctions[i].size() - 1)
+                    if ((Token::builtInFunctions[i][j] == "var" || Token::builtInFunctions[i][j] == currentType))
                     {
                         argTypes.push_back(currentType);
                         continue;
@@ -1558,9 +1561,7 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
         if (argTypes.size() > 1)
             callName += "_end";
     }
-    else if (name == "exit")
-        callName = "myst_exit";
-    else if (name == "input")
+    else if (name == "input" || name == "exit")
         callName = name;
 
     std::vector<std::string> args;

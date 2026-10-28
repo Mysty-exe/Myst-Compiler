@@ -87,10 +87,9 @@ On Windows:
 
 ## Future Work
 
-- More Operators
-- Break and Skip keywords
 - Implicit and Explicit Typecasting
 - Importing other `.ms` files
+- Pass by value and reference
 - Strings and Lists/Arrays
 - For loops
 - Custom Types

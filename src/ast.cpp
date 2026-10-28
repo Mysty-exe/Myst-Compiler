@@ -75,6 +75,27 @@ int AbstractSyntaxTree::getTokenIndex(const std::vector<Token> &tokenLine, const
     return -1;
 }
 
+int AbstractSyntaxTree::getTokenIndex(const std::vector<Token> &tokenLine, const std::vector<std::string> &tokenStrs, bool includeOnlyValidTokens) const
+{
+    int result;
+    for (const std::string &str : tokenStrs)
+    {
+        result = 0;
+        for (int i = 0; i < tokenLine.size(); i++)
+        {
+            if (includeOnlyValidTokens && !isValidToken(tokenLine[i]))
+                result--;
+
+            if (tokenLine[i].getToken() == str)
+                return result;
+
+            result++;
+        }
+    }
+
+    return -1;
+}
+
 int AbstractSyntaxTree::getNumTabs(const std::vector<Token> &tokenLine) const
 {
     int tabs = 0;
@@ -545,6 +566,40 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             blockNode->addStatement(assignStmt);
             continue;
         }
+
+        int operatorAssignIndex = getTokenIndex(tokens[line], {"PLUSASSIGN", "MINUSASSIGN", "STARASSIGN", "SLASHASSIGN", "EXPASSIGN"});
+        if (operatorAssignIndex != -1)
+        {
+            if (tokens[line][operatorAssignIndex - 1].getToken() != "IDENTIFIER")
+                throwSyntaxError(tokens[line][0].getLineNumber(), "'" + tokens[line][operatorAssignIndex - 1].getValue() + "' can't be used as a variable name.");
+
+            std::string type = splitLine(tokens[line], tabs, operatorAssignIndex - 2);
+            if (type != "")
+                throwSyntaxError(tokens[line][0].getLineNumber(), "Can't assign a type for the variable '" + tokens[line][operatorAssignIndex - 1].getValue() + "'.");
+
+            std::vector<Token> l;
+            l.push_back(tokens[line][operatorAssignIndex - 1]);
+
+            if (tokens[line][operatorAssignIndex].getToken() == "PLUSASSIGN")
+                l.push_back(Token("+", line + 1, 0));
+            if (tokens[line][operatorAssignIndex].getToken() == "MINUSASSIGN")
+                l.push_back(Token("-", line + 1, 0));
+            if (tokens[line][operatorAssignIndex].getToken() == "STARASSIGN")
+                l.push_back(Token("*", line + 1, 0));
+            if (tokens[line][operatorAssignIndex].getToken() == "SLASHASSIGN")
+                l.push_back(Token("/", line + 1, 0));
+            if (tokens[line][operatorAssignIndex].getToken() == "EXPASSIGN")
+                l.push_back(Token("^", line + 1, 0));
+
+            for (int i = operatorAssignIndex + 1; i < tokens[line].size() - 1; i++)
+                l.push_back(tokens[line][i]);
+
+            AssignNode *assignStmt = new AssignNode(tokens[line][operatorAssignIndex - 1].getValue(), "", buildIdentifier(l, 0, l.size() - 1));
+            assignStmt->setLine(line + 1);
+            blockNode->addStatement(assignStmt);
+            continue;
+        }
+
         int returnIndex = getTokenIndex(tokens[line], "RETURN");
         if (returnIndex != -1)
         {

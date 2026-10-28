@@ -14,6 +14,7 @@ private:
     int getNumValidTokens(const std::vector<Token> &line) const;
     bool hasOperator(const std::vector<Token> &line, int start, int end) const;
     int getTokenIndex(const std::vector<Token> &tokenLine, const std::string &tokenStr, bool includeOnlyValidTokens = false) const;
+    int getTokenIndex(const std::vector<Token> &tokenLine, const std::vector<std::string> &tokenStrs, bool includeOnlyValidTokens = false) const;
     int getNumTabs(const std::vector<Token> &tokenLine) const;
     Token getNthToken(const std::vector<Token> &tokenLine, int n) const;
     std::vector<std::string> getFunctionInformation(const std::vector<Token> &tokenLine) const;

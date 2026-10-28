@@ -1,6 +1,6 @@
-int i = 0
+int i = 4
 while i < 5:
-    i = i + 1
-    if i == 3:
+    i += 1
+    if i == 1:
         skip
     print(i)
