@@ -208,7 +208,7 @@ void LLVM::generateExecutable(const std::string &outputFile)
     try
     {
 #if defined(_WIN32)
-        std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile + ".exe -lm");
+        std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile + ".exe");
 #else
         std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile + " -lm");
 #endif

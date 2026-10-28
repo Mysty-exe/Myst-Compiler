@@ -36,9 +36,9 @@ const std::vector<std::string> Token::reservedFunctions = {"__main__"};
 const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"print", "var", "CHARTYPE"}, {"input"}, {"exit", "INTTYPE"}};
 const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "skip", "return", "import", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
-const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "^", "<", ">", "!", "==", "!=", "<=", ">=", "&&", "||", "and", "or", "not"};
+const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "^", "<", ">", "!", "==", "!=", "<=", ">=", "->", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", "^", ":", "<", ">", "(", ")", ",", ".", "!"};
-const std::vector<std::string> Token::twoCharOperators = {"==", "!=", "<=", ">=", "&&", "||"};
+const std::vector<std::string> Token::twoCharOperators = {"==", "!=", "<=", ">=", "&&", "||", "->"};
 const std::vector<char> Token::escapeSequences = {'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', '\'', '"', '?', '0'};
 
 Token::Token()
@@ -145,6 +145,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::OR;
     else if (value == "not" || value == "!")
         type = TokenType::NOT;
+    else if (value == "->")
+        type = TokenType::ARROW;
     else if (value == ":")
         type = TokenType::COLON;
     else if (value == "(")
@@ -259,6 +261,8 @@ std::string Token::getType(TokenType type)
         return "OR";
     case TokenType::NOT:
         return "NOT";
+    case TokenType::ARROW:
+        return "ARROW";
     case TokenType::COLON:
         return "COLON";
     case TokenType::LPAREN:
