@@ -45,7 +45,7 @@
         },
         {
           "name": "keyword.operator.logical.ms",
-          "match": "&&|\\|\\|"
+          "match": "&&|\\|\\|\\!"
         },
         {
           "name": "keyword.operator.arithmetic.ms",

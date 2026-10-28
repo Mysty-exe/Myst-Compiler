@@ -129,6 +129,20 @@ std::string mapNumBytesIR(const std::string &type)
     return "0";
 }
 
+bool canCoerce(std::string origType, std::string newType)
+{
+    if (origType == "INTTYPE" && newType == "DECIMALTYPE")
+        return true;
+    if (origType == "DECIMALTYPE" && newType == "INTTYPE")
+        return true;
+    if (origType == "INTTYPE" && newType == "CHARTYPE")
+        return true;
+    if (origType == "INTTYPE" && newType == "BOOLTYPE")
+        return true;
+
+    return false;
+}
+
 std::string mapOperatorIR(const std::string &op, const std::string &type)
 {
     if (op == "+")
@@ -630,10 +644,10 @@ bool BinaryExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTab
 std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
     std::string leftType = left->inferType(symbolTable, visibleScope), rightType = right->inferType(symbolTable, visibleScope);
-    if (leftType != rightType)
+
+    if (op == "and" || op == "or" || op == "==" || op == "!=" || op == ">" || op == "<" || op == ">=" || op == "<=")
     {
-        throwSemanticError(line, "Mismatched types found with '" + op + "' operator.");
-        return "";
+        return "BOOLTYPE";
     }
 
     if ((op == "and" || op == "or" || op == "&&" || op == "||" || op == ">" || op == "<" || op == ">=" || op == "<=") && leftType != "BOOLTYPE")
@@ -646,9 +660,18 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &sy
         throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
         return "";
     }
-    if (op == "==" || op == "!=" || op == ">" || op == "<" || op == ">=" || op == "<=")
+
+    if (canCoerce(leftType, rightType))
     {
-        return "BOOLTYPE";
+        if (leftType == "DECIMALTYPE" || rightType == "DECIMALTYPE")
+            return leftType;
+        return "INTTYPE";
+    }
+
+    if (leftType != rightType)
+    {
+        throwSemanticError(line, "Mismatched types found with '" + op + "' operator.");
+        return "";
     }
 
     return leftType;
@@ -1034,7 +1057,15 @@ void UnaryExprNode::traverseUnary(std::string &ir, std::vector<std::vector<std::
             }
         }
 
-        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = neg " + mapTypeIR(operandType) + " " + r + "\n";
+        if (op == "-")
+        {
+            if (operandType == "INTTYPE")
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sub " + mapTypeIR(operandType) + " 0, " + r + "\n";
+            if (operandType == "DECIMALTYPE")
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fneg " + mapTypeIR(operandType) + " " + r + "\n";
+        }
+        else if (op != "+")
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = xor " + mapTypeIR(operandType) + " " + r + ", true\n";
         tempvarMap[tempvarMap.size() - 1].push_back({op, r});
     }
     else if (IdentifierNode *rightIdentifier = dynamic_cast<IdentifierNode *>(right))
@@ -1052,7 +1083,15 @@ void UnaryExprNode::traverseUnary(std::string &ir, std::vector<std::vector<std::
             }
         }
 
-        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = neg " + mapTypeIR(operandType) + " " + r + "\n";
+        if (op == "-")
+        {
+            if (operandType == "INTTYPE")
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sub " + mapTypeIR(operandType) + " 0, " + r + "\n";
+            if (operandType == "DECIMALTYPE")
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fneg " + mapTypeIR(operandType) + " " + r + "\n";
+        }
+        else if (op != "+")
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = xor " + mapTypeIR(operandType) + " " + r + ", true\n";
         tempvarMap[tempvarMap.size() - 1].push_back({op, r});
     }
     else
@@ -1450,10 +1489,13 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                     for (int k = 0; k < derivedSymbol->getParameters().size(); k++)
                     {
                         this->argTypes.push_back(derivedSymbol->getParameters()[k]);
-                        if (!arguments[k]->checkType(symbolTable, visibleScope, derivedSymbol->getParameters()[k]))
+                        if (!canCoerce(arguments[k]->inferType(symbolTable, visibleScope), derivedSymbol->getParameters()[k]))
                         {
-                            wrongType = true;
-                            break;
+                            if (!arguments[k]->checkType(symbolTable, visibleScope, derivedSymbol->getParameters()[k]))
+                            {
+                                wrongType = true;
+                                break;
+                            }
                         }
                     }
 
@@ -1660,7 +1702,7 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
             value->checkType(symbolTable, visibleScope, Token::getType(identifier->getType()));
             symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new VarSymbol(line, false, identifier->getName(), t));
         }
-        else if (value->checkType(symbolTable, visibleScope, Token::getType(identifier->getType())))
+        else if (value->checkType(symbolTable, visibleScope, Token::getType(identifier->getType())) || canCoerce(Token::getType(identifier->getType()), value->inferType(symbolTable, visibleScope)))
             symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new VarSymbol(line, false, identifier->getName(), Token::getType(identifier->getType())));
         else
             throwSemanticError(line, "Value in '" + identifier->getName() + "' must have type '" + getDataTypeStr(Token::getType(identifier->getType())) + "'.");
@@ -1674,7 +1716,7 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
             {
                 if (symbol->getType() == "VAR" && symbol->getName() == identifier->getName())
                 {
-                    if (value->checkType(symbolTable, visibleScope, symbol->getDataType()))
+                    if (value->checkType(symbolTable, visibleScope, symbol->getDataType()) || canCoerce(symbol->getDataType(), value->inferType(symbolTable, visibleScope)))
                     {
                         identifier->setType(Token::getTokenDataType(symbol->getDataType()));
                         return;
