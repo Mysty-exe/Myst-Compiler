@@ -1,10 +1,4 @@
-func printSum(int a) -> bool:
-    print(a)
-    return false
-
-int x = 342
-decimal y = x
-print(y)
-bool a = true
-int b = printSum(a)
-print(b)
+int a = 5
+decimal b = 10.0
+decimal c = a ^ b
+print(c)

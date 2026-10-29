@@ -215,7 +215,7 @@ private:
 public:
     BinaryExprNode(std::string op, Node *left, Node *right);
     ~BinaryExprNode() override;
-    void traverseBinary(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap);
+    void traverseBinary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap);
     virtual void print(int depth = 0) const override;
     virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;
@@ -235,7 +235,7 @@ private:
 public:
     UnaryExprNode(std::string op, Node *right);
     ~UnaryExprNode() override;
-    void traverseUnary(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap);
+    void traverseUnary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap);
     virtual void print(int depth = 0) const override;
     virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;

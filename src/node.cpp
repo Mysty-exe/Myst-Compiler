@@ -320,7 +320,7 @@ void RootNode::print(int depth) const
 {
     for (Node *node : children)
     {
-        node->print(depth + 1);
+        node->print(depth);
         std::cout << std::endl;
     }
 }
@@ -705,7 +705,11 @@ void BinaryExprNode::lookForCallExprs(std::unordered_map<std::string, Scope> &sy
 }
 bool BinaryExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
-    this->operandType = left->inferType(symbolTable, visibleScope);
+    std::string leftType = left->inferType(symbolTable, visibleScope), rightType = right->inferType(symbolTable, visibleScope);
+    if (leftType == "DECIMALTYPE" || rightType == "DECIMALTYPE")
+        this->operandType = "DECIMALTYPE";
+    else
+        this->operandType = "INTTYPE";
 
     if ((op == "and" || op == "or" || op == "&&" || op == "||" || op == ">" || op == "<" || op == ">=" || op == "<=") && type != "BOOLTYPE")
     {
@@ -782,7 +786,7 @@ void BinaryExprNode::loadVariables(std::string &ir, std::string &newType, std::v
     left->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
     right->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
 }
-void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap)
+void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap)
 {
     if (dynamic_cast<BinaryExprNode *>(left) != nullptr || dynamic_cast<BinaryExprNode *>(right) != nullptr)
     {
@@ -791,8 +795,8 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
             BinaryExprNode *leftIdentifier, *rightIdentifier;
             leftIdentifier = static_cast<BinaryExprNode *>(left);
             rightIdentifier = static_cast<BinaryExprNode *>(right);
-            leftIdentifier->traverseBinary(ir, tempvarMap);
-            rightIdentifier->traverseBinary(ir, tempvarMap);
+            leftIdentifier->traverseBinary(ir, newType, tempvarMap);
+            rightIdentifier->traverseBinary(ir, newType, tempvarMap);
 
             if (op == "/")
                 checkForDivisionByZero("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()), ir);
@@ -812,12 +816,12 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
         {
             BinaryExprNode *leftIdentifier;
             leftIdentifier = static_cast<BinaryExprNode *>(left);
-            leftIdentifier->traverseBinary(ir, tempvarMap);
+            leftIdentifier->traverseBinary(ir, newType, tempvarMap);
 
             std::string r;
             if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(right))
             {
-                rightIdentifier->traverseUnary(ir, tempvarMap);
+                rightIdentifier->traverseUnary(ir, newType, tempvarMap);
                 r = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
             else if (CallExprNode *rightIdentifier = dynamic_cast<CallExprNode *>(right))
@@ -872,12 +876,12 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
         {
             BinaryExprNode *rightIdentifier;
             rightIdentifier = static_cast<BinaryExprNode *>(right);
-            rightIdentifier->traverseBinary(ir, tempvarMap);
+            rightIdentifier->traverseBinary(ir, newType, tempvarMap);
 
             std::string l;
             if (UnaryExprNode *leftIdentifier = dynamic_cast<UnaryExprNode *>(left))
             {
-                leftIdentifier->traverseUnary(ir, tempvarMap);
+                leftIdentifier->traverseUnary(ir, newType, tempvarMap);
                 l = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
             else if (CallExprNode *leftIdentifier = dynamic_cast<CallExprNode *>(left))
@@ -933,7 +937,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
 
         if (UnaryExprNode *leftIdentifier = dynamic_cast<UnaryExprNode *>(left))
         {
-            leftIdentifier->traverseUnary(ir, tempvarMap);
+            leftIdentifier->traverseUnary(ir, newType, tempvarMap);
             l = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
         }
         else if (CallExprNode *leftIdentifier = dynamic_cast<CallExprNode *>(left))
@@ -972,7 +976,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
 
         if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(right))
         {
-            rightIdentifier->traverseUnary(ir, tempvarMap);
+            rightIdentifier->traverseUnary(ir, newType, tempvarMap);
             r = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
         }
         else if (CallExprNode *rightIdentifier = dynamic_cast<CallExprNode *>(right))
@@ -1025,7 +1029,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
 }
 void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    traverseBinary(ir, tempvarMap);
+    traverseBinary(ir, newType, tempvarMap);
     bool globalVar = true;
     if (assignmentName == ".return")
     {
@@ -1121,14 +1125,14 @@ void UnaryExprNode::loadVariables(std::string &ir, std::string &newType, std::ve
 {
     right->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
 }
-void UnaryExprNode::traverseUnary(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap)
+void UnaryExprNode::traverseUnary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap)
 {
     if (dynamic_cast<BinaryExprNode *>(right) != nullptr || dynamic_cast<UnaryExprNode *>(right) != nullptr)
     {
         if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(right))
-            rightIdentifier->traverseUnary(ir, tempvarMap);
+            rightIdentifier->traverseUnary(ir, newType, tempvarMap);
         if (BinaryExprNode *rightIdentifier = dynamic_cast<BinaryExprNode *>(right))
-            rightIdentifier->traverseBinary(ir, tempvarMap);
+            rightIdentifier->traverseBinary(ir, newType, tempvarMap);
 
         if (op == "-")
         {
@@ -1206,7 +1210,7 @@ void UnaryExprNode::traverseUnary(std::string &ir, std::vector<std::vector<std::
 }
 void UnaryExprNode::storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    traverseUnary(ir, tempvarMap);
+    traverseUnary(ir, newType, tempvarMap);
     bool globalVar = true;
     if (assignmentName == ".return")
     {
