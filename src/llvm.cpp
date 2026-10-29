@@ -122,7 +122,7 @@ void addExitFunction(std::string &ir)
 #if defined(_WIN32)
     ir += R"(declare void @ExitProcess(i32)
 
-define void @exit(i64 %status) {
+define void @myst_exit(i64 %status) {
     ; Cast the 64-bit status down to a 32-bit integer for Windows
     %status32 = trunc i64 %status to i32
     
@@ -132,7 +132,7 @@ define void @exit(i64 %status) {
 }
 )";
 #else
-    ir += R"(define void @exit(i64 %status) {
+    ir += R"(define void @myst_exit(i64 %status) {
     call void asm sideeffect "syscall", "{rax},{rdi},~{dirflag},~{fpsr},~{flags},~{memory}" (
         i64 60,
         i64 %status

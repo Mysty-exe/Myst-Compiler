@@ -64,7 +64,7 @@ br i1 %is_zero, label %div_error, label %div_normal
 
 div_error:
     call void @print_runtime_error(ptr @div_by_zero_msg)
-    call void @exit(i64 1)
+    call void @myst_exit(i64 1)
     unreachable
 
 div_normal:
@@ -135,9 +135,9 @@ bool canCoerce(std::string origType, std::string newType)
         return true;
     if (origType == "DECIMALTYPE" && newType == "INTTYPE")
         return true;
-    if (origType == "INTTYPE" && newType == "CHARTYPE")
+    if (origType == "CHARTYPE" && newType == "INTTYPE")
         return true;
-    if (origType == "INTTYPE" && newType == "BOOLTYPE")
+    if (origType == "BOOLTYPE" && newType == "INTTYPE")
         return true;
 
     return false;
@@ -258,10 +258,10 @@ std::string Node::inferType(std::unordered_map<std::string, Scope> &symbolTable,
 {
     return "";
 }
-void Node::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void Node::loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
-void Node::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void Node::storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
 void Node::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
@@ -501,7 +501,7 @@ std::string IdentifierNode::inferType(std::unordered_map<std::string, Scope> &sy
     throwSemanticError(line, "'" + name + "' hasn't been declared.");
     return "";
 }
-void IdentifierNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void IdentifierNode::loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     if (std::find(loadedVars.begin(), loadedVars.end(), name) != loadedVars.end())
         return;
@@ -511,6 +511,34 @@ void IdentifierNode::loadVariables(std::string &ir, std::vector<std::string> &lo
     {
         ir += "%" + tempVarName + " = load " + mapTypeIR(Token::getType(type)) + ", ptr @" + name + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
         tempvarMap[tempvarMap.size() - 1].push_back({name});
+        if (Token::getType(type) != newType)
+        {
+            if (Token::getType(type) == "INTTYPE")
+            {
+                if (newType == "DECIMALTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                if (newType == "CHARTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                if (newType == "BOOLTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                tempvarMap[tempvarMap.size() - 1].push_back({name});
+            }
+            else if (Token::getType(type) == "DECIMALTYPE" && newType == "INTTYPE")
+            {
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + tempVarName + " to i32\n";
+                tempvarMap[tempvarMap.size() - 1].push_back({name});
+            }
+            else if (Token::getType(type) == "CHARTYPE" && newType == "INTTYPE")
+            {
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i8 %" + tempVarName + " to i32\n";
+                tempvarMap[tempvarMap.size() - 1].push_back({name});
+            }
+            else if (Token::getType(type) == "BOOLTYPE" && newType == "INTTYPE")
+            {
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i1 %" + tempVarName + " to i32\n";
+                tempvarMap[tempvarMap.size() - 1].push_back({name});
+            }
+        }
         loadedVars.push_back(name);
         return;
     }
@@ -524,30 +552,95 @@ void IdentifierNode::loadVariables(std::string &ir, std::vector<std::string> &lo
             {
                 globalVar = false;
                 ir += "%" + tempVarName + " = load " + mapTypeIR(Token::getType(type)) + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+                if (Token::getType(type) != newType)
+                {
+                    if (Token::getType(type) == "INTTYPE")
+                    {
+                        if (newType == "DECIMALTYPE")
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                        if (newType == "CHARTYPE")
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                        if (newType == "BOOLTYPE")
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                        tempvarMap[tempvarMap.size() - 1].push_back({name});
+                    }
+                    else if (Token::getType(type) == "DECIMALTYPE" && newType == "INTTYPE")
+                    {
+                        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + tempVarName + " to i32\n";
+                        tempvarMap[tempvarMap.size() - 1].push_back({name});
+                    }
+                    else if (Token::getType(type) == "CHARTYPE" && newType == "INTTYPE")
+                    {
+                        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i8 %" + tempVarName + " to i32\n";
+                        tempvarMap[tempvarMap.size() - 1].push_back({name});
+                    }
+                    else if (Token::getType(type) == "BOOLTYPE" && newType == "INTTYPE")
+                    {
+                        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i1 %" + tempVarName + " to i32\n";
+                        tempvarMap[tempvarMap.size() - 1].push_back({name});
+                    }
+                }
                 break;
             }
         }
     }
 
     if (globalVar)
+    {
         ir += "%" + tempVarName + " = load " + mapTypeIR(Token::getType(type)) + ", ptr @" + name + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+        if (Token::getType(type) != newType)
+        {
+            if (Token::getType(type) == "INTTYPE")
+            {
+                if (newType == "DECIMALTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                if (newType == "CHARTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                if (newType == "BOOLTYPE")
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                tempvarMap[tempvarMap.size() - 1].push_back({name});
+            }
+            else if (Token::getType(type) == "DECIMALTYPE" && newType == "INTTYPE")
+            {
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + tempVarName + " to i32\n";
+                tempvarMap[tempvarMap.size() - 1].push_back({name});
+            }
+            else if (Token::getType(type) == "CHARTYPE" && newType == "INTTYPE")
+            {
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i8 %" + tempVarName + " to i32\n";
+                tempvarMap[tempvarMap.size() - 1].push_back({name});
+            }
+            else if (Token::getType(type) == "BOOLTYPE" && newType == "INTTYPE")
+            {
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i1 %" + tempVarName + " to i32\n";
+                tempvarMap[tempvarMap.size() - 1].push_back({name});
+            }
+        }
+    }
 
     tempvarMap[tempvarMap.size() - 1].push_back({name});
     loadedVars.push_back(name);
 }
-void IdentifierNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void IdentifierNode::storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     std::string tempVarName = std::to_string(tempvarMap[tempvarMap.size() - 1].size());
 
     if (assignmentName == ".return")
     {
-        ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+        if (Token::getType(type) != newType)
+            ir += "store " + mapTypeIR(newType) + " %" + tempVarName + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(newType) + "\n";
+        else
+            ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+
         return;
     }
 
     if (global)
     {
-        ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+        if (Token::getType(type) != newType)
+            ir += "store " + mapTypeIR(newType) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(newType) + "\n";
+        else
+            ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
         return;
     }
 
@@ -559,14 +652,22 @@ void IdentifierNode::storeValue(std::string &ir, const std::string &assignmentNa
             if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == assignmentName)
             {
                 globalVar = false;
-                ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+                if (Token::getType(type) != newType)
+                    ir += "store " + mapTypeIR(newType) + " %" + tempVarName + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(newType) + "\n";
+                else
+                    ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
                 break;
             }
         }
     }
 
     if (globalVar)
-        ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+    {
+        if (Token::getType(type) != newType)
+            ir += "store " + mapTypeIR(newType) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(newType) + "\n";
+        else
+            ir += "store " + mapTypeIR(Token::getType(type)) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+    }
 }
 void IdentifierNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
@@ -676,10 +777,10 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &sy
 
     return leftType;
 }
-void BinaryExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void BinaryExprNode::loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    left->loadVariables(ir, loadedVars, tempvarMap, global);
-    right->loadVariables(ir, loadedVars, tempvarMap, global);
+    left->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
+    right->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
 }
 void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap)
 {
@@ -922,7 +1023,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::vector<std::vector<std
         tempvarMap[tempvarMap.size() - 1].push_back({op, l, r});
     }
 }
-void BinaryExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     traverseBinary(ir, tempvarMap);
     bool globalVar = true;
@@ -1016,9 +1117,9 @@ std::string UnaryExprNode::inferType(std::unordered_map<std::string, Scope> &sym
 
     return rightType;
 }
-void UnaryExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void UnaryExprNode::loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    right->loadVariables(ir, loadedVars, tempvarMap, global);
+    right->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
 }
 void UnaryExprNode::traverseUnary(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap)
 {
@@ -1103,7 +1204,7 @@ void UnaryExprNode::traverseUnary(std::string &ir, std::vector<std::vector<std::
         tempvarMap[tempvarMap.size() - 1].push_back({op, r});
     }
 }
-void UnaryExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void UnaryExprNode::storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     traverseUnary(ir, tempvarMap);
     bool globalVar = true;
@@ -1545,10 +1646,7 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
     throwSemanticError(line, "function '" + name + "' hasn't been declared.");
     return "";
 }
-void CallExprNode::loadVariables(std::string &ir, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
-{
-}
-void CallExprNode::storeValue(std::string &ir, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
+void CallExprNode::storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     mapToIR(ir, tempvarMap, global);
 
@@ -1556,13 +1654,19 @@ void CallExprNode::storeValue(std::string &ir, const std::string &assignmentName
 
     if (assignmentName == ".return")
     {
-        ir += "store " + mapTypeIR(returnType) + " %" + tempVarName + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(returnType) + "\n";
+        if (returnType != newType)
+            ir += "store " + mapTypeIR(newType) + " %" + tempVarName + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(newType) + "\n";
+        else
+            ir += "store " + mapTypeIR(returnType) + " %" + tempVarName + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(returnType) + "\n";
         return;
     }
 
     if (global)
     {
-        ir += "store " + mapTypeIR(returnType) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(returnType) + "\n";
+        if (returnType != newType)
+            ir += "store " + mapTypeIR(newType) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(newType) + "\n";
+        else
+            ir += "store " + mapTypeIR(returnType) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(returnType) + "\n";
         return;
     }
 
@@ -1574,14 +1678,22 @@ void CallExprNode::storeValue(std::string &ir, const std::string &assignmentName
             if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == assignmentName)
             {
                 globalVar = false;
-                ir += "store " + mapTypeIR(returnType) + " %" + tempVarName + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(returnType) + "\n";
+                if (returnType != newType)
+                    ir += "store " + mapTypeIR(newType) + " %" + tempVarName + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(newType) + "\n";
+                else
+                    ir += "store " + mapTypeIR(returnType) + " %" + tempVarName + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(returnType) + "\n";
                 break;
             }
         }
     }
 
     if (globalVar)
-        ir += "store " + mapTypeIR(returnType) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(returnType) + "\n";
+    {
+        if (returnType != newType)
+            ir += "store " + mapTypeIR(newType) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(newType) + "\n";
+        else
+            ir += "store " + mapTypeIR(returnType) + " %" + tempVarName + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(returnType) + "\n";
+    }
 
     tempvarMap[tempvarMap.size() - 1].push_back({name});
 }
@@ -1603,10 +1715,13 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
         if (argTypes.size() > 1)
             callName += "_end";
     }
-    else if (name == "input" || name == "exit")
+    else if (name == "input")
         callName = name;
+    else if (name == "exit")
+        callName = "myst_exit";
 
-    std::vector<std::string> args;
+    std::vector<std::string>
+        args;
     for (int i = 0; i < arguments.size(); i++)
     {
         std::string callArg = ".callarg_" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
@@ -1615,9 +1730,9 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
         tempvarMap[tempvarMap.size() - 1].push_back({callArg});
 
         std::vector<std::string> loadedVars;
-        arguments[i]->loadVariables(ir, loadedVars, tempvarMap, global);
+        arguments[i]->loadVariables(ir, argTypes[i], loadedVars, tempvarMap, global);
 
-        arguments[i]->storeValue(ir, callArg, tempvarMap, false);
+        arguments[i]->storeValue(ir, argTypes[i], callArg, tempvarMap, false);
         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + mapTypeIR(argTypes[i]) + ", ptr %" + loadTemp + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
         args.push_back("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1));
         tempvarMap[tempvarMap.size() - 1].push_back({callArg});
@@ -1739,8 +1854,8 @@ void AssignNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<st
     }
 
     std::vector<std::string> loadedVars;
-    value->loadVariables(ir, loadedVars, tempvarMap, global);
-    value->storeValue(ir, identifier->getName(), tempvarMap, global);
+    value->loadVariables(ir, Token::getType(identifier->getType()), loadedVars, tempvarMap, global);
+    value->storeValue(ir, Token::getType(identifier->getType()), identifier->getName(), tempvarMap, global);
 }
 
 BlockNode::BlockNode()
@@ -1903,8 +2018,9 @@ void IfStmtNode::mapCondition(std::string &ir, std::vector<std::vector<std::vect
     ir += "%" + loadTemp + " = alloca i1, align 1" + "\n";
     tempvarMap[tempvarMap.size() - 1].push_back({".ifnode_" + loadTemp});
 
-    condition->loadVariables(ir, loadedVars, tempvarMap, global);
-    condition->storeValue(ir, ".ifnode_" + loadTemp, tempvarMap, false);
+    std::string newType = "BOOLTYPE";
+    condition->loadVariables(ir, newType, loadedVars, tempvarMap, global);
+    condition->storeValue(ir, newType, ".ifnode_" + loadTemp, tempvarMap, false);
     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
     tempvarMap[tempvarMap.size() - 1].push_back({".ifnode_" + loadTemp});
 }
@@ -1987,8 +2103,9 @@ void ElseIfStmtNode::mapCondition(std::string &ir, std::vector<std::vector<std::
     ir += "%" + loadTemp + " = alloca i1, align 1" + "\n";
     tempvarMap[tempvarMap.size() - 1].push_back({".elseifnode_" + loadTemp});
 
-    condition->loadVariables(ir, loadedVars, tempvarMap, global);
-    condition->storeValue(ir, ".elseifnode_" + loadTemp, tempvarMap, false);
+    std::string newType = "BOOLTYPE";
+    condition->loadVariables(ir, newType, loadedVars, tempvarMap, global);
+    condition->storeValue(ir, newType, ".elseifnode_" + loadTemp, tempvarMap, false);
     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
     tempvarMap[tempvarMap.size() - 1].push_back({".elseifnode_" + loadTemp});
 }
@@ -2295,8 +2412,9 @@ void WhileNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std
     ir += "%" + loadTemp + " = alloca i1, align 1" + "\n";
     tempvarMap[tempvarMap.size() - 1].push_back({".whilenode_" + loadTemp});
 
-    condition->loadVariables(ir, loadedVars, tempvarMap, global);
-    condition->storeValue(ir, ".whilenode_" + loadTemp, tempvarMap, false);
+    std::string newType = "BOOLTYPE";
+    condition->loadVariables(ir, newType, loadedVars, tempvarMap, global);
+    condition->storeValue(ir, newType, ".whilenode_" + loadTemp, tempvarMap, false);
 
     std::string condTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
     ir += "%" + condTemp + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
@@ -2337,8 +2455,9 @@ void WhileNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std
 void WhileNode::checkCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global, int currentWhile, std::string loadTemp)
 {
     std::vector<std::string> loadedVars;
-    condition->loadVariables(ir, loadedVars, tempvarMap, global);
-    condition->storeValue(ir, ".whilenode_" + loadTemp, tempvarMap, false);
+    std::string newType = "BOOLTYPE";
+    condition->loadVariables(ir, newType, loadedVars, tempvarMap, global);
+    condition->storeValue(ir, newType, ".whilenode_" + loadTemp, tempvarMap, false);
 
     std::string condTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
     ir += "%" + condTemp + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
@@ -2423,8 +2542,9 @@ void ReturnStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vecto
         ir += "%" + loadTemp + " = alloca " + mapTypeIR(returnType) + ", align " + mapNumBytesIR(returnType) + "\n";
         tempvarMap[tempvarMap.size() - 1].push_back({".return_" + loadTemp});
 
-        identifier->loadVariables(ir, loadedVars, tempvarMap, false);
-        identifier->storeValue(ir, ".return_" + loadTemp, tempvarMap, false);
+        std::string newType = "BOOLTYPE";
+        identifier->loadVariables(ir, newType, loadedVars, tempvarMap, false);
+        identifier->storeValue(ir, newType, ".return_" + loadTemp, tempvarMap, false);
 
         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + type + ", ptr %" + loadTemp + ", align " + mapNumBytesIR(returnType) + "\n";
         ir += "ret " + type + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + "\n";
