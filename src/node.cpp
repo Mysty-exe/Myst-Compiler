@@ -1505,7 +1505,7 @@ void CallExprNode::lookForCallExprs(std::unordered_map<std::string, Scope> &symb
         {
             if (symbol->getType() == "FUNC" && symbol->getName() == name)
             {
-                if (returnType == "" || symbol->getDataType() == returnType)
+                if (returnType == "" || symbol->getDataType() == returnType || canCoerce(symbol->getDataType(), returnType))
                 {
                     FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
                     if (arguments.size() != derivedSymbol->getNumParameters())
@@ -1531,12 +1531,13 @@ void CallExprNode::lookForCallExprs(std::unordered_map<std::string, Scope> &symb
 }
 bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
-    this->returnType = type;
     argTypes = {};
 
     bool found = true;
     if (name == "print" || name == "input" || name == "exit")
     {
+        this->returnType = type;
+
         for (int i = 0; i < Token::builtInFunctions.size(); i++)
         {
             found = true;
@@ -1580,7 +1581,7 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
             if (symbol->getType() == "FUNC" && symbol->getName() == name)
             {
                 overridenFunction = true;
-                if (type == "" || symbol->getDataType() == type)
+                if (type == "" || symbol->getDataType() == type || canCoerce(symbol->getDataType(), type))
                 {
                     FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
                     if (arguments.size() != derivedSymbol->getNumParameters())
@@ -1604,6 +1605,7 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                         continue;
                     else
                     {
+                        this->returnType = symbol->getDataType();
                         symbol->setUsed(true);
                         return true;
                     }
@@ -1650,7 +1652,28 @@ void CallExprNode::storeValue(std::string &ir, std::string &newType, const std::
 {
     mapToIR(ir, tempvarMap, global);
 
-    std::string tempVarName = std::to_string(tempvarMap[tempvarMap.size() - 1].size());
+    std::string tempVarName = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+
+    if (returnType != newType)
+    {
+        if (returnType == "INTTYPE")
+        {
+            if (newType == "DECIMALTYPE")
+                ir += "%" + tempVarName + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+            if (newType == "CHARTYPE")
+                ir += "%" + tempVarName + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+            if (newType == "BOOLTYPE")
+                ir += "%" + tempVarName + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+            tempvarMap[tempvarMap.size() - 1].push_back({name});
+        }
+        else if (returnType == "DECIMALTYPE" && newType == "INTTYPE")
+            ir += "%" + tempVarName + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
+        else if (returnType == "CHARTYPE" && newType == "INTTYPE")
+            ir += "%" + tempVarName + " = zext i8 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
+        else if (returnType == "BOOLTYPE" && newType == "INTTYPE")
+            ir += "%" + tempVarName + " = zext i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
+        tempvarMap[tempvarMap.size() - 1].push_back({name});
+    }
 
     if (assignmentName == ".return")
     {
@@ -1730,8 +1753,8 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
         tempvarMap[tempvarMap.size() - 1].push_back({callArg});
 
         std::vector<std::string> loadedVars;
-        arguments[i]->loadVariables(ir, argTypes[i], loadedVars, tempvarMap, global);
 
+        arguments[i]->loadVariables(ir, argTypes[i], loadedVars, tempvarMap, global);
         arguments[i]->storeValue(ir, argTypes[i], callArg, tempvarMap, false);
         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + mapTypeIR(argTypes[i]) + ", ptr %" + loadTemp + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
         args.push_back("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1));
@@ -1817,7 +1840,7 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
             value->checkType(symbolTable, visibleScope, Token::getType(identifier->getType()));
             symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new VarSymbol(line, false, identifier->getName(), t));
         }
-        else if (value->checkType(symbolTable, visibleScope, Token::getType(identifier->getType())) || canCoerce(Token::getType(identifier->getType()), value->inferType(symbolTable, visibleScope)))
+        else if (value->checkType(symbolTable, visibleScope, Token::getType(identifier->getType())) || canCoerce(value->inferType(symbolTable, visibleScope), Token::getType(identifier->getType())))
             symbolTable[visibleScope[visibleScope.size() - 1]].addSymbol(new VarSymbol(line, false, identifier->getName(), Token::getType(identifier->getType())));
         else
             throwSemanticError(line, "Value in '" + identifier->getName() + "' must have type '" + getDataTypeStr(Token::getType(identifier->getType())) + "'.");
@@ -1854,8 +1877,9 @@ void AssignNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<st
     }
 
     std::vector<std::string> loadedVars;
-    value->loadVariables(ir, Token::getType(identifier->getType()), loadedVars, tempvarMap, global);
-    value->storeValue(ir, Token::getType(identifier->getType()), identifier->getName(), tempvarMap, global);
+    std::string newType = Token::getType(identifier->getType());
+    value->loadVariables(ir, newType, loadedVars, tempvarMap, global);
+    value->storeValue(ir, newType, identifier->getName(), tempvarMap, global);
 }
 
 BlockNode::BlockNode()
@@ -2542,9 +2566,8 @@ void ReturnStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vecto
         ir += "%" + loadTemp + " = alloca " + mapTypeIR(returnType) + ", align " + mapNumBytesIR(returnType) + "\n";
         tempvarMap[tempvarMap.size() - 1].push_back({".return_" + loadTemp});
 
-        std::string newType = "BOOLTYPE";
-        identifier->loadVariables(ir, newType, loadedVars, tempvarMap, false);
-        identifier->storeValue(ir, newType, ".return_" + loadTemp, tempvarMap, false);
+        identifier->loadVariables(ir, returnType, loadedVars, tempvarMap, false);
+        identifier->storeValue(ir, returnType, ".return_" + loadTemp, tempvarMap, false);
 
         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + type + ", ptr %" + loadTemp + ", align " + mapNumBytesIR(returnType) + "\n";
         ir += "ret " + type + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + "\n";
