@@ -215,6 +215,8 @@ private:
 public:
     BinaryExprNode(std::string op, Node *left, Node *right);
     ~BinaryExprNode() override;
+    std::string getOperandType() const;
+    std::string getResultType() const;
     void traverseBinary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap);
     virtual void print(int depth = 0) const override;
     virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
@@ -235,6 +237,8 @@ private:
 public:
     UnaryExprNode(std::string op, Node *right);
     ~UnaryExprNode() override;
+    std::string getOperandType() const;
+    std::string getResultType() const;
     void traverseUnary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap);
     virtual void print(int depth = 0) const override;
     virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
