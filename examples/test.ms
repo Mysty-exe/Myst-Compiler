@@ -1,4 +1,4 @@
-int a = 5
-decimal b = 10.0
-decimal c = a ^ b
+int a = 5.342
+int b = 10.324
+int c = 545.43 + 354.34
 print(c)
