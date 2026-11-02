@@ -335,13 +335,6 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
     }
     else if (hasOperator(line, start, end))
     {
-        if (line[start].getToken() == "PLUS" || line[start].getToken() == "MINUS" || line[start].getToken() == "NOT")
-        {
-            UnaryExprNode *unaryExpr = new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, end));
-            unaryExpr->setLine(line[start].getLineNumber());
-            return unaryExpr;
-        }
-
         int lparen = 0, rparen = 0;
         int splitIndex = -1, currentLevel = -1;
         for (int i = start; i <= end; i++)
@@ -363,6 +356,11 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
                     {
                         if (level >= currentLevel)
                         {
+                            if ((line[i].getValue() == "+" || line[i].getValue() == "-") && line[i + 1].getToken() == "LPAREN")
+                            {
+                                if (i == start || (i - 1 >= start && std::find(Token::operators.begin(), Token::operators.end(), line[i - 1].getValue()) != Token::operators.end()))
+                                    break;
+                            }
                             splitIndex = i;
                             currentLevel = level;
                         }
@@ -371,9 +369,19 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
             }
         }
 
-        BinaryExprNode *binaryExpr = new BinaryExprNode(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
-        binaryExpr->setLine(line[start].getLineNumber());
-        return binaryExpr;
+        if (splitIndex != -1)
+        {
+            BinaryExprNode *binaryExpr = new BinaryExprNode(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
+            binaryExpr->setLine(line[start].getLineNumber());
+            return binaryExpr;
+        }
+
+        if (line[start].getToken() == "PLUS" || line[start].getToken() == "MINUS" || line[start].getToken() == "NOT")
+        {
+            UnaryExprNode *unaryExpr = new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, end));
+            unaryExpr->setLine(line[start].getLineNumber());
+            return unaryExpr;
+        }
     }
     else
     {
