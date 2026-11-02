@@ -56,9 +56,13 @@ void throwSemanticError(int line, std::string message)
     }
 }
 
-void checkForDivisionByZero(std::string tempVar, std::string &ir)
+void checkForDivisionByZero(std::string tempVar, std::string type, std::string &ir)
 {
-    ir += "%is_zero = icmp eq i32 " + tempVar + ", 0";
+    if (type == "INTTYPE")
+        ir += "%is_zero = icmp eq i32 " + tempVar + ", 0";
+    else
+        ir += "%is_zero = fcmp oeq double " + tempVar + ", 0.0";
+
     ir += R"(
 br i1 %is_zero, label %div_error, label %div_normal
 
@@ -521,22 +525,22 @@ void IdentifierNode::loadVariables(std::string &ir, std::string &newType, std::v
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
                 if (newType == "BOOLTYPE")
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({name});
+                tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
             }
             else if (Token::getType(type) == "DECIMALTYPE" && newType == "INTTYPE")
             {
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + tempVarName + " to i32\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({name});
+                tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
             }
             else if (Token::getType(type) == "CHARTYPE" && newType == "INTTYPE")
             {
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i8 %" + tempVarName + " to i32\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({name});
+                tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
             }
             else if (Token::getType(type) == "BOOLTYPE" && newType == "INTTYPE")
             {
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i1 %" + tempVarName + " to i32\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({name});
+                tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
             }
         }
         loadedVars.push_back(name);
@@ -552,6 +556,7 @@ void IdentifierNode::loadVariables(std::string &ir, std::string &newType, std::v
             {
                 globalVar = false;
                 ir += "%" + tempVarName + " = load " + mapTypeIR(Token::getType(type)) + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+                tempvarMap[tempvarMap.size() - 1].push_back({name});
                 if (Token::getType(type) != newType)
                 {
                     if (Token::getType(type) == "INTTYPE")
@@ -562,22 +567,22 @@ void IdentifierNode::loadVariables(std::string &ir, std::string &newType, std::v
                             ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
                         if (newType == "BOOLTYPE")
                             ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
-                        tempvarMap[tempvarMap.size() - 1].push_back({name});
+                        tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
                     }
                     else if (Token::getType(type) == "DECIMALTYPE" && newType == "INTTYPE")
                     {
                         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + tempVarName + " to i32\n";
-                        tempvarMap[tempvarMap.size() - 1].push_back({name});
+                        tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
                     }
                     else if (Token::getType(type) == "CHARTYPE" && newType == "INTTYPE")
                     {
                         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i8 %" + tempVarName + " to i32\n";
-                        tempvarMap[tempvarMap.size() - 1].push_back({name});
+                        tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
                     }
                     else if (Token::getType(type) == "BOOLTYPE" && newType == "INTTYPE")
                     {
                         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i1 %" + tempVarName + " to i32\n";
-                        tempvarMap[tempvarMap.size() - 1].push_back({name});
+                        tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
                     }
                 }
                 break;
@@ -588,6 +593,7 @@ void IdentifierNode::loadVariables(std::string &ir, std::string &newType, std::v
     if (globalVar)
     {
         ir += "%" + tempVarName + " = load " + mapTypeIR(Token::getType(type)) + ", ptr @" + name + ", align " + mapNumBytesIR(Token::getType(type)) + "\n";
+        tempvarMap[tempvarMap.size() - 1].push_back({name});
         if (Token::getType(type) != newType)
         {
             if (Token::getType(type) == "INTTYPE")
@@ -598,27 +604,26 @@ void IdentifierNode::loadVariables(std::string &ir, std::string &newType, std::v
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
                 if (newType == "BOOLTYPE")
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({name});
+                tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
             }
             else if (Token::getType(type) == "DECIMALTYPE" && newType == "INTTYPE")
             {
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + tempVarName + " to i32\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({name});
+                tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
             }
             else if (Token::getType(type) == "CHARTYPE" && newType == "INTTYPE")
             {
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i8 %" + tempVarName + " to i32\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({name});
+                tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
             }
             else if (Token::getType(type) == "BOOLTYPE" && newType == "INTTYPE")
             {
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i1 %" + tempVarName + " to i32\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({name});
+                tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
             }
         }
     }
 
-    tempvarMap[tempvarMap.size() - 1].push_back({name});
     loadedVars.push_back(name);
 }
 void IdentifierNode::storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
@@ -713,17 +718,6 @@ void BinaryExprNode::lookForCallExprs(std::unordered_map<std::string, Scope> &sy
 }
 bool BinaryExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
-    right->checkType(symbolTable, visibleScope, type);
-    left->checkType(symbolTable, visibleScope, type);
-
-    std::string leftType = left->inferType(symbolTable, visibleScope), rightType = right->inferType(symbolTable, visibleScope);
-    std::cout << leftType << ", " << rightType << std::endl;
-    if (leftType == "DECIMALTYPE" || rightType == "DECIMALTYPE")
-        this->operandType = "DECIMALTYPE";
-    else
-        this->operandType = "INTTYPE";
-    this->resultType = type;
-
     if ((op == "and" || op == "or" || op == "&&" || op == "||" || op == ">" || op == "<" || op == ">=" || op == "<=") && type != "BOOLTYPE")
     {
         throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
@@ -736,8 +730,6 @@ bool BinaryExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTab
             throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
             return false;
         }
-
-        return true;
     }
 
     if (op == ">" || op == "<" || op == ">=" || op == "<=")
@@ -748,19 +740,25 @@ bool BinaryExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTab
             throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
             return false;
         }
-
-        return true;
     }
 
     if (op == "==" || op == "!=")
     {
         if (right->inferType(symbolTable, visibleScope) != left->inferType(symbolTable, visibleScope) && canCoerce(right->inferType(symbolTable, visibleScope), left->inferType(symbolTable, visibleScope)))
             throwSemanticError(line, "Can't compare these two types with '" + op + "' operator.");
-
-        return right->checkType(symbolTable, visibleScope, left->inferType(symbolTable, visibleScope)) && left->checkType(symbolTable, visibleScope, right->inferType(symbolTable, visibleScope));
     }
 
-    return right->checkType(symbolTable, visibleScope, type) && left->checkType(symbolTable, visibleScope, type);
+    right->checkType(symbolTable, visibleScope, type);
+    left->checkType(symbolTable, visibleScope, type);
+
+    std::string leftType = left->inferType(symbolTable, visibleScope), rightType = right->inferType(symbolTable, visibleScope);
+    if (leftType == "DECIMALTYPE" || rightType == "DECIMALTYPE")
+        this->operandType = "DECIMALTYPE";
+    else
+        this->operandType = "INTTYPE";
+    this->resultType = type;
+
+    return true;
 }
 std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
@@ -785,7 +783,7 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &sy
     if (canCoerce(leftType, rightType))
     {
         if (leftType == "DECIMALTYPE" || rightType == "DECIMALTYPE")
-            return leftType;
+            return "DECIMALTYPE";
         return "INTTYPE";
     }
 
@@ -799,10 +797,8 @@ std::string BinaryExprNode::inferType(std::unordered_map<std::string, Scope> &sy
 }
 void BinaryExprNode::loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    left->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
-    right->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
 }
-void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap)
+void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     if (dynamic_cast<BinaryExprNode *>(left) != nullptr || dynamic_cast<BinaryExprNode *>(right) != nullptr)
     {
@@ -811,8 +807,8 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
             BinaryExprNode *leftIdentifier, *rightIdentifier;
             leftIdentifier = static_cast<BinaryExprNode *>(left);
             rightIdentifier = static_cast<BinaryExprNode *>(right);
-            leftIdentifier->traverseBinary(ir, newType, tempvarMap);
-            rightIdentifier->traverseBinary(ir, newType, tempvarMap);
+            leftIdentifier->traverseBinary(ir, newType, tempvarMap, global);
+            rightIdentifier->traverseBinary(ir, newType, tempvarMap, global);
             std::string l = std::to_string(tempvarMap[tempvarMap.size() - 1].size() - 1), r = std::to_string(tempvarMap[tempvarMap.size() - 1].size());
 
             if (leftIdentifier->getOperandType() != operandType)
@@ -828,7 +824,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
                 }
                 else if (leftIdentifier->getOperandType() == "DECIMALTYPE" && operandType == "INTTYPE")
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1)});
+                tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1), leftIdentifier->getOperandType(), operandType});
                 l = std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
 
@@ -845,12 +841,12 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
                 }
                 else if (rightIdentifier->getOperandType() == "DECIMALTYPE" && operandType == "INTTYPE")
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1)});
+                tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1), rightIdentifier->getOperandType(), operandType});
                 r = std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
 
             if (op == "/")
-                checkForDivisionByZero("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()), ir);
+                checkForDivisionByZero("%" + r, operandType, ir);
             if (op == "^")
             {
                 if (operandType == "INTTYPE")
@@ -867,60 +863,64 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
         {
             BinaryExprNode *leftIdentifier;
             leftIdentifier = static_cast<BinaryExprNode *>(left);
-            leftIdentifier->traverseBinary(ir, newType, tempvarMap);
+            leftIdentifier->traverseBinary(ir, newType, tempvarMap, global);
 
+            if (leftIdentifier->getOperandType() != operandType)
+            {
+                if (leftIdentifier->getOperandType() == "INTTYPE")
+                {
+                    if (operandType == "DECIMALTYPE")
+                        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                    if (operandType == "CHARTYPE")
+                        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                    if (operandType == "BOOLTYPE")
+                        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                    tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1), leftIdentifier->getOperandType(), operandType});
+                }
+                else if (leftIdentifier->getOperandType() == "DECIMALTYPE" && operandType == "INTTYPE")
+                {
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
+                    tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1), leftIdentifier->getOperandType(), operandType});
+                }
+            }
+
+            std::string l = std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             std::string r;
             if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(right))
             {
-                rightIdentifier->traverseUnary(ir, newType, tempvarMap);
+                rightIdentifier->traverseUnary(ir, newType, tempvarMap, global);
                 r = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
             else if (CallExprNode *rightIdentifier = dynamic_cast<CallExprNode *>(right))
             {
                 rightIdentifier->mapToIR(ir, tempvarMap, false);
-                for (int i = tempvarMap.size() - 1; i >= 0; i--)
+
+                if (rightIdentifier->getReturnType() != operandType)
                 {
-                    for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
+                    if (rightIdentifier->getReturnType() == "INTTYPE")
                     {
-                        if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == rightIdentifier->getName() && r.size() == 0)
-                        {
-                            r = "%" + std::to_string(j + 1);
-                            break;
-                        }
+                        if (operandType == "DECIMALTYPE")
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                        if (operandType == "CHARTYPE")
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                        if (operandType == "BOOLTYPE")
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                        tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1), rightIdentifier->getReturnType(), operandType});
+                    }
+                    else if (rightIdentifier->getReturnType() == "DECIMALTYPE" && operandType == "INTTYPE")
+                    {
+                        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
+                        tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1), rightIdentifier->getReturnType(), operandType});
                     }
                 }
+
+                r = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
             else if (IdentifierNode *rightIdentifier = dynamic_cast<IdentifierNode *>(right))
             {
-                if (Token::getType(rightIdentifier->getType()) != operandType)
-                {
-                    std::cout << rightIdentifier->getName() << std::endl;
-                    if (Token::getType(rightIdentifier->getType()) == "INTTYPE")
-                    {
-                        if (operandType == "DECIMALTYPE")
-                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 " + r + " to double\n";
-                        if (operandType == "CHARTYPE")
-                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 " + r + " to double\n";
-                        if (operandType == "BOOLTYPE")
-                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 " + r + " to double\n";
-                    }
-                    else if (Token::getType(rightIdentifier->getType()) == "DECIMALTYPE" && operandType == "INTTYPE")
-                        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + r + " to i32\n";
-                    tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1)});
-                    r = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
-                }
-
-                for (int i = tempvarMap.size() - 1; i >= 0; i--)
-                {
-                    for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
-                    {
-                        if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == rightIdentifier->getName() && r.size() == 0)
-                        {
-                            r = "%" + std::to_string(j + 1);
-                            break;
-                        }
-                    }
-                }
+                std::vector<std::string> loadedVars;
+                rightIdentifier->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
+                r = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
             else
             {
@@ -932,16 +932,16 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
             }
 
             if (op == "/")
-                checkForDivisionByZero(r, ir);
+                checkForDivisionByZero(r, operandType, ir);
             if (op == "^")
             {
                 if (operandType == "INTTYPE")
-                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call i32 @pow_int(i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", i32 " + r + ")\n";
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call i32 @pow_int(i32 %" + l + ", i32 " + r + ")\n";
                 else if (operandType == "DECIMALTYPE")
-                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call double @pow_double(double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", double " + r + ")\n";
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call double @pow_double(double %" + l + ", double " + r + ")\n";
             }
             else
-                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", " + r + "\n";
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " %" + l + ", " + r + "\n";
 
             tempvarMap[tempvarMap.size() - 1].push_back({op, std::to_string(tempvarMap[tempvarMap.size() - 1].size()), r});
         }
@@ -949,7 +949,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
         {
             BinaryExprNode *rightIdentifier;
             rightIdentifier = static_cast<BinaryExprNode *>(right);
-            rightIdentifier->traverseBinary(ir, newType, tempvarMap);
+            rightIdentifier->traverseBinary(ir, newType, tempvarMap, global);
 
             if (rightIdentifier->getOperandType() != operandType)
             {
@@ -964,43 +964,46 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
                 }
                 else if (rightIdentifier->getOperandType() == "DECIMALTYPE" && operandType == "INTTYPE")
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1)});
+                tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1), rightIdentifier->getOperandType(), operandType});
             }
 
+            std::string r = std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             std::string l;
             if (UnaryExprNode *leftIdentifier = dynamic_cast<UnaryExprNode *>(left))
             {
-                leftIdentifier->traverseUnary(ir, newType, tempvarMap);
+                leftIdentifier->traverseUnary(ir, newType, tempvarMap, global);
                 l = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
             else if (CallExprNode *leftIdentifier = dynamic_cast<CallExprNode *>(left))
             {
                 leftIdentifier->mapToIR(ir, tempvarMap, false);
-                for (int i = tempvarMap.size() - 1; i >= 0; i--)
+
+                if (leftIdentifier->getReturnType() != operandType)
                 {
-                    for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
+                    if (leftIdentifier->getReturnType() == "INTTYPE")
                     {
-                        if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == leftIdentifier->getName() && l.size() == 0)
-                        {
-                            l = "%" + std::to_string(j + 1);
-                            break;
-                        }
+                        if (operandType == "DECIMALTYPE")
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                        if (operandType == "CHARTYPE")
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                        if (operandType == "BOOLTYPE")
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                        tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1), leftIdentifier->getReturnType(), operandType});
+                    }
+                    else if (leftIdentifier->getReturnType() == "DECIMALTYPE" && operandType == "INTTYPE")
+                    {
+                        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
+                        tempvarMap[tempvarMap.size() - 1].push_back({std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1), leftIdentifier->getReturnType(), operandType});
                     }
                 }
+
+                l = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
             else if (IdentifierNode *leftIdentifier = dynamic_cast<IdentifierNode *>(left))
             {
-                for (int i = tempvarMap.size() - 1; i >= 0; i--)
-                {
-                    for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
-                    {
-                        if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == leftIdentifier->getName() && l.size() == 0)
-                        {
-                            l = "%" + std::to_string(j + 1);
-                            break;
-                        }
-                    }
-                }
+                std::vector<std::string> loadedVars;
+                leftIdentifier->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
+                l = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
             }
             else
             {
@@ -1012,18 +1015,18 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
             }
 
             if (op == "/")
-                checkForDivisionByZero("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()), ir);
+                checkForDivisionByZero("%" + r, operandType, ir);
             if (op == "^")
             {
                 if (operandType == "INTTYPE")
-                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call i32 @pow_int(i32 " + l + ", i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ")\n";
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call i32 @pow_int(i32 " + l + ", i32 %" + r + ")\n";
                 else if (operandType == "DECIMALTYPE")
-                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call double @pow_double(double " + l + ", double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ")\n";
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + "call double @pow_double(double " + l + ", double %" + r + ")\n";
             }
             else
-                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " " + l + ", %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + "\n";
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = " + mapOperatorIR(op, operandType) + " " + mapTypeIR(operandType) + " " + l + ", %" + r + "\n";
 
-            tempvarMap[tempvarMap.size() - 1].push_back({op, l, std::to_string(tempvarMap[tempvarMap.size() - 1].size())});
+            tempvarMap[tempvarMap.size() - 1].push_back({op, l, r});
         }
     }
     else
@@ -1032,37 +1035,19 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
 
         if (UnaryExprNode *leftIdentifier = dynamic_cast<UnaryExprNode *>(left))
         {
-            leftIdentifier->traverseUnary(ir, newType, tempvarMap);
+            leftIdentifier->traverseUnary(ir, newType, tempvarMap, global);
             l = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
         }
         else if (CallExprNode *leftIdentifier = dynamic_cast<CallExprNode *>(left))
         {
             leftIdentifier->mapToIR(ir, tempvarMap, false);
-            for (int i = tempvarMap.size() - 1; i >= 0; i--)
-            {
-                for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
-                {
-                    if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == leftIdentifier->getName() && l.size() == 0)
-                    {
-                        l = "%" + std::to_string(j + 1);
-                        break;
-                    }
-                }
-            }
+            l = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
         }
         else if (IdentifierNode *leftIdentifier = dynamic_cast<IdentifierNode *>(left))
         {
-            for (int i = tempvarMap.size() - 1; i >= 0; i--)
-            {
-                for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
-                {
-                    if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == leftIdentifier->getName() && l.size() == 0)
-                    {
-                        l = "%" + std::to_string(j + 1);
-                        break;
-                    }
-                }
-            }
+            std::vector<std::string> loadedVars;
+            leftIdentifier->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
+            l = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
         }
         else
         {
@@ -1075,7 +1060,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
 
         if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(right))
         {
-            rightIdentifier->traverseUnary(ir, newType, tempvarMap);
+            rightIdentifier->traverseUnary(ir, newType, tempvarMap, global);
             r = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
         }
         else if (CallExprNode *rightIdentifier = dynamic_cast<CallExprNode *>(right))
@@ -1095,17 +1080,9 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
         }
         else if (IdentifierNode *rightIdentifier = dynamic_cast<IdentifierNode *>(right))
         {
-            for (int i = tempvarMap.size() - 1; i >= 0; i--)
-            {
-                for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
-                {
-                    if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == rightIdentifier->getName() && r.size() == 0)
-                    {
-                        r = "%" + std::to_string(j + 1);
-                        break;
-                    }
-                }
-            }
+            std::vector<std::string> loadedVars;
+            rightIdentifier->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
+            r = "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size());
         }
         else
         {
@@ -1117,7 +1094,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
         }
 
         if (op == "/")
-            checkForDivisionByZero(r, ir);
+            checkForDivisionByZero(r, operandType, ir);
         if (op == "^")
         {
             if (operandType == "INTTYPE")
@@ -1132,7 +1109,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
 }
 void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    traverseBinary(ir, newType, tempvarMap);
+    traverseBinary(ir, newType, tempvarMap, global);
     bool globalVar = true;
     if (assignmentName == ".return")
     {
@@ -1149,7 +1126,7 @@ void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std
             }
             else if (operandType == "DECIMALTYPE" && newType == "INTTYPE")
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-            tempvarMap[tempvarMap.size() - 1].push_back({assignmentName});
+            tempvarMap[tempvarMap.size() - 1].push_back({assignmentName, operandType, newType});
         }
 
         ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
@@ -1171,7 +1148,7 @@ void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std
             }
             else if (operandType == "DECIMALTYPE" && newType == "INTTYPE")
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-            tempvarMap[tempvarMap.size() - 1].push_back({assignmentName});
+            tempvarMap[tempvarMap.size() - 1].push_back({assignmentName, operandType, newType});
         }
 
         ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
@@ -1198,7 +1175,7 @@ void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std
                     }
                     else if (operandType == "DECIMALTYPE" && newType == "INTTYPE")
                         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-                    tempvarMap[tempvarMap.size() - 1].push_back({assignmentName});
+                    tempvarMap[tempvarMap.size() - 1].push_back({assignmentName, operandType, newType});
                 }
 
                 ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(resultType) + "\n";
@@ -1219,11 +1196,11 @@ void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
                 if (newType == "BOOLTYPE")
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
-                tempvarMap[tempvarMap.size() - 1].push_back({assignmentName});
+                tempvarMap[tempvarMap.size() - 1].push_back({assignmentName, operandType, newType});
             }
             else if (operandType == "DECIMALTYPE" && newType == "INTTYPE")
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-            tempvarMap[tempvarMap.size() - 1].push_back({assignmentName});
+            tempvarMap[tempvarMap.size() - 1].push_back({assignmentName, operandType, newType});
         }
 
         ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
@@ -1303,14 +1280,14 @@ void UnaryExprNode::loadVariables(std::string &ir, std::string &newType, std::ve
 {
     right->loadVariables(ir, operandType, loadedVars, tempvarMap, global);
 }
-void UnaryExprNode::traverseUnary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap)
+void UnaryExprNode::traverseUnary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
     if (dynamic_cast<BinaryExprNode *>(right) != nullptr || dynamic_cast<UnaryExprNode *>(right) != nullptr)
     {
         if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(right))
-            rightIdentifier->traverseUnary(ir, newType, tempvarMap);
+            rightIdentifier->traverseUnary(ir, newType, tempvarMap, global);
         if (BinaryExprNode *rightIdentifier = dynamic_cast<BinaryExprNode *>(right))
-            rightIdentifier->traverseBinary(ir, newType, tempvarMap);
+            rightIdentifier->traverseBinary(ir, newType, tempvarMap, global);
 
         if (op == "-")
         {
@@ -1388,7 +1365,7 @@ void UnaryExprNode::traverseUnary(std::string &ir, std::string &newType, std::ve
 }
 void UnaryExprNode::storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    traverseUnary(ir, newType, tempvarMap);
+    traverseUnary(ir, newType, tempvarMap, global);
     bool globalVar = true;
     if (assignmentName == ".return")
     {
@@ -1405,7 +1382,7 @@ void UnaryExprNode::storeValue(std::string &ir, std::string &newType, const std:
             }
             else if (operandType == "DECIMALTYPE" && newType == "INTTYPE")
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-            tempvarMap[tempvarMap.size() - 1].push_back({assignmentName});
+            tempvarMap[tempvarMap.size() - 1].push_back({assignmentName, operandType, newType});
         }
 
         ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr %" + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
@@ -1433,7 +1410,7 @@ void UnaryExprNode::storeValue(std::string &ir, std::string &newType, const std:
                     }
                     else if (operandType == "DECIMALTYPE" && newType == "INTTYPE")
                         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-                    tempvarMap[tempvarMap.size() - 1].push_back({assignmentName});
+                    tempvarMap[tempvarMap.size() - 1].push_back({assignmentName, operandType, newType});
                 }
 
                 ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr %" + std::to_string(j + 1) + ", align " + mapNumBytesIR(resultType) + "\n";
@@ -1457,7 +1434,7 @@ void UnaryExprNode::storeValue(std::string &ir, std::string &newType, const std:
             }
             else if (operandType == "DECIMALTYPE" && newType == "INTTYPE")
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-            tempvarMap[tempvarMap.size() - 1].push_back({assignmentName});
+            tempvarMap[tempvarMap.size() - 1].push_back({assignmentName, operandType, newType});
         }
 
         ir += "store " + mapTypeIR(resultType) + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", ptr @" + assignmentName + ", align " + mapNumBytesIR(resultType) + "\n";
@@ -1719,6 +1696,10 @@ std::string CallExprNode::getName() const
 {
     return name;
 }
+std::string CallExprNode::getReturnType() const
+{
+    return returnType;
+}
 void CallExprNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -1885,7 +1866,7 @@ void CallExprNode::storeValue(std::string &ir, std::string &newType, const std::
 {
     mapToIR(ir, tempvarMap, global);
 
-    std::string tempVarName = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+    std::string tempVarName = std::to_string(tempvarMap[tempvarMap.size() - 1].size());
 
     if (returnType != newType)
     {
@@ -1897,7 +1878,7 @@ void CallExprNode::storeValue(std::string &ir, std::string &newType, const std::
                 ir += "%" + tempVarName + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
             if (newType == "BOOLTYPE")
                 ir += "%" + tempVarName + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
-            tempvarMap[tempvarMap.size() - 1].push_back({name});
+            tempvarMap[tempvarMap.size() - 1].push_back({name, returnType, newType});
         }
         else if (returnType == "DECIMALTYPE" && newType == "INTTYPE")
             ir += "%" + tempVarName + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
@@ -1905,7 +1886,7 @@ void CallExprNode::storeValue(std::string &ir, std::string &newType, const std::
             ir += "%" + tempVarName + " = zext i8 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
         else if (returnType == "BOOLTYPE" && newType == "INTTYPE")
             ir += "%" + tempVarName + " = zext i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
-        tempvarMap[tempvarMap.size() - 1].push_back({name});
+        tempvarMap[tempvarMap.size() - 1].push_back({name, returnType, newType});
     }
 
     if (assignmentName == ".return")
@@ -2777,7 +2758,7 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
                 if (returnType == "UNKNOWN" && identifier != nullptr)
                     throwSemanticError(line, "Return statement found in a function that doesn't have a return type.");
 
-                if (identifier != nullptr && !identifier->checkType(symbolTable, visibleScope, returnType))
+                if (identifier != nullptr && !identifier->checkType(symbolTable, visibleScope, returnType) && !canCoerce(identifier->inferType(symbolTable, visibleScope), returnType))
                     throwSemanticError(line, "Return statement doesn't return the required return type.");
 
                 FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
@@ -2801,6 +2782,8 @@ void ReturnStmtNode::mapToIR(std::string &ir, std::vector<std::vector<std::vecto
 
         identifier->loadVariables(ir, returnType, loadedVars, tempvarMap, false);
         identifier->storeValue(ir, returnType, ".return_" + loadTemp, tempvarMap, false);
+
+        std::cout << returnType << std::endl;
 
         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + type + ", ptr %" + loadTemp + ", align " + mapNumBytesIR(returnType) + "\n";
         ir += "ret " + type + " %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + "\n";

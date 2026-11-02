@@ -217,7 +217,7 @@ public:
     ~BinaryExprNode() override;
     std::string getOperandType() const;
     std::string getResultType() const;
-    void traverseBinary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap);
+    void traverseBinary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global);
     virtual void print(int depth = 0) const override;
     virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;
@@ -239,7 +239,7 @@ public:
     ~UnaryExprNode() override;
     std::string getOperandType() const;
     std::string getResultType() const;
-    void traverseUnary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap);
+    void traverseUnary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global);
     virtual void print(int depth = 0) const override;
     virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;
@@ -270,6 +270,7 @@ public:
     CallExprNode(std::string name, std::vector<Node *> arguments);
     ~CallExprNode() override;
     std::string getName() const;
+    std::string getReturnType() const;
     virtual void print(int depth = 0) const override;
     virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope) override;
     virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type) override;
