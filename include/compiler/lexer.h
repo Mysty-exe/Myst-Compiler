@@ -9,6 +9,7 @@
 enum class TokenType
 {
     FUNC,
+    REF,
     VAR,
     IF,
     ELSEIF,

@@ -34,7 +34,7 @@ bool validNumber(const std::string &number)
 
 const std::vector<std::string> Token::reservedFunctions = {"__main__"};
 const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"print", "var", "CHARTYPE"}, {"input"}, {"exit", "INTTYPE"}};
-const std::vector<std::string> Token::keywords = {"func", "struct", "const", "var", "if", "elseif", "while", "break", "skip", "return", "import", "and", "or", "not"};
+const std::vector<std::string> Token::keywords = {"func", "ref", "struct", "const", "var", "if", "elseif", "while", "break", "skip", "return", "import", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "^", "<", ">", "!", "==", "!=", "<=", ">=", "->", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", "^", ":", "<", ">", "(", ")", ",", ".", "!"};
@@ -95,6 +95,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::BOOLTYPE;
     else if (value == "func")
         type = TokenType::FUNC;
+    else if (value == "ref")
+        type = TokenType::REF;
     else if (value == "var")
         type = TokenType::VAR;
     else if (value == "if")
@@ -221,6 +223,8 @@ std::string Token::getType(TokenType type)
         return "BOOLTYPE";
     case TokenType::FUNC:
         return "FUNC";
+    case TokenType::REF:
+        return "REF";
     case TokenType::VAR:
         return "VAR";
     case TokenType::IF:

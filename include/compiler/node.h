@@ -340,6 +340,7 @@ struct ParamNode : Node
 private:
     TokenType type;
     std::string name;
+    bool reference;
 
 public:
     ParamNode(std::string identifier, int line);
@@ -347,6 +348,7 @@ public:
     ~ParamNode() override;
     std::string getName() const;
     TokenType getType() const;
+    bool isReference() const;
     virtual void print(int depth = 0) const override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global = false) override;
 };
@@ -358,6 +360,7 @@ private:
     TokenType returnType;
     std::vector<ParamNode *> parameters;
     BlockNode *body;
+    bool emptyFunction;
 
 public:
     FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line);

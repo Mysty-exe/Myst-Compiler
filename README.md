@@ -87,7 +87,6 @@ On Windows:
 
 ## Future Work
 
-- Implicit and Explicit Typecasting
 - Importing other `.ms` files
 - Pass by value and reference
 - Strings and Lists/Arrays

@@ -350,7 +350,7 @@ void RootNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
         }
     }
 
-    for (int i = 0; i < visibleScope.size(); i++)
+    for (int i = visibleScope.size() - 1; i >= 0; i--)
     {
         auto scope = symbolTable[visibleScope[i]];
         auto symbols = scope.getSymbols();
@@ -652,7 +652,7 @@ void IdentifierNode::storeValue(std::string &ir, std::string &newType, const std
     bool globalVar = true;
     for (int i = tempvarMap.size() - 1; i >= 0; i--)
     {
-        for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
+        for (int j = 0; j < tempvarMap[i].size(); j++)
         {
             if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == assignmentName)
             {
@@ -1106,7 +1106,7 @@ void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, std::
             rightIdentifier->mapToIR(ir, tempvarMap, false);
             for (int i = tempvarMap.size() - 1; i >= 0; i--)
             {
-                for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
+                for (int j = 0; j < tempvarMap[i].size(); j++)
                 {
                     if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == rightIdentifier->getName() && r.size() == 0)
                     {
@@ -1189,7 +1189,7 @@ void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std
         return;
     }
 
-    for (int i = 0; i < tempvarMap.size(); i++)
+    for (int i = tempvarMap.size() - 1; i >= 0; i--)
     {
         for (int j = 0; j < tempvarMap[i].size(); j++)
         {
@@ -1337,7 +1337,7 @@ void UnaryExprNode::traverseUnary(std::string &ir, std::string &newType, std::ve
         std::string r;
         for (int i = tempvarMap.size() - 1; i >= 0; i--)
         {
-            for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
+            for (int j = 0; j < tempvarMap[i].size(); j++)
             {
                 if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == rightIdentifier->getName() && r.size() == 0)
                 {
@@ -1416,7 +1416,7 @@ void UnaryExprNode::storeValue(std::string &ir, std::string &newType, const std:
         return;
     }
 
-    for (int i = 0; i < tempvarMap.size(); i++)
+    for (int i = 2; i < tempvarMap.size(); i++)
     {
         for (int j = 0; j < tempvarMap[i].size(); j++)
         {
@@ -1476,7 +1476,9 @@ StmtNode::~StmtNode()
 
 ParamNode::ParamNode(std::string identifier, int line)
 {
+    reference = false;
     this->line = line;
+    std::string refStr, typeStr, nameStr;
     for (int i = identifier.size() - 1; i > -1; i--)
     {
         if (identifier[i] == ' ')
@@ -1484,6 +1486,12 @@ ParamNode::ParamNode(std::string identifier, int line)
             name = identifier.substr(i + 1);
 
             std::string type = identifier.substr(0, i);
+            if (identifier.substr(0, 3) == "ref")
+            {
+                type = identifier.substr(4, i - 4);
+                reference = true;
+            }
+
             if (type == "char")
                 this->type = TokenType::CHARTYPE;
             else if (type == "string")
@@ -1503,11 +1511,9 @@ ParamNode::ParamNode(std::string identifier, int line)
 
     throwSyntaxError(line, "Missing parameter type (or name) for '" + identifier + "'");
 }
-ParamNode::~ParamNode()
-{
-}
 ParamNode::ParamNode(std::string name, std::string type, int line)
 {
+    reference = false;
     this->name = name;
     this->line = line;
 
@@ -1522,6 +1528,9 @@ ParamNode::ParamNode(std::string name, std::string type, int line)
     if (type == "bool")
         this->type = TokenType::BOOLTYPE;
 }
+ParamNode::~ParamNode()
+{
+}
 void ParamNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
 }
@@ -1533,10 +1542,14 @@ TokenType ParamNode::getType() const
 {
     return type;
 }
+bool ParamNode::isReference() const
+{
+    return reference;
+}
 void ParamNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
-    std::cout << depthTabs << "ParameterNode: " << getDataTypeStr(Token::getType(type)) << " " << name << std::endl;
+    std::cout << depthTabs << "ParameterNode: " << getDataTypeStr(Token::getType(type)) << " " << name << (reference ? ", Reference" : "") << std::endl;
 }
 
 FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line)
@@ -1545,6 +1558,10 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
     this->parameters = parameters;
     this->body = body;
     this->line = line;
+
+    emptyFunction = false;
+    if (body->getNumStatements() == 0)
+        emptyFunction = true;
 
     if (returnType == "char")
         this->returnType = TokenType::CHARTYPE;
@@ -1559,21 +1576,24 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
     if (returnType == "void")
         this->returnType = TokenType::UNKNOWN;
 
-    std::vector<Node *> returnStmts;
-    findReturnStmts(returnStmts);
+    if (!emptyFunction)
+    {
+        std::vector<Node *> returnStmts;
+        findReturnStmts(returnStmts);
 
-    if (returnStmts.size() != 0)
-    {
-        for (int i = 0; i < returnStmts.size(); i++)
+        if (returnStmts.size() != 0)
         {
-            ReturnStmtNode *returnStmt = static_cast<ReturnStmtNode *>(returnStmts[i]);
-            returnStmt->setType(Token::getType(this->returnType));
+            for (int i = 0; i < returnStmts.size(); i++)
+            {
+                ReturnStmtNode *returnStmt = static_cast<ReturnStmtNode *>(returnStmts[i]);
+                returnStmt->setType(Token::getType(this->returnType));
+            }
         }
-    }
-    else
-    {
-        if (Token::getType(this->returnType) != "UNKNOWN")
-            throwSemanticError(line, "Return Statement not found in function.");
+        else
+        {
+            if (Token::getType(this->returnType) != "UNKNOWN")
+                throwSemanticError(line, "Return Statement not found in function.");
+        }
     }
 }
 FuncNode::~FuncNode()
@@ -1594,13 +1614,19 @@ void FuncNode::print(int depth) const
     std::cout << depthTabs << "\tParameters: " << std::endl;
     for (int i = 0; i < parameters.size(); i++)
         parameters[i]->print(depth + 2);
-    body->print(depth + 1);
+    if (!emptyFunction)
+        body->print(depth + 1);
 }
 void FuncNode::addSignatureToTable(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, bool includeParams)
 {
     std::vector<std::string> parameterTypes;
     for (ParamNode *parameter : parameters)
-        parameterTypes.push_back(Token::getType(parameter->getType()));
+    {
+        if (parameter->isReference())
+            parameterTypes.push_back("REF" + Token::getType(parameter->getType()));
+        else
+            parameterTypes.push_back(Token::getType(parameter->getType()));
+    }
 
     symbolTable[visibleScope[0]].addSymbol(new FuncSymbol(line, false, name, Token::getType(returnType), false, parameterTypes));
     if (includeParams)
@@ -1612,7 +1638,7 @@ void FuncNode::addSignatureToTable(std::unordered_map<std::string, Scope> &symbo
 }
 void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
-    for (int i = 0; i < visibleScope.size(); i++)
+    for (int i = visibleScope.size() - 1; i >= 0; i--)
     {
         auto scope = symbolTable[visibleScope[i]];
         for (Symbol *symbol : scope.getSymbols())
@@ -1639,7 +1665,8 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
 
     addSignatureToTable(symbolTable, visibleScope);
 
-    body->checkSemantics(symbolTable, visibleScope);
+    if (!emptyFunction)
+        body->checkSemantics(symbolTable, visibleScope);
 
     symbolTable[visibleScope[visibleScope.size() - 1]] = {};
     visibleScope.pop_back();
@@ -1648,32 +1675,58 @@ void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std:
 {
     std::string funcName = name;
     for (int i = 0; i < parameters.size(); i++)
-        funcName += "." + Token::getType(parameters[i]->getType());
+    {
+        if (parameters[i]->isReference())
+            funcName += ".REF" + Token::getType(parameters[i]->getType());
+        else
+            funcName += "." + Token::getType(parameters[i]->getType());
+    }
 
     ir += "define " + mapTypeIR(Token::getType(returnType)) + " @" + funcName + "(";
     tempvarMap.push_back({});
 
     for (int i = 0; i < parameters.size(); i++)
     {
-        if (i == parameters.size() - 1)
-            ir += mapTypeIR(Token::getType(parameters[i]->getType())) + " %" + parameters[i]->getName();
+        if (parameters[i]->isReference())
+        {
+            if (i == parameters.size() - 1)
+                ir += "ptr %" + std::to_string(i + 1);
+            else
+                ir += "ptr %" + std::to_string(i + 1) + ", ";
+        }
         else
-            ir += mapTypeIR(Token::getType(parameters[i]->getType())) + " %" + parameters[i]->getName() + ", ";
+        {
+            if (i == parameters.size() - 1)
+                ir += mapTypeIR(Token::getType(parameters[i]->getType())) + " %" + parameters[i]->getName();
+            else
+                ir += mapTypeIR(Token::getType(parameters[i]->getType())) + " %" + parameters[i]->getName() + ", ";
+        }
     }
 
-    ir += ") {\n";
+    ir += ") {\nentry:\n";
     for (int i = 0; i < parameters.size(); i++)
     {
-        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = alloca " + mapTypeIR(Token::getType(parameters[i]->getType())) + ", align " + mapNumBytesIR(Token::getType(parameters[i]->getType())) + "\n";
-        ir += "store " + mapTypeIR(Token::getType(parameters[i]->getType())) + " %" + parameters[i]->getName() + ", ptr %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + ", align " + mapNumBytesIR(Token::getType(parameters[i]->getType())) + "\n";
+        if (!parameters[i]->isReference())
+        {
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = alloca " + mapTypeIR(Token::getType(parameters[i]->getType())) + ", align " + mapNumBytesIR(Token::getType(parameters[i]->getType())) + "\n";
+            ir += "store " + mapTypeIR(Token::getType(parameters[i]->getType())) + " %" + parameters[i]->getName() + ", ptr %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + ", align " + mapNumBytesIR(Token::getType(parameters[i]->getType())) + "\n";
+        }
         tempvarMap[tempvarMap.size() - 1].push_back({parameters[i]->getName()});
     }
 
-    for (Node *node : body->getStatements())
-        node->mapToIR(ir, tempvarMap, false);
+    if (!emptyFunction)
+    {
+        for (Node *node : body->getStatements())
+            node->mapToIR(ir, tempvarMap, false);
+    }
 
     if (Token::getType(returnType) == "UNKNOWN")
         ir += "ret void\n";
+    else
+    {
+        if (emptyFunction)
+            throwSemanticError(line, "An Empty Function can't be declared with a return type.");
+    }
 
     if (ir[ir.size() - 2] == ':')
         throwSemanticError(line, "Code Path without a Return Value Detected.");
@@ -1738,14 +1791,14 @@ void CallExprNode::lookForCallExprs(std::unordered_map<std::string, Scope> &symb
 
     argTypes = {};
 
-    for (int i = 0; i < visibleScope.size(); i++)
+    for (int i = visibleScope.size() - 1; i >= 0; i--)
     {
         auto scope = symbolTable[visibleScope[i]];
         for (Symbol *symbol : scope.getSymbols())
         {
             if (symbol->getType() == "FUNC" && symbol->getName() == name)
             {
-                if (returnType == "" || symbol->getDataType() == returnType || canCoerce(symbol->getDataType(), returnType))
+                if (returnType == "UNKNOWN" || symbol->getDataType() == returnType || canCoerce(symbol->getDataType(), returnType))
                 {
                     FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
                     if (arguments.size() != derivedSymbol->getNumParameters())
@@ -1809,7 +1862,7 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
     bool found = true;
     if (name == "print" || name == "input" || name == "exit")
     {
-        this->returnType = type;
+        this->returnType = "UNKNOWN";
 
         for (int i = 0; i < Token::builtInFunctions.size(); i++)
         {
@@ -1846,7 +1899,7 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
         throwSemanticError(line, "function '" + name + "' has the wrong arguments passed in.");
 
     bool overridenFunction = false;
-    for (int i = 0; i < visibleScope.size(); i++)
+    for (int i = visibleScope.size() - 1; i >= 0; i--)
     {
         auto scope = symbolTable[visibleScope[i]];
         for (Symbol *symbol : scope.getSymbols())
@@ -1863,10 +1916,14 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                     bool wrongType = false;
                     for (int k = 0; k < derivedSymbol->getParameters().size(); k++)
                     {
+                        std::string p = derivedSymbol->getParameters()[k];
+                        if (p.substr(0, 3) == "REF")
+                            p = p.substr(3);
+
                         this->argTypes.push_back(derivedSymbol->getParameters()[k]);
-                        if (!canCoerce(arguments[k]->inferType(symbolTable, visibleScope), derivedSymbol->getParameters()[k]))
+                        if (!canCoerce(arguments[k]->inferType(symbolTable, visibleScope), p))
                         {
-                            if (!arguments[k]->checkType(symbolTable, visibleScope, derivedSymbol->getParameters()[k]))
+                            if (!arguments[k]->checkType(symbolTable, visibleScope, p))
                             {
                                 wrongType = true;
                                 break;
@@ -1903,7 +1960,7 @@ void CallExprNode::checkSemantics(std::unordered_map<std::string, Scope> &symbol
 std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
     if (name == "print" || name == "input" || name == "exit")
-        return "void";
+        return "UNKNOWN";
 
     if (name == "toChar")
         return "CHARTYPE";
@@ -1914,7 +1971,7 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
     if (name == "toDecimal")
         return "DECIMALTYPE";
 
-    for (int i = 0; i < visibleScope.size(); i++)
+    for (int i = visibleScope.size() - 1; i >= 0; i--)
     {
         auto scope = symbolTable[visibleScope[i]];
         for (Symbol *symbol : scope.getSymbols())
@@ -1978,7 +2035,7 @@ void CallExprNode::storeValue(std::string &ir, std::string &newType, const std::
     bool globalVar = true;
     for (int i = tempvarMap.size() - 1; i >= 0; i--)
     {
-        for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
+        for (int j = 0; j < tempvarMap[i].size(); j++)
         {
             if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == assignmentName)
             {
@@ -2031,18 +2088,49 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
     std::vector<std::string> args;
     for (int i = 0; i < arguments.size(); i++)
     {
-        std::string callArg = ".callarg_" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
-        std::string loadTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
-        ir += "%" + loadTemp + " = alloca " + mapTypeIR(argTypes[i]) + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
-        tempvarMap[tempvarMap.size() - 1].push_back({callArg});
+        bool isRef = argTypes[i].substr(0, 3) == "REF";
+        if (!isRef)
+        {
+            std::string callArg = ".callarg_" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+            std::string loadTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
+            ir += "%" + loadTemp + " = alloca " + mapTypeIR(argTypes[i]) + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
+            tempvarMap[tempvarMap.size() - 1].push_back({callArg});
 
-        std::vector<std::string> loadedVars;
-        arguments[i]->loadVariables(ir, argTypes[i], loadedVars, tempvarMap, global);
-        arguments[i]->storeValue(ir, argTypes[i], callArg, tempvarMap, false);
+            std::vector<std::string> loadedVars;
+            arguments[i]->loadVariables(ir, argTypes[i], loadedVars, tempvarMap, global);
+            arguments[i]->storeValue(ir, argTypes[i], callArg, tempvarMap, false);
 
-        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + mapTypeIR(argTypes[i]) + ", ptr %" + loadTemp + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
-        args.push_back("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1));
-        tempvarMap[tempvarMap.size() - 1].push_back({callArg});
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + mapTypeIR(argTypes[i]) + ", ptr %" + loadTemp + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
+            tempvarMap[tempvarMap.size() - 1].push_back({callArg});
+            args.push_back("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()));
+        }
+        else
+        {
+            std::vector<std::string> loadedVars;
+            arguments[i]->loadVariables(ir, argTypes[i], loadedVars, tempvarMap, global);
+
+            if (global)
+                args.push_back("@" + loadedVars[0]);
+            else
+            {
+                bool globalVar = true;
+                for (int i = tempvarMap.size() - 1; i > 0; i--)
+                {
+                    std::cout << i << std::endl;
+                    for (int j = 0; j < tempvarMap[i].size(); j++)
+                    {
+                        if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == loadedVars[0])
+                        {
+                            globalVar = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (globalVar)
+                    args.push_back("@" + loadedVars[0]);
+            }
+        }
     }
 
     if (name == "toInt" || name == "toDecimal" || name == "toChar" || name == "toBool")
@@ -2075,7 +2163,7 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
     }
     else
     {
-        if (returnType != "")
+        if (returnType != "UNKNOWN")
         {
             ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = call " + mapTypeIR(returnType) + " @" + callName + "(";
             tempvarMap[tempvarMap.size() - 1].push_back({name});
@@ -2085,10 +2173,20 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
 
         for (int i = 0; i < args.size(); i++)
         {
-            if (i == args.size() - 1)
-                ir += mapTypeIR(argTypes[i]) + " " + args[i];
+            if (argTypes[i].substr(0, 3) == "REF")
+            {
+                if (i == args.size() - 1)
+                    ir += "ptr " + args[i];
+                else
+                    ir += "ptr " + args[i] + ", ";
+            }
             else
-                ir += mapTypeIR(argTypes[i]) + " " + args[i] + ", ";
+            {
+                if (i == args.size() - 1)
+                    ir += mapTypeIR(argTypes[i]) + " " + args[i];
+                else
+                    ir += mapTypeIR(argTypes[i]) + " " + args[i] + ", ";
+            }
         }
         ir += ")\n";
     }
@@ -2162,7 +2260,7 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
     }
     else
     {
-        for (int i = 0; i < visibleScope.size(); i++)
+        for (int i = visibleScope.size() - 1; i >= 0; i--)
         {
             auto scope = symbolTable[visibleScope[i]];
             for (Symbol *symbol : scope.getSymbols())
@@ -2846,7 +2944,7 @@ void ReturnStmtNode::print(int depth) const
 }
 void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
-    for (int i = 0; i < visibleScope.size(); i++)
+    for (int i = visibleScope.size() - 1; i >= 0; i--)
     {
         auto scope = symbolTable[visibleScope[i]];
         for (Symbol *symbol : scope.getSymbols())

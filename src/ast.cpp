@@ -227,13 +227,16 @@ std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::v
     result.push_back(returnType);
 
     int colonIndex = getTokenIndex(tokenLine, "COLON", true);
-    if (colonIndex == -1)
-        throwSyntaxError(name.getLineNumber(), "Expected ':' at the end of the function signature.");
 
     int startParams = 3;
     int endParams;
     if (arrowIndex == -1)
-        endParams = colonIndex - 2;
+    {
+        if (colonIndex == -1)
+            endParams = tokenLine.size() - 3;
+        else
+            endParams = colonIndex - 2;
+    }
     else
         endParams = arrowIndex - 2;
 
@@ -249,13 +252,17 @@ std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::v
         {
             if (currentParameter.size() > 0)
             {
-                if (tokenLine[i].getToken() == "IDENTIFIER")
+                if (tokenLine[i].getToken() == "IDENTIFIER" || tokenLine[i].getToken() == "INTTYPE" || tokenLine[i].getToken() == "DECIMALTYPE" || tokenLine[i].getToken() == "BOOLTYPE" || tokenLine[i].getToken() == "CHARTYPE")
                     currentParameter += " " + tokenLine[i].getValue();
                 else
                     throwSyntaxError(tokenLine[i].getLineNumber(), "Unexpected identifier '" + tokenLine[i].getValue() + "' used as parameter name.");
             }
             else
-                currentParameter += tokenLine[i].getValue();
+            {
+
+                if (tokenLine[i].getToken() == "REF" || tokenLine[i].getToken() == "INTTYPE" || tokenLine[i].getToken() == "DECIMALTYPE" || tokenLine[i].getToken() == "BOOLTYPE" || tokenLine[i].getToken() == "CHARTYPE")
+                    currentParameter += tokenLine[i].getValue();
+            }
         }
     }
 
@@ -662,6 +669,8 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
         }
 
         blockNode->addStatement(buildIdentifier(tokens[line], tabs, tokens[line].size() - 2));
+        if (!dynamic_cast<CallExprNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
+            throwSyntaxError(line + 1, "Line couldn't be parsed.");
 
         startLine = line;
     }
@@ -696,7 +705,15 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
 
             BlockNode *body = buildBlock(tokens, line, 1, true);
             if (body->getNumStatements() == 0)
-                throwSyntaxError(line, "Missing body in function '" + information[0] + "'.");
+            {
+                if (tokens[body->getLine() - 2][tokens[body->getLine() - 2].size() - 2].getToken() == "COLON")
+                    throwSyntaxError(body->getLine() - 1, "Missing body in function '" + information[0] + "'.");
+            }
+            else
+            {
+                if (tokens[body->getLine() - 2][tokens[body->getLine() - 2].size() - 2].getToken() != "COLON")
+                    throwSyntaxError(body->getLine() - 1, "Colon missing for the function '" + information[0] + "'.");
+            }
             line--;
 
             FuncNode *func = new FuncNode(information[0], information[1], parameters, body, line - 1);
