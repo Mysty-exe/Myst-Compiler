@@ -1,3 +1,2 @@
-
-int c = -(50) * 10.0 - (45 + -34 + 34) * 23 - 45
-print(c)
+int x = toDecimal(true)
+print(x)

@@ -5,6 +5,7 @@
   "patterns": [
     { "include": "#comments" },
     { "include": "#keywords" },
+    { "include": "#built-ins" },
     { "include": "#types" },
     { "include": "#constants" },
     { "include": "#operators" },
@@ -23,6 +24,12 @@
       "patterns": [{
         "name": "keyword.control.ms",
         "match": "\\b(func|var|if|elseif|else|while|break|skip|return|and|or|not)\\b"
+      }]
+    },
+    "built-ins": {
+      "patterns": [{
+        "name": "support.function.ms",
+        "match": "\\b(print|input|exit|toChar|toBool|toDecimal|toInt)\\b"
       }]
     },
     "types": {

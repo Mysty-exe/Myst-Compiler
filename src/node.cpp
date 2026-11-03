@@ -1733,6 +1733,9 @@ void CallExprNode::print(int depth) const
 }
 void CallExprNode::lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope)
 {
+    if (name == "toChar" || name == "toBool" || name == "toInt" || name == "toDecimal")
+        return;
+
     argTypes = {};
 
     for (int i = 0; i < visibleScope.size(); i++)
@@ -1769,6 +1772,39 @@ void CallExprNode::lookForCallExprs(std::unordered_map<std::string, Scope> &symb
 bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::string &type)
 {
     argTypes = {};
+
+    if (name == "toChar" || name == "toBool" || name == "toInt" || name == "toDecimal")
+    {
+        if (arguments.size() == 1)
+        {
+            std::string argType = arguments[0]->inferType(symbolTable, visibleScope);
+            if (name == "toChar")
+                if (argType == "INTTYPE" || argType == "CHARTYPE")
+                    returnType = "CHARTYPE";
+                else
+                    throwSemanticError(line, "'" + name + "' can't be used with the type " + getDataTypeStr(argType) + ".");
+            if (name == "toBool")
+                if (argType == "INTTYPE")
+                    returnType = "BOOLTYPE";
+                else
+                    throwSemanticError(line, "'" + name + "' can't be used with the type " + getDataTypeStr(argType) + ".");
+            if (name == "toInt")
+                if (argType == "DECIMALTYPE" || argType == "CHARTYPE" || argType == "BOOLTYPE")
+                    returnType = "INTTYPE";
+                else
+                    throwSemanticError(line, "'" + name + "' can't be used with the type " + getDataTypeStr(argType) + ".");
+            if (name == "toDecimal")
+                if (argType == "INTTYPE")
+                    returnType = "DECIMALTYPE";
+                else
+                    throwSemanticError(line, "'" + name + "' can't be used with the type " + getDataTypeStr(argType) + ".");
+
+            argTypes.push_back(argType);
+            return true;
+        }
+        else
+            throwSemanticError(line, "'" + name + "' has the wrong arguments passed in.");
+    }
 
     bool found = true;
     if (name == "print" || name == "input" || name == "exit")
@@ -1868,6 +1904,15 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
 {
     if (name == "print" || name == "input" || name == "exit")
         return "void";
+
+    if (name == "toChar")
+        return "CHARTYPE";
+    if (name == "toBool")
+        return "BOOLTYPE";
+    if (name == "toInt")
+        return "INTTTYPE";
+    if (name == "toDecimal")
+        return "DECIMALTYPE";
 
     for (int i = 0; i < visibleScope.size(); i++)
     {
@@ -1980,40 +2025,73 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
     else if (name == "exit")
         callName = "myst_exit";
 
-    std::vector<std::string>
-        args;
+    if (name == "toInt" || name == "toDecimal" || name == "toChar" || name == "toBool")
+        callName = name;
+
+    std::vector<std::string> args;
     for (int i = 0; i < arguments.size(); i++)
     {
         std::string callArg = ".callarg_" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
         std::string loadTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
-        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = alloca " + mapTypeIR(argTypes[i]) + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
+        ir += "%" + loadTemp + " = alloca " + mapTypeIR(argTypes[i]) + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
         tempvarMap[tempvarMap.size() - 1].push_back({callArg});
 
         std::vector<std::string> loadedVars;
-
         arguments[i]->loadVariables(ir, argTypes[i], loadedVars, tempvarMap, global);
         arguments[i]->storeValue(ir, argTypes[i], callArg, tempvarMap, false);
+
         ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load " + mapTypeIR(argTypes[i]) + ", ptr %" + loadTemp + ", align " + mapNumBytesIR(argTypes[i]) + "\n";
         args.push_back("%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1));
         tempvarMap[tempvarMap.size() - 1].push_back({callArg});
     }
 
-    if (returnType != "")
+    if (name == "toInt" || name == "toDecimal" || name == "toChar" || name == "toBool")
     {
-        ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = call " + mapTypeIR(returnType) + " @" + callName + "(";
-        tempvarMap[tempvarMap.size() - 1].push_back({name});
+        if (argTypes[0] == "INTTYPE")
+        {
+            if (returnType == "DECIMALTYPE")
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+            if (returnType == "CHARTYPE")
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+            if (returnType == "BOOLTYPE")
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+            tempvarMap[tempvarMap.size() - 1].push_back({name, argTypes[0], returnType});
+        }
+        else if (argTypes[0] == "DECIMALTYPE" && returnType == "INTTYPE")
+        {
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = fptosi double %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
+            tempvarMap[tempvarMap.size() - 1].push_back({name, argTypes[0], returnType});
+        }
+        else if (argTypes[0] == "CHARTYPE" && returnType == "INTTYPE")
+        {
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i8 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
+            tempvarMap[tempvarMap.size() - 1].push_back({name, argTypes[0], returnType});
+        }
+        else if (argTypes[0] == "BOOLTYPE" && returnType == "INTTYPE")
+        {
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = zext i1 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i32\n";
+            tempvarMap[tempvarMap.size() - 1].push_back({name, argTypes[0], returnType});
+        }
     }
     else
-        ir += "call " + mapTypeIR(returnType) + " @" + callName + "(";
-
-    for (int i = 0; i < args.size(); i++)
     {
-        if (i == args.size() - 1)
-            ir += mapTypeIR(argTypes[i]) + " " + args[i];
+        if (returnType != "")
+        {
+            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = call " + mapTypeIR(returnType) + " @" + callName + "(";
+            tempvarMap[tempvarMap.size() - 1].push_back({name});
+        }
         else
-            ir += mapTypeIR(argTypes[i]) + " " + args[i] + ", ";
+            ir += "call " + mapTypeIR(returnType) + " @" + callName + "(";
+
+        for (int i = 0; i < args.size(); i++)
+        {
+            if (i == args.size() - 1)
+                ir += mapTypeIR(argTypes[i]) + " " + args[i];
+            else
+                ir += mapTypeIR(argTypes[i]) + " " + args[i] + ", ";
+        }
+        ir += ")\n";
     }
-    ir += ")\n";
 }
 
 AssignNode::AssignNode(std::string name, std::string type, Node *value)
