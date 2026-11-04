@@ -93,6 +93,25 @@ AbstractSyntaxTree parseFile(std::ifstream &inputFile)
     return ast;
 }
 
+int runFiles()
+{
+    std::ifstream inputFile(parameters.inputFile);
+    if (!inputFile.is_open())
+    {
+        throwParameterError("Could not open the file.");
+        return -1;
+    }
+
+    AbstractSyntaxTree ast = parseFile(inputFile);
+    analyzeTree(ast);
+
+    ast.format();
+    std::string output = (parameters.outputFile.size() == 0) ? parameters.inputFile.substr(0, parameters.inputFile.size() - 3) : parameters.outputFile;
+    LLVM::runLLVM(output, ast.getRoot());
+
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     for (int arg = 1; arg < argc; arg++)
@@ -143,21 +162,5 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    std::ifstream inputFile(parameters.inputFile);
-    if (!inputFile.is_open())
-    {
-        throwParameterError("Could not open the file.");
-        return -1;
-    }
-
-    AbstractSyntaxTree ast = parseFile(inputFile);
-    analyzeTree(ast);
-
-    ast.format();
-    std::string output = (parameters.outputFile.size() == 0) ? parameters.inputFile.substr(0, parameters.inputFile.size() - 3) : parameters.outputFile;
-    LLVM::runLLVM(output, ast.getRoot());
-
-    ast.freeMemory();
-
-    return 0;
+    return runFiles();
 }

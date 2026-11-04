@@ -1919,7 +1919,17 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                     {
                         std::string p = derivedSymbol->getParameters()[k];
                         if (p.substr(0, 3) == "REF")
+                        {
                             p = p.substr(3);
+                            if (!dynamic_cast<IdentifierNode *>(arguments[k]))
+                                throwSemanticError(line, "Must use an identifier (variable) for a reference.");
+
+                            if (!arguments[k]->checkType(symbolTable, visibleScope, p))
+                            {
+                                wrongType = true;
+                                break;
+                            }
+                        }
 
                         this->argTypes.push_back(derivedSymbol->getParameters()[k]);
                         if (!canCoerce(arguments[k]->inferType(symbolTable, visibleScope), p))
