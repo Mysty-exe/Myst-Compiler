@@ -1711,7 +1711,8 @@ void FuncNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std:
             ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = alloca " + mapTypeIR(Token::getType(parameters[i]->getType())) + ", align " + mapNumBytesIR(Token::getType(parameters[i]->getType())) + "\n";
             ir += "store " + mapTypeIR(Token::getType(parameters[i]->getType())) + " %" + parameters[i]->getName() + ", ptr %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + ", align " + mapNumBytesIR(Token::getType(parameters[i]->getType())) + "\n";
         }
-        tempvarMap[tempvarMap.size() - 1].push_back({parameters[i]->getName()});
+        tempvarMap[tempvarMap.size() - 1]
+            .push_back({parameters[i]->getName()});
     }
 
     if (!emptyFunction)
@@ -2106,29 +2107,28 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
         }
         else
         {
-            std::vector<std::string> loadedVars;
-            arguments[i]->loadVariables(ir, argTypes[i], loadedVars, tempvarMap, global);
-
+            IdentifierNode *identifier = static_cast<IdentifierNode *>(arguments[i]);
             if (global)
-                args.push_back("@" + loadedVars[0]);
+                args.push_back("@" + identifier->getName());
             else
             {
                 bool globalVar = true;
                 for (int i = tempvarMap.size() - 1; i > 0; i--)
                 {
-                    std::cout << i << std::endl;
                     for (int j = 0; j < tempvarMap[i].size(); j++)
                     {
-                        if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == loadedVars[0])
+                        std::cout << tempvarMap[i][j].size() << std::endl;
+                        if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == identifier->getName())
                         {
                             globalVar = false;
+                            args.push_back("%" + std::to_string(j + 1));
                             break;
                         }
                     }
                 }
 
                 if (globalVar)
-                    args.push_back("@" + loadedVars[0]);
+                    args.push_back("@" + identifier->getName());
             }
         }
     }
@@ -2361,7 +2361,7 @@ void BlockNode::mapToGlobalIR(std::string &ir)
 }
 void BlockNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, bool global)
 {
-    ir += "define i32 @main() {\n";
+    ir += "define i32 @main() {\nentry:\n";
 
     for (Node *node : statements)
         node->mapToIR(ir, tempvarMap, true);
