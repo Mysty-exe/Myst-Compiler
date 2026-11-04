@@ -2117,7 +2117,6 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
                 {
                     for (int j = 0; j < tempvarMap[i].size(); j++)
                     {
-                        std::cout << tempvarMap[i][j].size() << std::endl;
                         if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == identifier->getName())
                         {
                             globalVar = false;
