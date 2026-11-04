@@ -8,6 +8,9 @@
 
 enum class TokenType
 {
+    IMPORT,
+    MODULE,
+    AS,
     FUNC,
     REF,
     VAR,

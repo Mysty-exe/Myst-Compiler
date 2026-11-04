@@ -164,13 +164,7 @@ std::string execCommand(const std::string &cmd)
     return result;
 }
 
-void LLVM::runLLVM(const std::string &outputFile, RootNode *root)
-{
-    mapToIR(root);
-    generateExecutable(outputFile);
-}
-
-void LLVM::mapToIR(RootNode *root)
+void LLVM::mapToIR(std::vector<AbstractSyntaxTree *> asts)
 {
     std::vector<std::vector<std::vector<std::string>>> tempvarMap = {{}};
     std::ofstream tempFile("temp.ll");
@@ -188,16 +182,25 @@ void LLVM::mapToIR(RootNode *root)
     addPrintFunctions(ir);
     addExponentFunctions(ir);
 
-    BlockNode *global = static_cast<BlockNode *>(root->getGlobalCode());
-    global->mapToGlobalIR(ir);
-
-    for (Node *node : root->getChildren())
+    for (AbstractSyntaxTree *ast : asts)
     {
-        FuncNode *function = static_cast<FuncNode *>(node);
-        function->mapToIR(ir, tempvarMap, false);
+        std::string prefix;
+        if (ast->getPrefix() != "")
+            prefix = "." + ast->getPrefix() + "-";
+
+        BlockNode *global = static_cast<BlockNode *>(ast->getRoot()->getGlobalCode());
+        global->mapToGlobalIR(ir, prefix);
+
+        for (Node *node : ast->getRoot()->getChildren())
+        {
+            FuncNode *function = static_cast<FuncNode *>(node);
+            function->mapToIR(ir, tempvarMap, false, prefix);
+        }
+
+        if (!ast->isImported())
+            global->mapToIR(ir, tempvarMap, true, prefix);
     }
 
-    global->mapToIR(ir, tempvarMap, true);
     tempFile << "target triple = \"" << getTargetTriple() << "\"\n\n";
     tempFile << ir;
     tempFile.close();

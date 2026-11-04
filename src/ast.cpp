@@ -38,9 +38,15 @@ char extractChar(const std::string &str)
 
 AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens, std::string fileName)
 {
+    prefix = "";
+    imported = false;
     root = new RootNode();
     RootNode::setFileName(fileName);
     buildTree(tokens);
+}
+
+AbstractSyntaxTree::~AbstractSyntaxTree()
+{
 }
 
 RootNode *AbstractSyntaxTree::getRoot() const
@@ -438,6 +444,9 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
         if (!isValidLine(tokens[line]))
             continue;
 
+        if (getNthToken(tokens[line], 1).getToken() == "IMPORT")
+            throwSyntaxError(line + 1, "Import Statements must be declared at the top of the file.");
+
         int currentIndent = getNumTabs(tokens[line]);
         if (currentIndent < expectedIndent)
         {
@@ -681,10 +690,40 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
 
 void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens)
 {
+    bool checkForImports = true;
+    std::vector<ImportNode *> importNodes;
     for (int line = 0; line < tokens.size(); line++)
     {
         if (!isValidLine(tokens[line]))
             continue;
+
+        if (checkForImports)
+        {
+            if (getNthToken(tokens[line], 1).getToken() == "IMPORT")
+            {
+                if (getNumValidTokens(tokens[line]) == 4 && (getNthToken(tokens[line], 2).getToken() != "MODULE" && getNthToken(tokens[line], 2).getToken() != "IDENTIFIER") || getNthToken(tokens[line], 3).getToken() != "AS" || getNthToken(tokens[line], 4).getToken() != "IDENTIFIER")
+                    throwSyntaxError(line + 1, "Import Statement couldn't be parsed");
+
+                ImportNode *i = new ImportNode(getNthToken(tokens[line], 2).getValue(), getNthToken(tokens[line], 4).getValue());
+                prefixes.push_back(getNthToken(tokens[line], 4).getValue());
+                imports.push_back(getNthToken(tokens[line], 2).getValue());
+                importNodes.push_back(i);
+                continue;
+            }
+            else
+            {
+                checkForImports = false;
+
+                if (importNodes.size() > 0)
+                {
+                    BlockNode *imports = new BlockNode();
+                    for (int i = 0; i < importNodes.size(); i++)
+                        imports->addStatement(importNodes[i]);
+
+                    root->addNode(imports);
+                }
+            }
+        }
 
         // Functions need a minimum of 4 tokens
         if (getNthToken(tokens[line], 1).getValue() == "func")
@@ -747,6 +786,41 @@ void AbstractSyntaxTree::format()
     root->setGlobalCode(globalCode);
 }
 
+bool AbstractSyntaxTree::isImported() const
+{
+    return imported;
+}
+
+std::string AbstractSyntaxTree::getPrefix() const
+{
+    return prefix;
+}
+
+void AbstractSyntaxTree::setPrefix(std::string prefix)
+{
+    this->prefix = prefix;
+}
+
+void AbstractSyntaxTree::setImported(bool imported)
+{
+    this->imported = imported;
+}
+
+bool AbstractSyntaxTree::hasImports() const
+{
+    return imports.size() > 0;
+}
+
+std::vector<std::string> AbstractSyntaxTree::getPrefixes() const
+{
+    return prefixes;
+}
+
+std::vector<std::string> AbstractSyntaxTree::getImports() const
+{
+    return imports;
+}
+
 void AbstractSyntaxTree::printTree() const
 {
     root->print();
@@ -755,4 +829,5 @@ void AbstractSyntaxTree::printTree() const
 void AbstractSyntaxTree::freeMemory()
 {
     delete root;
+    delete this;
 }

@@ -6,6 +6,9 @@
 class AbstractSyntaxTree
 {
 private:
+    std::string prefix;
+    bool imported;
+    std::vector<std::string> prefixes, imports;
     RootNode *root;
     static const std::vector<std::vector<std::string>> operatorPrecedence;
     bool isDataType(const std::string &str) const;
@@ -22,11 +25,19 @@ private:
 
 public:
     AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens, std::string fileName);
+    ~AbstractSyntaxTree();
     RootNode *getRoot() const;
     Node *buildIdentifier(const std::vector<Token> &line, int start, int end);
     BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false, bool inLoop = false);
     void buildTree(const std::vector<std::vector<Token>> &tokens);
     void format();
     void printTree() const;
+    bool isImported() const;
+    std::string getPrefix() const;
+    void setPrefix(std::string prefix);
+    void setImported(bool imported);
+    bool hasImports() const;
+    std::vector<std::string> getPrefixes() const;
+    std::vector<std::string> getImports() const;
     void freeMemory();
 };

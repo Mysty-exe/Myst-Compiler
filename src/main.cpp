@@ -60,18 +60,18 @@ std::string getExtension(const std::string &file)
     return "";
 }
 
-void analyzeTree(AbstractSyntaxTree &ast)
+void analyzeTree(AbstractSyntaxTree *ast)
 {
     std::unordered_map<std::string, Scope> symbolTable;
     std::vector<std::string> visibleScope;
 
-    ast.getRoot()->checkSemantics(symbolTable, visibleScope);
+    ast->getRoot()->checkSemantics(symbolTable, visibleScope);
 
     if (parameters.seeAST)
-        ast.printTree();
+        ast->printTree();
 
     if (!parameters.disableWarnings)
-        ast.getRoot()->sendWarnings(symbolTable);
+        ast->getRoot()->sendWarnings(symbolTable);
 
     for (auto &[_, scope] : symbolTable)
     {
@@ -80,7 +80,7 @@ void analyzeTree(AbstractSyntaxTree &ast)
     }
 }
 
-AbstractSyntaxTree parseFile(std::ifstream &inputFile)
+AbstractSyntaxTree *parseFile(std::ifstream &inputFile)
 {
     Lexer lexer;
     lexer.tokenizeFile(inputFile);
@@ -88,26 +88,68 @@ AbstractSyntaxTree parseFile(std::ifstream &inputFile)
     if (parameters.seeTokens)
         lexer.readTokens();
 
-    AbstractSyntaxTree ast = AbstractSyntaxTree(lexer.getTokens(), parameters.inputFile);
+    AbstractSyntaxTree *ast = new AbstractSyntaxTree(lexer.getTokens(), parameters.inputFile);
 
     return ast;
 }
 
-int runFiles()
+int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, std::string prefix = "", bool importedFile = false)
 {
-    std::ifstream inputFile(parameters.inputFile);
+    std::ifstream inputFile(file);
     if (!inputFile.is_open())
     {
-        throwParameterError("Could not open the file.");
+        throwParameterError("Could not open the file '" + file + "'.");
         return -1;
     }
 
-    AbstractSyntaxTree ast = parseFile(inputFile);
-    analyzeTree(ast);
+    AbstractSyntaxTree *ast = parseFile(inputFile);
+    if (importedFile)
+    {
+        ast->setImported(true);
+        ast->setPrefix(prefix);
+    }
 
-    ast.format();
-    std::string output = (parameters.outputFile.size() == 0) ? parameters.inputFile.substr(0, parameters.inputFile.size() - 3) : parameters.outputFile;
-    LLVM::runLLVM(output, ast.getRoot());
+    asts.insert(asts.begin(), ast);
+
+    if (ast->hasImports())
+    {
+        for (int x = 0; x < ast->getImports().size(); x++)
+        {
+            std::string import = ast->getImports()[x];
+            if (import.substr(import.size() - 3, 3) != ".ms")
+                import += ".ms";
+
+            std::string folder;
+            for (int i = file.size() - 1; i >= 0; i--)
+            {
+                if (file[i] == '/' || file[i] == '\\')
+                {
+                    folder = file.substr(0, i + 1);
+                    break;
+                }
+            }
+
+            std::string newImport;
+            for (int i = 0; i < import.size(); i++)
+            {
+                if (i == '.')
+                {
+#if defined(_WIN32)
+                    newImport.push_back('\\');
+#else
+                    newImport.push_back('/');
+#endif
+                }
+                else
+                    newImport.push_back(import[i]);
+            }
+
+            runFiles(folder + newImport, asts, ast->getPrefixes()[x], true);
+        }
+    }
+
+    analyzeTree(ast);
+    ast->format();
 
     return 0;
 }
@@ -162,5 +204,12 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    return runFiles();
+    std::vector<AbstractSyntaxTree *> asts;
+    runFiles(parameters.inputFile, asts);
+
+    std::string output = (parameters.outputFile.size() == 0) ? parameters.inputFile.substr(0, parameters.inputFile.size() - 3) : parameters.outputFile;
+    LLVM::mapToIR(asts);
+    LLVM::generateExecutable(output);
+
+    return 0;
 }

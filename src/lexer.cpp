@@ -1,5 +1,15 @@
 #include "compiler/lexer.h"
 
+bool validModule(const std::string &module)
+{
+    for (int i = 0; i < module.size(); i++)
+    {
+        if (!std::isalpha(module[i]) && !module[i] == '.' && !std::isdigit(module[i]))
+            return false;
+    }
+    return true;
+}
+
 bool validIdentifier(const std::string &identifier)
 {
     for (int i = 0; i < identifier.size(); i++)
@@ -93,6 +103,12 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::DECIMALTYPE;
     else if (value == "bool")
         type = TokenType::BOOLTYPE;
+    else if (value == "import")
+        type = TokenType::IMPORT;
+    else if (value == "as")
+        type = TokenType::AS;
+    else if (value == "module")
+        type = TokenType::MODULE;
     else if (value == "func")
         type = TokenType::FUNC;
     else if (value == "ref")
@@ -175,6 +191,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::INDENT;
     else if (validIdentifier(value))
         type = TokenType::IDENTIFIER;
+    else if (validModule(value))
+        type = TokenType::MODULE;
     else
         type = TokenType::UNKNOWN;
 }
@@ -221,6 +239,12 @@ std::string Token::getType(TokenType type)
         return "DECIMALTYPE";
     case TokenType::BOOLTYPE:
         return "BOOLTYPE";
+    case TokenType::IMPORT:
+        return "IMPORT";
+    case TokenType::AS:
+        return "AS";
+    case TokenType::MODULE:
+        return "MODULE";
     case TokenType::FUNC:
         return "FUNC";
     case TokenType::REF:
@@ -428,12 +452,16 @@ void Lexer::tokenizeFile(std::ifstream &file)
     int lineNum = 0;
     std::string line, currentToken;
     bool inString = false;
+    bool inImport = false;
 
     while (std::getline(file, line))
     {
         tokens.push_back({});
         int col = 0;
         addTabsInLine(line, lineNum + 1, col);
+
+        if (line.substr(0, 6) == "import")
+            inImport = true;
 
         for (col; col < line.size(); col++)
         {
@@ -467,6 +495,19 @@ void Lexer::tokenizeFile(std::ifstream &file)
                 continue;
             }
 
+            if (inImport)
+            {
+                if (tokens[tokens.size() - 1].size() > 0)
+                {
+                    Token lastPushedToken = tokens[tokens.size() - 1][tokens[tokens.size() - 1].size() - 1];
+                    if (lastPushedToken.getToken() == "IMPORT")
+                    {
+                        currentToken += line[col];
+                        continue;
+                    }
+                }
+            }
+
             if (isATwoCharOperator(line, col))
             {
                 addCurrentToken(currentToken, lineNum + 1, col + 1);
@@ -491,6 +532,7 @@ void Lexer::tokenizeFile(std::ifstream &file)
 
         addCurrentToken(currentToken, lineNum + 1, col + 1);
         inString = false;
+        inImport = false;
 
         tokens[tokens.size() - 1].push_back(Token("\n", lineNum + 1, line.size()));
         lineNum += 1;

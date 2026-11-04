@@ -3,7 +3,7 @@
 #include <filesystem>
 #include <array>
 #include <memory>
-#include "compiler/node.h"
+#include "compiler/ast.h"
 
 #ifdef _WIN32
 #define popen _popen
@@ -13,7 +13,6 @@
 class LLVM
 {
 public:
-    static void runLLVM(const std::string &outputFile, RootNode *root);
-    static void mapToIR(RootNode *root);
+    static void mapToIR(std::vector<AbstractSyntaxTree *> roots);
     static void generateExecutable(const std::string &outputFile);
 };
