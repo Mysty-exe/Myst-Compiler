@@ -48,7 +48,7 @@
       "patterns": [
         {
           "name": "keyword.operator.comparison.ms",
-          "match": "==|!=|<=|>=|<|>|->"
+          "match": "==|!=|<=|>=|<|>"
         },
         {
           "name": "keyword.operator.logical.ms",

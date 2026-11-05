@@ -38,10 +38,9 @@ char extractChar(const std::string &str)
 
 AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens, std::string fileName)
 {
-    prefix = "";
     imported = false;
     root = new RootNode();
-    RootNode::setFileName(fileName);
+    root->setFileName(fileName);
     buildTree(tokens);
 }
 
@@ -52,6 +51,16 @@ AbstractSyntaxTree::~AbstractSyntaxTree()
 RootNode *AbstractSyntaxTree::getRoot() const
 {
     return root;
+}
+
+std::unordered_map<std::string, Scope> AbstractSyntaxTree::getSymbolTable() const
+{
+    return symbolTable;
+}
+
+void AbstractSyntaxTree::setSymbolTable(std::unordered_map<std::string, Scope> symbolTable)
+{
+    this->symbolTable = symbolTable;
 }
 
 const std::vector<std::vector<std::string>> AbstractSyntaxTree::operatorPrecedence =
@@ -704,9 +713,14 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
                 if (getNumValidTokens(tokens[line]) == 4 && (getNthToken(tokens[line], 2).getToken() != "MODULE" && getNthToken(tokens[line], 2).getToken() != "IDENTIFIER") || getNthToken(tokens[line], 3).getToken() != "AS" || getNthToken(tokens[line], 4).getToken() != "IDENTIFIER")
                     throwSyntaxError(line + 1, "Import Statement couldn't be parsed");
 
-                ImportNode *i = new ImportNode(getNthToken(tokens[line], 2).getValue(), getNthToken(tokens[line], 4).getValue());
-                prefixes.push_back(getNthToken(tokens[line], 4).getValue());
-                imports.push_back(getNthToken(tokens[line], 2).getValue());
+                std::string file = getNthToken(tokens[line], 2).getValue(), prefix = getNthToken(tokens[line], 4).getValue();
+                ImportNode *i = new ImportNode(file, prefix);
+
+                if (std::find(prefixes.begin(), prefixes.end(), prefix) != prefixes.end())
+                    throwSyntaxError(line, "Module alias '" + prefix + "' is already defined in this scope.");
+
+                prefixes.push_back(prefix);
+                imports.push_back(file);
                 importNodes.push_back(i);
                 continue;
             }
@@ -791,16 +805,6 @@ bool AbstractSyntaxTree::isImported() const
     return imported;
 }
 
-std::string AbstractSyntaxTree::getPrefix() const
-{
-    return prefix;
-}
-
-void AbstractSyntaxTree::setPrefix(std::string prefix)
-{
-    this->prefix = prefix;
-}
-
 void AbstractSyntaxTree::setImported(bool imported)
 {
     this->imported = imported;
@@ -819,6 +823,11 @@ std::vector<std::string> AbstractSyntaxTree::getPrefixes() const
 std::vector<std::string> AbstractSyntaxTree::getImports() const
 {
     return imports;
+}
+
+void AbstractSyntaxTree::setImports(std::vector<std::string> imports)
+{
+    this->imports = imports;
 }
 
 void AbstractSyntaxTree::printTree() const

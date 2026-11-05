@@ -1,6 +1,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <filesystem>
 #include "compiler/lexer.h"
 #include "compiler/node.h"
 #include "compiler/ast.h"
@@ -20,6 +21,11 @@ void throwParameterError(std::string message)
         std::cout << message << std::endl;
         exit(-1);
     }
+}
+
+void throwImportError(std::string message)
+{
+    throw std::runtime_error("CircularImportError: " + message);
 }
 
 struct Parameters
@@ -60,27 +66,43 @@ std::string getExtension(const std::string &file)
     return "";
 }
 
-void analyzeTree(AbstractSyntaxTree *ast)
+void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
 {
-    std::unordered_map<std::string, Scope> symbolTable;
-    std::vector<std::string> visibleScope;
-
-    ast->getRoot()->checkSemantics(symbolTable, visibleScope);
-
-    if (parameters.seeAST)
-        ast->printTree();
-
-    if (!parameters.disableWarnings)
-        ast->getRoot()->sendWarnings(symbolTable);
-
-    for (auto &[_, scope] : symbolTable)
+    for (AbstractSyntaxTree *ast : asts)
     {
-        for (Symbol *symbol : scope.getSymbols())
-            delete symbol;
+        RootNode::setCurrentFile(ast->getRoot()->getFileName());
+
+        std::unordered_map<std::string, Scope> symbolTable;
+        std::vector<std::string> visibleScope;
+
+        ast->getRoot()->checkSemantics(symbolTable, visibleScope);
+
+        ast->setSymbolTable(symbolTable);
+
+        if (parameters.seeAST)
+            ast->printTree();
     }
+
+    for (AbstractSyntaxTree *ast : asts)
+    {
+        RootNode::setCurrentFile(ast->getRoot()->getFileName());
+
+        if (!parameters.disableWarnings)
+            ast->getRoot()->sendWarnings(ast->getSymbolTable());
+
+        for (auto &[_, scope] : ast->getSymbolTable())
+        {
+            for (Symbol *symbol : scope.getSymbols())
+                delete symbol;
+        }
+
+        ast->format();
+    }
+
+    std::cout << std::endl;
 }
 
-AbstractSyntaxTree *parseFile(std::ifstream &inputFile)
+AbstractSyntaxTree *parseFile(const std::string &name, std::ifstream &inputFile)
 {
     Lexer lexer;
     lexer.tokenizeFile(inputFile);
@@ -88,12 +110,12 @@ AbstractSyntaxTree *parseFile(std::ifstream &inputFile)
     if (parameters.seeTokens)
         lexer.readTokens();
 
-    AbstractSyntaxTree *ast = new AbstractSyntaxTree(lexer.getTokens(), parameters.inputFile);
+    AbstractSyntaxTree *ast = new AbstractSyntaxTree(lexer.getTokens(), name);
 
     return ast;
 }
 
-int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, std::string prefix = "", bool importedFile = false)
+int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, bool importedFile = false)
 {
     std::ifstream inputFile(file);
     if (!inputFile.is_open())
@@ -102,17 +124,37 @@ int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, std::str
         return -1;
     }
 
-    AbstractSyntaxTree *ast = parseFile(inputFile);
+    for (AbstractSyntaxTree *a : asts)
+    {
+        if (a->getRoot()->getFileName() == file)
+            return 0;
+    }
+
+    AbstractSyntaxTree *ast = parseFile(file, inputFile);
     if (importedFile)
     {
         ast->setImported(true);
-        ast->setPrefix(prefix);
     }
 
     asts.insert(asts.begin(), ast);
 
+    if (asts.size() > 1)
+    {
+        for (int i = 0; i < asts[0]->getImports().size(); i++)
+        {
+            for (int k = 0; k < asts[1]->getImports().size(); k++)
+            {
+                std::string f1 = ast->getRoot()->getFileName(), f2 = asts[1]->getRoot()->getFileName();
+                std::string f1name = ast->getImports()[i], f2name = asts[1]->getImports()[k];
+                if (f2.substr(f2.size() - f1name.size() - 3, f1name.size()) == f1name || f1.substr(f1.size() - f2name.size() - 3, f2name.size()) == f1name)
+                    throwImportError("Module A depends on Module B which depends back on Module A.");
+            }
+        }
+    }
+
     if (ast->hasImports())
     {
+        std::vector<std::string> imports;
         for (int x = 0; x < ast->getImports().size(); x++)
         {
             std::string import = ast->getImports()[x];
@@ -130,9 +172,9 @@ int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, std::str
             }
 
             std::string newImport;
-            for (int i = 0; i < import.size(); i++)
+            for (int i = 0; i < import.size() - 3; i++)
             {
-                if (i == '.')
+                if (import[i] == '.')
                 {
 #if defined(_WIN32)
                     newImport.push_back('\\');
@@ -143,13 +185,20 @@ int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, std::str
                 else
                     newImport.push_back(import[i]);
             }
+            newImport += ".ms";
 
-            runFiles(folder + newImport, asts, ast->getPrefixes()[x], true);
+            if (file.size() > 0)
+            {
+                if (std::filesystem::equivalent(file, (folder + newImport)))
+                    throwImportError("Module A is being imported in the same file it lives in.");
+            }
+
+            imports.push_back(folder + newImport);
+            runFiles(folder + newImport, asts, true);
         }
-    }
 
-    analyzeTree(ast);
-    ast->format();
+        ast->setImports(imports);
+    }
 
     return 0;
 }
@@ -206,6 +255,7 @@ int main(int argc, char *argv[])
 
     std::vector<AbstractSyntaxTree *> asts;
     runFiles(parameters.inputFile, asts);
+    analyzeFiles(asts);
 
     std::string output = (parameters.outputFile.size() == 0) ? parameters.inputFile.substr(0, parameters.inputFile.size() - 3) : parameters.outputFile;
     LLVM::mapToIR(asts);

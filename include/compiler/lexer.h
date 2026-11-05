@@ -57,6 +57,7 @@ enum class TokenType
     OR,
     NOT,
     COLON,
+    DOUBLECOLON,
     ARROW,
     LPAREN,
     RPAREN,

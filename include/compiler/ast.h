@@ -6,7 +6,8 @@
 class AbstractSyntaxTree
 {
 private:
-    std::string prefix;
+    std::unordered_map<std::string, Scope> symbolTable;
+
     bool imported;
     std::vector<std::string> prefixes, imports;
     RootNode *root;
@@ -27,17 +28,18 @@ public:
     AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens, std::string fileName);
     ~AbstractSyntaxTree();
     RootNode *getRoot() const;
+    std::unordered_map<std::string, Scope> getSymbolTable() const;
+    void setSymbolTable(std::unordered_map<std::string, Scope> symbolTable);
     Node *buildIdentifier(const std::vector<Token> &line, int start, int end);
     BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false, bool inLoop = false);
     void buildTree(const std::vector<std::vector<Token>> &tokens);
     void format();
     void printTree() const;
     bool isImported() const;
-    std::string getPrefix() const;
-    void setPrefix(std::string prefix);
     void setImported(bool imported);
     bool hasImports() const;
     std::vector<std::string> getPrefixes() const;
     std::vector<std::string> getImports() const;
+    void setImports(std::vector<std::string>);
     void freeMemory();
 };

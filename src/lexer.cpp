@@ -48,7 +48,7 @@ const std::vector<std::string> Token::keywords = {"func", "ref", "struct", "cons
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "^", "<", ">", "!", "==", "!=", "<=", ">=", "->", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", "^", ":", "<", ">", "(", ")", ",", ".", "!"};
-const std::vector<std::string> Token::twoCharOperators = {"+=", "-=", "*=", "/=", "^=", "==", "!=", "<=", ">=", "&&", "||", "->"};
+const std::vector<std::string> Token::twoCharOperators = {"+=", "-=", "*=", "/=", "^=", "::", "==", "!=", "<=", ">=", "&&", "||", "->"};
 const std::vector<char> Token::escapeSequences = {'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', '\'', '"', '?', '0'};
 
 Token::Token()
@@ -177,6 +177,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::ARROW;
     else if (value == ":")
         type = TokenType::COLON;
+    else if (value == "::")
+        type = TokenType::DOUBLECOLON;
     else if (value == "(")
         type = TokenType::LPAREN;
     else if (value == ")")
@@ -313,6 +315,8 @@ std::string Token::getType(TokenType type)
         return "ARROW";
     case TokenType::COLON:
         return "COLON";
+    case TokenType::DOUBLECOLON:
+        return "DOUBLECOLON";
     case TokenType::LPAREN:
         return "LPAREN";
     case TokenType::RPAREN:

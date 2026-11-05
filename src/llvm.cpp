@@ -181,12 +181,16 @@ void LLVM::mapToIR(std::vector<AbstractSyntaxTree *> asts)
     addRuntimeErrors(ir);
     addPrintFunctions(ir);
     addExponentFunctions(ir);
+    std::vector<std::string> imports;
 
     for (AbstractSyntaxTree *ast : asts)
     {
-        std::string prefix;
-        if (ast->getPrefix() != "")
-            prefix = "." + ast->getPrefix() + "-";
+        if (ast->isImported())
+            imports.insert(imports.begin(), ast->getRoot()->getFileNameWDots());
+
+        std::string prefix = "";
+        if (ast->isImported())
+            prefix = "." + ast->getRoot()->getFileNameWDots() + ".";
 
         BlockNode *global = static_cast<BlockNode *>(ast->getRoot()->getGlobalCode());
         global->mapToGlobalIR(ir, prefix);
@@ -197,8 +201,10 @@ void LLVM::mapToIR(std::vector<AbstractSyntaxTree *> asts)
             function->mapToIR(ir, tempvarMap, false, prefix);
         }
 
-        if (!ast->isImported())
+        if (ast->isImported())
             global->mapToIR(ir, tempvarMap, true, prefix);
+        else
+            global->mapImportsToIR(ir, tempvarMap, true, imports);
     }
 
     tempFile << "target triple = \"" << getTargetTriple() << "\"\n\n";

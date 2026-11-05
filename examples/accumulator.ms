@@ -1,4 +1,4 @@
-import conditions as con
+import factorial as con
 
 int sum = 0
 int i = 1
