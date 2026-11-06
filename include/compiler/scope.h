@@ -6,7 +6,7 @@ struct Symbol
 {
 protected:
     int line;
-    bool used;
+    bool used, exported;
     std::string name, type;
 
 public:
@@ -32,6 +32,11 @@ public:
         return used;
     }
 
+    bool isExported() const
+    {
+        return exported;
+    }
+
     std::string getName() const
     {
         return name;
@@ -40,6 +45,11 @@ public:
     std::string getDataType() const
     {
         return type;
+    }
+
+    void setExported(bool flag)
+    {
+        this->exported = flag;
     }
 
     void setUsed(bool flag)

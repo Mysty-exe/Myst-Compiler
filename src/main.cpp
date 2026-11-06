@@ -68,19 +68,55 @@ std::string getExtension(const std::string &file)
 
 void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
 {
-    for (AbstractSyntaxTree *ast : asts)
+    std::vector<std::string> loadedAsts;
+    bool skip = false;
+    for (int i = 0; i < asts.size(); i++)
     {
+        AbstractSyntaxTree *ast = asts[i];
+
+        if (std::find(loadedAsts.begin(), loadedAsts.end(), ast->getRoot()->getFileName()) != loadedAsts.end())
+            continue;
+
+        for (const std::string import : ast->getImports())
+        {
+            if (std::find(loadedAsts.begin(), loadedAsts.end(), import) == loadedAsts.end())
+            {
+                skip = true;
+                continue;
+            }
+        }
+
         RootNode::setCurrentFile(ast->getRoot()->getFileName());
 
         std::unordered_map<std::string, Scope> symbolTable;
         std::vector<std::string> visibleScope;
 
-        ast->getRoot()->checkSemantics(symbolTable, visibleScope);
-
+        std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixSymbols = ast->getPrefixSymbols();
+        ast->getRoot()->checkSemantics(symbolTable, visibleScope, prefixSymbols);
         ast->setSymbolTable(symbolTable);
+        loadedAsts.push_back(ast->getRoot()->getFileName());
+
+        for (AbstractSyntaxTree *a : asts)
+        {
+            if (ast == a)
+                continue;
+
+            for (int i = 0; i < a->getImports().size(); i++)
+            {
+                if (a->getImports()[i] == ast->getRoot()->getFileName())
+                    a->setSymbols(a->getPrefixes()[i], symbolTable);
+            }
+        }
 
         if (parameters.seeAST)
             ast->printTree();
+
+        if (i == asts.size() - 1)
+        {
+            if (skip)
+                i = 0;
+            skip = false;
+        }
     }
 
     for (AbstractSyntaxTree *ast : asts)

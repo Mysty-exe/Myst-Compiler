@@ -1,17 +1,18 @@
 #pragma once
 #include "compiler/node.h"
 #include "compiler/lexer.h"
-#include "compiler/error.h"
 
 class AbstractSyntaxTree
 {
 private:
     std::unordered_map<std::string, Scope> symbolTable;
-
-    bool imported;
+    std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixSymbols;
     std::vector<std::string> prefixes, imports;
+    bool imported;
+
     RootNode *root;
     static const std::vector<std::vector<std::string>> operatorPrecedence;
+
     bool isDataType(const std::string &str) const;
     bool isValidToken(Token token) const;
     bool isValidLine(const std::vector<Token> &tokens) const;
@@ -39,6 +40,8 @@ public:
     void setImported(bool imported);
     bool hasImports() const;
     std::vector<std::string> getPrefixes() const;
+    std::unordered_map<std::string, std::unordered_map<std::string, Scope>> getPrefixSymbols() const;
+    void setSymbols(std::string prefix, std::unordered_map<std::string, Scope> symbols);
     std::vector<std::string> getImports() const;
     void setImports(std::vector<std::string>);
     void freeMemory();

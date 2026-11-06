@@ -410,10 +410,27 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
         if (line[start].getToken() == "LPAREN" && line[end].getToken() == "RPAREN")
             return buildIdentifier(line, start + 1, end - 1);
 
-        if (line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "LPAREN" && line[end].getToken() == "RPAREN")
+        bool callExpr = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
+        bool importedIdentifier = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "DOUBLECOLON" && line[end].getToken() == "IDENTIFIER";
+        bool importedCallExpr = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "DOUBLECOLON" && line[start + 2].getToken() == "IDENTIFIER" && line[start + 3].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
+
+        if (importedIdentifier)
+        {
+            IdentifierNode *identifier = new IdentifierNode(line[start + 2].getValue());
+            identifier->setLine(line[start].getLineNumber());
+            identifier->setImported(line[start].getValue());
+            return identifier;
+        }
+
+        if (callExpr || importedCallExpr)
         {
             std::vector<Node *> arguments;
-            int startArg = start + 2, lparen = 0, rparen = 0;
+            int startArg = 0, lparen = 0, rparen = 0;
+            if (callExpr)
+                startArg = start + 2;
+            else
+                startArg = start + 4;
+
             for (int i = startArg; i <= end - 1; i++)
             {
                 if (line[i].getToken() == "LPAREN")
@@ -432,9 +449,18 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
             if (startArg <= end - 1)
                 arguments.push_back(buildIdentifier(line, startArg, end - 1));
 
-            CallExprNode *callExpr = new CallExprNode(line[start].getValue(), arguments);
-            callExpr->setLine(line[start].getLineNumber());
-            return callExpr;
+            CallExprNode *callExpression;
+            if (callExpr)
+                callExpression = new CallExprNode(line[start].getValue(), arguments);
+            else
+                callExpression = new CallExprNode(line[start + 2].getValue(), arguments);
+
+            callExpression->setLine(line[start].getLineNumber());
+
+            if (importedCallExpr)
+                callExpression->setImported(line[start].getValue());
+
+            return callExpression;
         }
     }
 
@@ -720,6 +746,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
                     throwSyntaxError(line, "Module alias '" + prefix + "' is already defined in this scope.");
 
                 prefixes.push_back(prefix);
+                prefixSymbols[prefix] = {};
                 imports.push_back(file);
                 importNodes.push_back(i);
                 continue;
@@ -818,6 +845,16 @@ bool AbstractSyntaxTree::hasImports() const
 std::vector<std::string> AbstractSyntaxTree::getPrefixes() const
 {
     return prefixes;
+}
+
+std::unordered_map<std::string, std::unordered_map<std::string, Scope>> AbstractSyntaxTree::getPrefixSymbols() const
+{
+    return prefixSymbols;
+}
+
+void AbstractSyntaxTree::setSymbols(std::string prefix, std::unordered_map<std::string, Scope> symbols)
+{
+    prefixSymbols[prefix] = symbols;
 }
 
 std::vector<std::string> AbstractSyntaxTree::getImports() const

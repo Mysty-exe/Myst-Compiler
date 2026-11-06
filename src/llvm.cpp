@@ -195,16 +195,32 @@ void LLVM::mapToIR(std::vector<AbstractSyntaxTree *> asts)
         BlockNode *global = static_cast<BlockNode *>(ast->getRoot()->getGlobalCode());
         global->mapToGlobalIR(ir, prefix);
 
+        std::unordered_map<std::string, std::string> prefixImports;
+        for (int i = 0; i < ast->getImports().size(); i++)
+        {
+            std::string import = ast->getImports()[i];
+            std::string importWDots = "";
+            for (int j = 0; j < import.size() - 3; j++)
+            {
+                if (import[j] == '/' || import[j] == '\\')
+                    importWDots += '.';
+                else
+                    importWDots += import[j];
+            }
+
+            prefixImports[ast->getPrefixes()[i]] = importWDots;
+        }
+
         for (Node *node : ast->getRoot()->getChildren())
         {
             FuncNode *function = static_cast<FuncNode *>(node);
-            function->mapToIR(ir, tempvarMap, false, prefix);
+            function->mapToIR(ir, tempvarMap, prefixImports, false, prefix);
         }
 
         if (ast->isImported())
-            global->mapToIR(ir, tempvarMap, true, prefix);
+            global->mapToIR(ir, tempvarMap, prefixImports, true, prefix);
         else
-            global->mapImportsToIR(ir, tempvarMap, true, imports);
+            global->mapImportsToIR(ir, tempvarMap, prefixImports, true, imports);
     }
 
     tempFile << "target triple = \"" << getTargetTriple() << "\"\n\n";

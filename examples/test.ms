@@ -1,12 +1,12 @@
-import accumulator as fd
-import conditions as fdew
+import utilities as Utils
 
 func getNumber() -> int:
     return 10
 
 func test(ref int x):
-    a = toInt('c') ^ toDecimal(3)
+    x = toInt('c') ^ toDecimal(3)
 
-int a = 0
-test(a)
-print(a)
+int y = 0
+test(y)
+print(Utils::a)
+print(Utils::testFunc())
