@@ -2,12 +2,19 @@
 #include "compiler/node.h"
 #include "compiler/lexer.h"
 
+enum ExportState
+{
+    STANDBY,
+    IN,
+    OUT
+};
+
 class AbstractSyntaxTree
 {
 private:
     std::unordered_map<std::string, Scope> symbolTable;
     std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixSymbols;
-    std::vector<std::string> prefixes, imports;
+    std::vector<std::string> prefixes, imports, exports;
     bool imported;
 
     RootNode *root;
@@ -31,6 +38,7 @@ public:
     RootNode *getRoot() const;
     std::unordered_map<std::string, Scope> getSymbolTable() const;
     void setSymbolTable(std::unordered_map<std::string, Scope> symbolTable);
+    void buildExports(const std::vector<std::vector<Token>> &tokens, int &startLine);
     Node *buildIdentifier(const std::vector<Token> &line, int start, int end);
     BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false, bool inLoop = false);
     void buildTree(const std::vector<std::vector<Token>> &tokens);

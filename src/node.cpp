@@ -725,9 +725,6 @@ void IdentifierNode::storeValue(std::string &ir, std::string &newType, const std
 {
     std::string tempVarName = std::to_string(tempvarMap[tempvarMap.size() - 1].size());
 
-    if (imported)
-        prefix = "." + prefixImports.at(modName) + ".";
-
     if (assignmentName == ".return")
     {
         if (Token::getType(type) != newType)
@@ -1781,6 +1778,9 @@ void FuncNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTabl
                         throwSemanticError(line, "'" + name + "' has already been declared as a function.");
                 }
             }
+
+            if (symbol->getType() == "VAR" && symbol->getName() == name)
+                throwSemanticError(line, "'" + name + "' has already been declared as a variable.");
         }
     }
 
@@ -2496,9 +2496,7 @@ void AssignNode::lookForCallExprs(std::unordered_map<std::string, Scope> &symbol
 }
 void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols)
 {
-    if (identifier->isImported())
-        throwSemanticError(line, "'" + identifier->getName() + "' is read-only.");
-
+    std::cout << identifier->getName() << std::endl;
     if (identifier->getType() != TokenType::UNKNOWN)
     {
         auto scope = symbolTable[visibleScope[visibleScope.size() - 1]];
@@ -2506,6 +2504,9 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
         {
             if (symbol->getType() == "VAR" && symbol->getName() == identifier->getName() && !(visibleScope.size() > 1))
                 throwSemanticError(line, "'" + identifier->getName() + "' has already been declared.");
+
+            if (symbol->getType() == "FUNC" && symbol->getName() == identifier->getName())
+                throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a function.");
         }
 
         if (identifier->getType() == TokenType::VAR)
@@ -2537,6 +2538,9 @@ void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTa
                     else
                         throwSemanticError(line, "'" + identifier->getName() + "' has already been declared with type '" + getDataTypeStr(symbol->getDataType()) + "'.");
                 }
+
+                if (symbol->getType() == "FUNC" && symbol->getName() == identifier->getName())
+                    throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a function.");
             }
         }
 

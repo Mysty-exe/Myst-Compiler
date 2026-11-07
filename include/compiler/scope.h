@@ -16,6 +16,7 @@ public:
         this->used = used;
         this->name = name;
         this->type = type;
+        this->exported = false;
     }
 
     virtual ~Symbol()

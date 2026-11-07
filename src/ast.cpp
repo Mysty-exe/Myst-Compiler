@@ -41,6 +41,7 @@ AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &to
     imported = false;
     root = new RootNode();
     root->setFileName(fileName);
+    RootNode::setCurrentFile(fileName);
     buildTree(tokens);
 }
 
@@ -60,6 +61,16 @@ std::unordered_map<std::string, Scope> AbstractSyntaxTree::getSymbolTable() cons
 
 void AbstractSyntaxTree::setSymbolTable(std::unordered_map<std::string, Scope> symbolTable)
 {
+    auto scope = symbolTable["1"];
+    for (Symbol *symbol : scope.getSymbols())
+    {
+        if (std::find(exports.begin(), exports.end(), symbol->getName()) != exports.end())
+        {
+            symbol->setUsed(true);
+            symbol->setExported(true);
+        }
+    }
+
     this->symbolTable = symbolTable;
 }
 
@@ -299,6 +310,66 @@ std::string AbstractSyntaxTree::splitLine(const std::vector<Token> &tokens, int 
     }
 
     return result;
+}
+
+void AbstractSyntaxTree::buildExports(const std::vector<std::vector<Token>> &tokens, int &startLine)
+{
+    ExportState state = ExportState::STANDBY;
+    bool onComma = false;
+    for (startLine; startLine < tokens.size(); startLine++)
+    {
+        if (!isValidLine(tokens[startLine]))
+            continue;
+
+        for (int token = 0; token < tokens[startLine].size(); token++)
+        {
+            if (tokens[startLine][token].getToken() == "INDENT")
+                continue;
+
+            if (state == ExportState::IN)
+            {
+                if (tokens[startLine][token].getToken() == "IDENTIFIER")
+                {
+                    if (onComma)
+                        throwSyntaxError(startLine + 1, "Couldn't parse exports.");
+
+                    exports.push_back(tokens[startLine][token].getValue());
+                    onComma = true;
+                }
+
+                if (tokens[startLine][token].getToken() == "COMMA")
+                {
+                    if (!onComma)
+                        throwSyntaxError(startLine + 1, "Couldn't parse exports.");
+
+                    onComma = false;
+                }
+            }
+
+            if (tokens[startLine][token].getToken() == "LCURLYBRACKET")
+            {
+                if (state != ExportState::STANDBY)
+                    throwSyntaxError(startLine + 1, "Couldn't parse exports.");
+
+                state = ExportState::IN;
+            }
+
+            if (tokens[startLine][token].getToken() == "RCURLYBRACKET")
+            {
+                if (!onComma || state != ExportState::IN)
+                    throwSyntaxError(startLine + 1, "Couldn't parse exports.");
+
+                state = ExportState::OUT;
+                break;
+            }
+        }
+
+        if (state == ExportState::OUT)
+            break;
+    }
+
+    if (state != ExportState::OUT)
+        throwSyntaxError(startLine + 1, "Couldn't parse exports.");
 }
 
 Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int start, int end)
@@ -613,8 +684,17 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
         int assignIndex = getTokenIndex(tokens[line], "ASSIGN");
         if (assignIndex != -1)
         {
-            if (tokens[line][assignIndex - 1].getToken() != "IDENTIFIER")
-                throwSyntaxError(tokens[line][0].getLineNumber(), "'" + tokens[line][assignIndex - 1].getValue() + "' can't be used as a variable name.");
+            if (getNumValidTokens(tokens[line]) > 2 && assignIndex > 0)
+            {
+                if (tokens[line][assignIndex - 1].getToken() != "IDENTIFIER")
+                    throwSyntaxError(tokens[line][0].getLineNumber(), "'" + tokens[line][assignIndex - 1].getValue() + "' can't be used as a variable name.");
+            }
+
+            if (getNumValidTokens(tokens[line]) > 4 && assignIndex > 2)
+            {
+                if (tokens[line][assignIndex - 1].getToken() == "IDENTIFIER" && tokens[line][assignIndex - 2].getToken() == "DOUBLECOLON" && tokens[line][assignIndex - 3].getToken() == "IDENTIFIER")
+                    throwSyntaxError(tokens[line][0].getLineNumber(), "Imported variables are read-only.");
+            }
 
             std::string type = splitLine(tokens[line], tabs, assignIndex - 2);
             if (type != "" && !isDataType(tokens[line][assignIndex - 2].getToken()) && tokens[line][assignIndex - 2].getToken() != "VAR")
@@ -629,8 +709,17 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
         int operatorAssignIndex = getTokenIndex(tokens[line], {"PLUSASSIGN", "MINUSASSIGN", "STARASSIGN", "SLASHASSIGN", "EXPASSIGN"});
         if (operatorAssignIndex != -1)
         {
-            if (tokens[line][operatorAssignIndex - 1].getToken() != "IDENTIFIER")
-                throwSyntaxError(tokens[line][0].getLineNumber(), "'" + tokens[line][operatorAssignIndex - 1].getValue() + "' can't be used as a variable name.");
+            if (getNumValidTokens(tokens[line]) > 2 && assignIndex > 0)
+            {
+                if (tokens[line][operatorAssignIndex - 1].getToken() != "IDENTIFIER")
+                    throwSyntaxError(tokens[line][0].getLineNumber(), "'" + tokens[line][operatorAssignIndex - 1].getValue() + "' can't be used as a variable name.");
+            }
+
+            if (getNumValidTokens(tokens[line]) > 4 && assignIndex > 2)
+            {
+                if (tokens[line][assignIndex - 1].getToken() == "IDENTIFIER" && tokens[line][assignIndex - 2].getToken() == "DOUBLECOLON" && tokens[line][assignIndex - 3].getToken() == "IDENTIFIER")
+                    throwSyntaxError(tokens[line][0].getLineNumber(), "Imported variables are read-only.");
+            }
 
             std::string type = splitLine(tokens[line], tabs, operatorAssignIndex - 2);
             if (type != "")
@@ -726,17 +815,31 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
 void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens)
 {
     bool checkForImports = true;
+    bool checkForExports = true;
     std::vector<ImportNode *> importNodes;
     for (int line = 0; line < tokens.size(); line++)
     {
         if (!isValidLine(tokens[line]))
             continue;
 
+        if (checkForExports)
+        {
+            if (getNthToken(tokens[line], 1).getToken() == "EXPORT")
+            {
+                buildExports(tokens, line);
+                checkForExports = false;
+                continue;
+            }
+        }
+
         if (checkForImports)
         {
             if (getNthToken(tokens[line], 1).getToken() == "IMPORT")
             {
-                if (getNumValidTokens(tokens[line]) == 4 && (getNthToken(tokens[line], 2).getToken() != "MODULE" && getNthToken(tokens[line], 2).getToken() != "IDENTIFIER") || getNthToken(tokens[line], 3).getToken() != "AS" || getNthToken(tokens[line], 4).getToken() != "IDENTIFIER")
+                if (getNumValidTokens(tokens[line]) != 4)
+                    throwSyntaxError(line + 1, "Import Statement couldn't be parsed");
+
+                if ((getNthToken(tokens[line], 2).getToken() != "MODULE" && getNthToken(tokens[line], 2).getToken() != "IDENTIFIER" || getNthToken(tokens[line], 3).getToken() != "AS" || getNthToken(tokens[line], 4).getToken() != "IDENTIFIER"))
                     throwSyntaxError(line + 1, "Import Statement couldn't be parsed");
 
                 std::string file = getNthToken(tokens[line], 2).getValue(), prefix = getNthToken(tokens[line], 4).getValue();
@@ -769,6 +872,8 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
         // Functions need a minimum of 4 tokens
         if (getNthToken(tokens[line], 1).getValue() == "func")
         {
+            checkForExports = false;
+
             std::vector<std::string> information = getFunctionInformation(tokens[line]);
             if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), information[0]) != Token::reservedFunctions.end())
                 throwSyntaxError(line, "Reserved function name used: '" + information[0] + "'.");
@@ -802,6 +907,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
         }
 
         root->addNode(buildBlock(tokens, line, 0));
+        checkForExports = false;
     }
 }
 

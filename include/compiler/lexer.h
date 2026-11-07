@@ -62,6 +62,8 @@ enum class TokenType
     ARROW,
     LPAREN,
     RPAREN,
+    LCURLYBRACKET,
+    RCURLYBRACKET,
     COMMA,
     DOT,
     NEWLINE,

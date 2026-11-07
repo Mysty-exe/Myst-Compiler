@@ -1,4 +1,4 @@
-export { a, b, testFunc }
+export { a, testFunc }
 
 int a = 40
 char b = 'd'

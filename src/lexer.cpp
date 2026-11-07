@@ -4,7 +4,7 @@ bool validModule(const std::string &module)
 {
     for (int i = 0; i < module.size(); i++)
     {
-        if (!std::isalpha(module[i]) && !module[i] == '.' && !std::isdigit(module[i]))
+        if (!std::isalpha(module[i]) && module[i] != '.' && !std::isdigit(module[i]))
             return false;
     }
     return true;
@@ -44,10 +44,10 @@ bool validNumber(const std::string &number)
 
 const std::vector<std::string> Token::reservedFunctions = {"__main__"};
 const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"print", "var", "CHARTYPE"}, {"input"}, {"exit", "INTTYPE"}};
-const std::vector<std::string> Token::keywords = {"func", "ref", "struct", "const", "var", "if", "elseif", "while", "break", "skip", "return", "import", "and", "or", "not"};
+const std::vector<std::string> Token::keywords = {"import", "export", "as", "ref", "func", "ref", "var", "if", "elseif", "while", "break", "skip", "return", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "^", "<", ">", "!", "==", "!=", "<=", ">=", "->", "&&", "||", "and", "or", "not"};
-const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", "^", ":", "<", ">", "(", ")", ",", ".", "!"};
+const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", "^", ":", "<", ">", "(", ")", "{", "}", ",", ".", "!"};
 const std::vector<std::string> Token::twoCharOperators = {"+=", "-=", "*=", "/=", "^=", "::", "==", "!=", "<=", ">=", "&&", "||", "->"};
 const std::vector<char> Token::escapeSequences = {'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', '\'', '"', '?', '0'};
 
@@ -107,6 +107,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::IMPORT;
     else if (value == "as")
         type = TokenType::AS;
+    else if (value == "export")
+        type = TokenType::EXPORT;
     else if (value == "module")
         type = TokenType::MODULE;
     else if (value == "func")
@@ -183,6 +185,10 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::LPAREN;
     else if (value == ")")
         type = TokenType::RPAREN;
+    else if (value == "{")
+        type = TokenType::LCURLYBRACKET;
+    else if (value == "}")
+        type = TokenType::RCURLYBRACKET;
     else if (value == ",")
         type = TokenType::COMMA;
     else if (value == ".")
@@ -243,6 +249,8 @@ std::string Token::getType(TokenType type)
         return "BOOLTYPE";
     case TokenType::IMPORT:
         return "IMPORT";
+    case TokenType::EXPORT:
+        return "EXPORT";
     case TokenType::AS:
         return "AS";
     case TokenType::MODULE:
@@ -321,6 +329,10 @@ std::string Token::getType(TokenType type)
         return "LPAREN";
     case TokenType::RPAREN:
         return "RPAREN";
+    case TokenType::LCURLYBRACKET:
+        return "LCURLYBRACKET";
+    case TokenType::RCURLYBRACKET:
+        return "RCURLYBRACKET";
     case TokenType::COMMA:
         return "COMMA";
     case TokenType::DOT:

@@ -86,10 +86,10 @@ void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
             }
         }
 
-        RootNode::setCurrentFile(ast->getRoot()->getFileName());
-
         std::unordered_map<std::string, Scope> symbolTable;
         std::vector<std::string> visibleScope;
+
+        RootNode::setCurrentFile(ast->getRoot()->getFileName());
 
         std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixSymbols = ast->getPrefixSymbols();
         ast->getRoot()->checkSemantics(symbolTable, visibleScope, prefixSymbols);

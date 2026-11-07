@@ -4,9 +4,10 @@ func getNumber() -> int:
     return 10
 
 func test(ref int x):
-    x = toInt('c') ^ toDecimal(3)
+    x = toInt('c') ^ 2
 
 int y = 0
+int b = 12
 test(y)
-print(Utils::a)
-print(Utils::testFunc())
+b = Utils::a
+print(y)
