@@ -87,7 +87,6 @@ On Windows:
 
 ## Future Work
 
-- Importing other `.ms` files
 - Strings and Lists/Arrays
 - For loops and indexing
 - Custom Types
