@@ -87,6 +87,6 @@ On Windows:
 
 ## Future Work
 
+- Custom Types
 - Strings and Lists/Arrays
 - For loops and indexing
-- Custom Types

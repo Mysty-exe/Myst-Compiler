@@ -398,6 +398,18 @@ public:
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
+struct ContainerNode : Node
+{
+private:
+    std::string name;
+    std::vector<Node *> body;
+
+public:
+    ContainerNode(std::string name, std::vector<Node *> body, int line);
+    ~ContainerNode() override;
+    virtual void print(int depth = 0) const override;
+};
+
 struct IfStmtNode : Node
 {
 private:

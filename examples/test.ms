@@ -1,13 +1,24 @@
-import utilities as Utils
+container Person:
+    int age, year, date
+    char test, testing
+
+    Person(int a, int b):
+        age = a
+        year = b
+
+    getAge() -> int:
+        return age
+
+    getYear() -> int:
+        return year
 
 func getNumber() -> int:
     return 10
 
-func test(ref int x):
+func test(int x):
     x = toInt('c') ^ 2
 
-int y = 0
-int b = 12
+Person y = 34
+int b = 45
 test(y)
-b = Utils::a
 print(y)

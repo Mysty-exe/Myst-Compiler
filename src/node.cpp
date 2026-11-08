@@ -482,6 +482,9 @@ IdentifierNode::IdentifierNode(std::string name, std::string type)
         this->type = TokenType::VAR;
     else
         this->type = TokenType::UNKNOWN;
+
+    imported = false;
+    modName = "";
 }
 std::string IdentifierNode::getName() const
 {
@@ -527,6 +530,9 @@ bool IdentifierNode::checkType(std::unordered_map<std::string, Scope> &symbolTab
 {
     if (imported)
     {
+        if (prefixSymbols.count(modName) == 0)
+            throwSemanticError(line, "Module '" + modName + "' was not found.");
+
         auto scope = prefixSymbols.at(modName).at("1");
         for (Symbol *symbol : scope.getSymbols())
         {
@@ -566,6 +572,9 @@ std::string IdentifierNode::inferType(std::unordered_map<std::string, Scope> &sy
 {
     if (imported)
     {
+        if (prefixSymbols.count(modName) == 0)
+            throwSemanticError(line, "Module '" + modName + "' was not found.");
+
         auto scope = prefixSymbols.at(modName).at("1");
         for (Symbol *symbol : scope.getSymbols())
         {
@@ -1877,6 +1886,41 @@ void FuncNode::findReturnStmts(std::vector<Node *> &stmts)
     }
 }
 
+ContainerNode::ContainerNode(std::string name, std::vector<Node *> body, int line)
+{
+    this->name = name;
+    this->body = body;
+    this->line = line;
+}
+
+ContainerNode::~ContainerNode()
+{
+    for (Node *node : body)
+    {
+        delete node;
+        node = nullptr;
+    }
+}
+
+void ContainerNode::print(int depth) const
+{
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "ContainerNode: " << name << std::endl;
+    std::cout << depthTabs << "\tVariables: " << std::endl;
+    for (Node *node : body)
+    {
+        if (dynamic_cast<IdentifierNode *>(node))
+            node->print(depth + 2);
+    }
+
+    std::cout << depthTabs << "\tMethods: " << std::endl;
+    for (Node *node : body)
+    {
+        if (dynamic_cast<FuncNode *>(node))
+            node->print(depth + 2);
+    }
+}
+
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
 {
     this->name = name;
@@ -1933,6 +1977,9 @@ void CallExprNode::lookForCallExprs(std::unordered_map<std::string, Scope> &symb
 
     if (imported)
     {
+        if (prefixSymbols.count(modName) == 0)
+            throwSemanticError(line, "Module '" + modName + "' was not found.");
+
         auto scope = prefixSymbols.at(modName).at("1");
         for (Symbol *symbol : scope.getSymbols())
         {
@@ -2067,6 +2114,9 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
     bool overridenFunction = false;
     if (imported)
     {
+        if (prefixSymbols.count(modName) == 0)
+            throwSemanticError(line, "Module '" + modName + "' was not found.");
+
         auto scope = prefixSymbols.at(modName).at("1");
         for (Symbol *symbol : scope.getSymbols())
         {
@@ -2212,6 +2262,9 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
 
     if (imported)
     {
+        if (prefixSymbols.count(modName) == 0)
+            throwSemanticError(line, "Module '" + modName + "' was not found.");
+
         auto scope = prefixSymbols.at(modName).at("1");
         for (Symbol *symbol : scope.getSymbols())
         {
@@ -2496,7 +2549,6 @@ void AssignNode::lookForCallExprs(std::unordered_map<std::string, Scope> &symbol
 }
 void AssignNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols)
 {
-    std::cout << identifier->getName() << std::endl;
     if (identifier->getType() != TokenType::UNKNOWN)
     {
         auto scope = symbolTable[visibleScope[visibleScope.size() - 1]];

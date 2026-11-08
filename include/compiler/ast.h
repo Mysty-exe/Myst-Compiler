@@ -29,7 +29,7 @@ private:
     int getTokenIndex(const std::vector<Token> &tokenLine, const std::vector<std::string> &tokenStrs, bool includeOnlyValidTokens = false) const;
     int getNumTabs(const std::vector<Token> &tokenLine) const;
     Token getNthToken(const std::vector<Token> &tokenLine, int n) const;
-    std::vector<std::string> getFunctionInformation(const std::vector<Token> &tokenLine) const;
+    std::vector<std::string> getFunctionInformation(const std::vector<Token> &tokenLine, bool inContainer = false) const;
     std::string splitLine(const std::vector<Token> &tokens, int startIndex, int endIndex) const;
 
 public:
@@ -40,6 +40,7 @@ public:
     void setSymbolTable(std::unordered_map<std::string, Scope> symbolTable);
     void buildExports(const std::vector<std::vector<Token>> &tokens, int &startLine);
     Node *buildIdentifier(const std::vector<Token> &line, int start, int end);
+    std::vector<Node *> buildContainer(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent);
     BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false, bool inLoop = false);
     void buildTree(const std::vector<std::vector<Token>> &tokens);
     void format();

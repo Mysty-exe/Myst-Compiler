@@ -103,6 +103,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::DECIMALTYPE;
     else if (value == "bool")
         type = TokenType::BOOLTYPE;
+    else if (value == "container")
+        type = TokenType::CONTAINER;
     else if (value == "import")
         type = TokenType::IMPORT;
     else if (value == "as")
@@ -247,6 +249,8 @@ std::string Token::getType(TokenType type)
         return "DECIMALTYPE";
     case TokenType::BOOLTYPE:
         return "BOOLTYPE";
+    case TokenType::CONTAINER:
+        return "CONTAINER";
     case TokenType::IMPORT:
         return "IMPORT";
     case TokenType::EXPORT:

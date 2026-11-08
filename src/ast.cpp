@@ -233,10 +233,15 @@ Token AbstractSyntaxTree::getNthToken(const std::vector<Token> &tokenLine, int n
 }
 
 // Assumes Function isn't Tabbed
-std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::vector<Token> &tokenLine) const
+std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::vector<Token> &tokenLine, bool inContainer) const
 {
     std::vector<std::string> result;
-    Token name = getNthToken(tokenLine, 2);
+    Token name;
+    if (inContainer)
+        name = getNthToken(tokenLine, 1);
+    else
+        name = getNthToken(tokenLine, 2);
+
     if (name.getToken() == "IDENTIFIER")
         result.push_back(name.getValue());
     else
@@ -246,15 +251,18 @@ std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::v
     std::string returnType = "void";
     if (arrowIndex != -1)
     {
-        if (!isDataType(tokenLine[arrowIndex + 1].getToken()))
+        if (!isDataType(tokenLine[arrowIndex + 1].getToken()) && tokenLine[arrowIndex + 1].getToken() != "IDENTIFIER")
             throwSyntaxError(tokenLine[arrowIndex + 1].getLineNumber(), "Unexpected idenifier '" + tokenLine[arrowIndex + 1].getValue() + "' used as the function return type.");
         returnType = tokenLine[arrowIndex + 1].getValue();
     }
     result.push_back(returnType);
 
-    int colonIndex = getTokenIndex(tokenLine, "COLON", true);
+    int colonIndex = getTokenIndex(tokenLine, "COLON", false);
 
     int startParams = 3;
+    if (inContainer)
+        startParams = 3;
+
     int endParams;
     if (arrowIndex == -1)
     {
@@ -539,6 +547,93 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
     exit(-1);
 }
 
+std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent)
+{
+    std::vector<Node *> body;
+    for (int line = startLine; line < tokens.size(); line++)
+    {
+        if (!isValidLine(tokens[line]))
+            continue;
+
+        int currentIndent = getNumTabs(tokens[line]);
+        if (currentIndent < expectedIndent)
+        {
+            startLine = line;
+            return body;
+        }
+
+        if (getNthToken(tokens[line], 1).getToken() == "IDENTIFIER" && getNthToken(tokens[line], 2).getToken() == "LPAREN" && getNthToken(tokens[line], -1).getToken() == "COLON")
+        {
+            std::vector<std::string> information = getFunctionInformation(tokens[line], true);
+            if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), information[0]) != Token::reservedFunctions.end())
+                throwSyntaxError(line, "Reserved function name used: '" + information[0] + "'.");
+
+            line++;
+
+            std::vector<ParamNode *> parameters;
+
+            for (int i = 2; i < information.size(); i++)
+            {
+                ParamNode *parameter = new ParamNode(information[i], line);
+                parameters.push_back(parameter);
+            }
+
+            BlockNode *funcBody = buildBlock(tokens, line, 2, true);
+            if (funcBody->getNumStatements() == 0)
+            {
+                if (tokens[funcBody->getLine() - 2][tokens[funcBody->getLine() - 2].size() - 2].getToken() == "COLON")
+                    throwSyntaxError(funcBody->getLine() - 1, "Missing body in function '" + information[0] + "'.");
+            }
+            else
+            {
+                if (tokens[funcBody->getLine() - 2][tokens[funcBody->getLine() - 2].size() - 2].getToken() != "COLON")
+                    throwSyntaxError(funcBody->getLine() - 1, "Colon missing for the function '" + information[0] + "'.");
+            }
+            line--;
+
+            FuncNode *func = new FuncNode(information[0], information[1], parameters, funcBody, line - 1);
+            body.push_back(func);
+            continue;
+        }
+
+        if (isDataType(getNthToken(tokens[line], 1).getToken()) || getNthToken(tokens[line], 1).getToken() == "IDENTIFIER")
+        {
+            std::string type = getNthToken(tokens[line], 1).getValue();
+            bool onComma = false;
+            for (int token = currentIndent + 1; token < tokens[line].size(); token++)
+            {
+                if (tokens[line][token].getToken() == "INDENT")
+                    break;
+
+                if (tokens[line][token].getToken() == "COMMA")
+                {
+                    if (onComma)
+                        onComma = false;
+                    else
+                        throwSyntaxError(line + 1, "Variables couldn't be parsed in container.");
+                }
+                if (tokens[line][token].getToken() == "IDENTIFIER")
+                {
+                    if (onComma)
+                        throwSyntaxError(line + 1, "Variables couldn't be parsed in container.");
+                    else
+                    {
+                        body.push_back(new IdentifierNode(tokens[line][token].getValue(), type));
+                        onComma = true;
+                    }
+                }
+            }
+
+            if (!onComma)
+                throwSyntaxError(line + 1, "Variables couldn't be parsed in container.");
+        }
+
+        startLine = line;
+    }
+
+    return body;
+}
+
 BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction, bool inLoop)
 {
     BlockNode *blockNode = new BlockNode();
@@ -697,7 +792,7 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             }
 
             std::string type = splitLine(tokens[line], tabs, assignIndex - 2);
-            if (type != "" && !isDataType(tokens[line][assignIndex - 2].getToken()) && tokens[line][assignIndex - 2].getToken() != "VAR")
+            if (type != "" && !isDataType(tokens[line][assignIndex - 2].getToken()) && tokens[line][assignIndex - 2].getToken() != "VAR" && tokens[line][assignIndex - 2].getToken() != "IDENTIFIER")
                 throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected type used for variable '" + tokens[line][assignIndex - 1].getValue() + "'.");
 
             AssignNode *assignStmt = new AssignNode(tokens[line][assignIndex - 1].getValue(), splitLine(tokens[line], tabs, assignIndex - 2), buildIdentifier(tokens[line], assignIndex + 1, tokens[line].size() - 2));
@@ -869,8 +964,31 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
             }
         }
 
+        if (getNthToken(tokens[line], 1).getToken() == "CONTAINER")
+        {
+            if (getNumValidTokens(tokens[line]) != 3)
+                throwSyntaxError(line + 1, "Couldn't parse container statement.");
+
+            if (getNthToken(tokens[line], 2).getToken() != "IDENTIFIER" && getNthToken(tokens[line], 3).getToken() != "COLON")
+                throwSyntaxError(line + 1, "Couldn't parse container statement.");
+
+            std::string name = getNthToken(tokens[line], 2).getValue();
+
+            line++;
+
+            checkForExports = false;
+
+            std::vector<Node *> body = buildContainer(tokens, line, 1);
+
+            line--;
+            ContainerNode *container = new ContainerNode(name, body, line - 1);
+            root->addNode(container);
+
+            continue;
+        }
+
         // Functions need a minimum of 4 tokens
-        if (getNthToken(tokens[line], 1).getValue() == "func")
+        if (getNthToken(tokens[line], 1).getToken() == "FUNC")
         {
             checkForExports = false;
 
