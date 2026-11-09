@@ -204,8 +204,7 @@ public:
 struct IdentifierNode : Node
 {
 private:
-    std::string name, modName;
-    TokenType type;
+    std::string name, type, modName;
     bool imported;
 
 public:
@@ -213,9 +212,9 @@ public:
     IdentifierNode(std::string name, std::string returnType);
     ~IdentifierNode() override;
     std::string getName() const;
-    TokenType getType() const;
+    std::string getType() const;
     void setName(std::string name);
-    void setType(TokenType type);
+    void setType(std::string type);
     std::string getModName() const;
     bool isImported();
     void setImported(std::string modName);
@@ -364,8 +363,7 @@ public:
 struct ParamNode : Node
 {
 private:
-    TokenType type;
-    std::string name;
+    std::string name, type;
     bool reference;
 
 public:
@@ -373,7 +371,7 @@ public:
     ParamNode(std::string name, std::string type, int line);
     ~ParamNode() override;
     std::string getName() const;
-    TokenType getType() const;
+    std::string getType() const;
     bool isReference() const;
     virtual void print(int depth = 0) const override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
@@ -382,8 +380,7 @@ public:
 struct FuncNode : Node
 {
 private:
-    std::string name;
-    TokenType returnType;
+    std::string name, returnType;
     std::vector<ParamNode *> parameters;
     BlockNode *body;
     bool emptyFunction;
@@ -392,6 +389,9 @@ public:
     FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line);
     ~FuncNode() override;
     virtual void print(int depth = 0) const override;
+    std::string getName() const;
+    std::string getType() const;
+    std::vector<ParamNode *> getParameters() const;
     void addSignatureToTable(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, bool includeParams = true);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
@@ -408,6 +408,7 @@ public:
     ContainerNode(std::string name, std::vector<Node *> body, int line);
     ~ContainerNode() override;
     virtual void print(int depth = 0) const override;
+    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
 };
 
 struct IfStmtNode : Node

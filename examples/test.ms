@@ -2,23 +2,22 @@ container Person:
     int age, year, date
     char test, testing
 
-    Person(int a, int b):
+    getNumber(int a, int b):
         age = a
         year = b
 
-    getAge() -> int:
-        return age
-
-    getYear() -> int:
-        return year
-
-func getNumber() -> int:
-    return 10
+func getNumber(Person x) -> int:
+    print('c')
+    print('c')
+    print('c')
+    print('c')
+    return 324
 
 func test(int x):
     x = toInt('c') ^ 2
 
-Person y = 34
+decimal y = 342.3
 int b = 45
 test(y)
 print(y)
+b = 32

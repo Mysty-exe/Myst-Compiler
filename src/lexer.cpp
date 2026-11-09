@@ -39,12 +39,16 @@ bool validNumber(const std::string &number)
         if (!(number[i] >= '0' && number[i] <= '9'))
             return false;
     }
+
+    if (decimal && number.size() <= 1)
+        return false;
+
     return true;
 }
 
 const std::vector<std::string> Token::reservedFunctions = {"__main__"};
 const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"print", "var", "CHARTYPE"}, {"input"}, {"exit", "INTTYPE"}};
-const std::vector<std::string> Token::keywords = {"import", "export", "as", "ref", "func", "ref", "var", "if", "elseif", "while", "break", "skip", "return", "and", "or", "not"};
+const std::vector<std::string> Token::keywords = {"void", "new", "import", "export", "as", "ref", "func", "ref", "var", "if", "elseif", "while", "break", "skip", "return", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "^", "<", ">", "!", "==", "!=", "<=", ">=", "->", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", "^", ":", "<", ">", "(", ")", "{", "}", ",", ".", "!"};
@@ -350,6 +354,11 @@ std::string Token::getType(TokenType type)
     default:
         return "UNKNOWN";
     }
+}
+
+bool Token::isDataType(std::string str)
+{
+    return (str == "CHARTYPE" || str == "STRINGTYPE" || str == "INTTYPE" || str == "DECIMALTYPE" || str == "BOOLTYPE");
 }
 
 std::string Token::getToken() const
