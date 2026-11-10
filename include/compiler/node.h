@@ -386,11 +386,12 @@ private:
     bool emptyFunction;
 
 public:
-    FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line);
+    FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line, bool isConstructor = false);
     ~FuncNode() override;
     virtual void print(int depth = 0) const override;
     std::string getName() const;
     std::string getType() const;
+    void setReturnType(std::string type);
     std::vector<ParamNode *> getParameters() const;
     void addSignatureToTable(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, bool includeParams = true);
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
@@ -402,13 +403,15 @@ struct ContainerNode : Node
 {
 private:
     std::string name;
-    std::vector<Node *> body;
+    std::vector<IdentifierNode *> variables;
+    std::vector<FuncNode *> functions;
 
 public:
-    ContainerNode(std::string name, std::vector<Node *> body, int line);
+    ContainerNode(std::string name, std::vector<IdentifierNode *> variables, std::vector<FuncNode *> functions, int line);
     ~ContainerNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
+    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
 };
 
 struct IfStmtNode : Node

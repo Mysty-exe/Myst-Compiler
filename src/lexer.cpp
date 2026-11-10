@@ -48,7 +48,7 @@ bool validNumber(const std::string &number)
 
 const std::vector<std::string> Token::reservedFunctions = {"__main__"};
 const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"print", "var", "CHARTYPE"}, {"input"}, {"exit", "INTTYPE"}};
-const std::vector<std::string> Token::keywords = {"void", "new", "import", "export", "as", "ref", "func", "ref", "var", "if", "elseif", "while", "break", "skip", "return", "and", "or", "not"};
+const std::vector<std::string> Token::keywords = {"void", "this", "new", "import", "export", "as", "ref", "func", "ref", "var", "if", "elseif", "while", "break", "skip", "return", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "^", "<", ">", "!", "==", "!=", "<=", ">=", "->", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", "^", ":", "<", ">", "(", ")", "{", "}", ",", ".", "!"};
@@ -123,6 +123,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::REF;
     else if (value == "var")
         type = TokenType::VAR;
+    else if (value == "this")
+        type = TokenType::THIS;
     else if (value == "if")
         type = TokenType::IF;
     else if (value == "elseif")
@@ -265,6 +267,8 @@ std::string Token::getType(TokenType type)
         return "MODULE";
     case TokenType::FUNC:
         return "FUNC";
+    case TokenType::THIS:
+        return "THIS";
     case TokenType::REF:
         return "REF";
     case TokenType::VAR:

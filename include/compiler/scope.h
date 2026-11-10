@@ -130,14 +130,31 @@ public:
 struct ContainerSymbol : Symbol
 {
 private:
+    std::vector<VarSymbol *> variables;
+    std::vector<FuncSymbol *> functions;
+
 public:
-    ContainerSymbol(int line, std::string name, bool used = true, std::string type = "") : Symbol(line, used, name, type)
+    ContainerSymbol(int line, std::string name, std::vector<VarSymbol *> variables, std::vector<FuncSymbol *> functions, bool used = true, std::string type = "") : Symbol(line, used, name, type)
     {
+        this->variables = variables;
+        this->functions = functions;
+        this->used = used;
+        this->type = type;
     }
 
     virtual std::string getType() override
     {
         return "CONTAINER";
+    }
+
+    std::vector<VarSymbol *> getVariables()
+    {
+        return variables;
+    }
+
+    std::vector<FuncSymbol *> getFunctions()
+    {
+        return functions;
     }
 };
 

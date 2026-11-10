@@ -40,8 +40,8 @@ public:
     void setSymbolTable(std::unordered_map<std::string, Scope> symbolTable);
     void buildExports(const std::vector<std::vector<Token>> &tokens, int &startLine);
     Node *buildIdentifier(const std::vector<Token> &line, int start, int end);
-    std::vector<Node *> buildContainer(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent);
-    BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false, bool inLoop = false);
+    std::vector<Node *> buildContainer(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, const std::string &name);
+    BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inContainer = false, bool inFunction = false, bool inLoop = false);
     void buildTree(const std::vector<std::vector<Token>> &tokens);
     void format();
     void printTree() const;

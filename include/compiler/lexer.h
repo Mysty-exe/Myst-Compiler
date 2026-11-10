@@ -13,6 +13,7 @@ enum class TokenType
     EXPORT,
     MODULE,
     AS,
+    THIS,
     FUNC,
     REF,
     VAR,

@@ -115,8 +115,10 @@ std::string mapTypeIR(const std::string &type)
         return "double";
     if (type == "BOOLTYPE")
         return "i1";
+    if (type == "void")
+        return "void";
 
-    return "void";
+    return "%" + type;
 }
 
 std::string mapNumBytesIR(const std::string &type)
@@ -130,7 +132,7 @@ std::string mapNumBytesIR(const std::string &type)
     if (type == "BOOLTYPE")
         return "1";
 
-    return "0";
+    return "4";
 }
 
 bool canCoerce(std::string origType, std::string newType)
@@ -1683,7 +1685,7 @@ void ParamNode::print(int depth) const
     std::cout << depthTabs << "ParameterNode: " << getDataTypeStr(type) << " " << name << (reference ? ", Reference" : "") << std::endl;
 }
 
-FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line)
+FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line, bool isConstructor)
 {
     this->name = name;
     this->parameters = parameters;
@@ -1716,16 +1718,32 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<ParamNo
 
         if (returnStmts.size() != 0)
         {
+            if (!isConstructor && returnType == "void")
+                throwSemanticError(line + 1, "Return Statement found in a function that returns void.");
+
             for (int i = 0; i < returnStmts.size(); i++)
             {
                 ReturnStmtNode *returnStmt = static_cast<ReturnStmtNode *>(returnStmts[i]);
-                returnStmt->setType(this->returnType);
+                if (!isConstructor)
+                    returnStmt->setType(this->returnType);
+                else
+                    returnStmt->setType(name);
             }
         }
         else
         {
-            if (this->returnType != "void")
+            if (isConstructor)
+                body->addStatement(new ReturnStmtNode(new IdentifierNode("this", name)));
+            else if (this->returnType != "void")
                 throwSemanticError(line + 1, "Return Statement not found in function.");
+        }
+    }
+    else
+    {
+        if (isConstructor)
+        {
+            body->addStatement(new ReturnStmtNode(new IdentifierNode("this", name)));
+            emptyFunction = false;
         }
     }
 }
@@ -1757,6 +1775,10 @@ std::string FuncNode::getName() const
 std::string FuncNode::getType() const
 {
     return returnType;
+}
+void FuncNode::setReturnType(std::string type)
+{
+    this->returnType = type;
 }
 std::vector<ParamNode *> FuncNode::getParameters() const
 {
@@ -1930,15 +1952,22 @@ void FuncNode::findReturnStmts(std::vector<Node *> &stmts)
     }
 }
 
-ContainerNode::ContainerNode(std::string name, std::vector<Node *> body, int line)
+ContainerNode::ContainerNode(std::string name, std::vector<IdentifierNode *> variables, std::vector<FuncNode *> functions, int line)
 {
     this->name = name;
-    this->body = body;
+    this->variables = variables;
+    this->functions = functions;
     this->line = line;
 }
 ContainerNode::~ContainerNode()
 {
-    for (Node *node : body)
+    for (Node *node : variables)
+    {
+        delete node;
+        node = nullptr;
+    }
+
+    for (Node *node : functions)
     {
         delete node;
         node = nullptr;
@@ -1948,20 +1977,14 @@ void ContainerNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "ContainerNode: " << name << std::endl;
-    std::cout << depthTabs << "\tVariables: " << std::endl;
 
-    for (Node *node : body)
-    {
-        if (dynamic_cast<IdentifierNode *>(node))
-            node->print(depth + 2);
-    }
+    std::cout << depthTabs << "\tVariables: " << std::endl;
+    for (Node *node : variables)
+        node->print(depth + 2);
 
     std::cout << depthTabs << "\tMethods: " << std::endl;
-    for (Node *node : body)
-    {
-        if (dynamic_cast<FuncNode *>(node))
-            node->print(depth + 2);
-    }
+    for (Node *node : functions)
+        node->print(depth + 2);
 }
 void ContainerNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols)
 {
@@ -1975,62 +1998,82 @@ void ContainerNode::checkSemantics(std::unordered_map<std::string, Scope> &symbo
         }
     }
 
-    std::vector<Symbol *> symbols;
-    for (Node *var : body)
+    std::vector<VarSymbol *> varSymbols;
+    for (IdentifierNode *identifier : variables)
     {
-        if (IdentifierNode *identifier = dynamic_cast<IdentifierNode *>(var))
+        for (Symbol *symbol : varSymbols)
         {
-            for (Symbol *symbol : symbols)
-            {
-                if (symbol->getName() == identifier->getName() && symbol->getType() == "VAR")
-                    throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a variable in container '" + name + "'.");
-
-                if (symbol->getName() == identifier->getName() && symbol->getType() == "FUNC")
-                    throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a function in container '" + name + "'.");
-            }
-            symbols.push_back(new VarSymbol(identifier->getLine(), true, identifier->getName(), identifier->getType()));
+            if (symbol->getName() == identifier->getName() && symbol->getType() == "VAR")
+                throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a variable in container '" + name + "'.");
         }
 
-        if (FuncNode *func = dynamic_cast<FuncNode *>(var))
+        varSymbols.push_back(new VarSymbol(identifier->getLine(), true, identifier->getName(), identifier->getType()));
+    }
+
+    std::vector<FuncSymbol *> funcSymbols;
+    for (FuncNode *func : functions)
+    {
+        for (Symbol *symbol : varSymbols)
         {
-            for (Symbol *symbol : symbols)
+            if (symbol->getName() == func->getName() && symbol->getType() == "VAR")
+                throwSemanticError(func->getLine(), "'" + func->getName() + "' has already been declared as a variable in container '" + name + "'.");
+        }
+
+        for (Symbol *symbol : funcSymbols)
+        {
+            if (symbol->getName() == func->getName() && symbol->getType() == "FUNC")
             {
-                if (symbol->getName() == func->getName() && symbol->getType() == "VAR")
-                    throwSemanticError(func->getLine(), "'" + func->getName() + "' has already been declared as a variable in container '" + name + "'.");
-
-                if (symbol->getName() == func->getName() && symbol->getType() == "FUNC")
+                if (symbol->getType() == "FUNC" && symbol->getName() == name)
                 {
-                    if (symbol->getType() == "FUNC" && symbol->getName() == name)
+                    FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
+                    if (derivedSymbol->getNumParameters() == func->getParameters().size())
                     {
-                        FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
-                        if (derivedSymbol->getNumParameters() == func->getParameters().size())
+                        bool sameFuncFlag = true;
+                        for (int i = 0; i < func->getParameters().size(); i++)
                         {
-                            bool sameFuncFlag = true;
-                            for (int i = 0; i < func->getParameters().size(); i++)
+                            if (func->getParameters()[i]->getType() != derivedSymbol->getParameters()[i])
                             {
-                                if (func->getParameters()[i]->getType() != derivedSymbol->getParameters()[i])
-                                {
-                                    sameFuncFlag = false;
-                                    break;
-                                }
+                                sameFuncFlag = false;
+                                break;
                             }
-
-                            if (sameFuncFlag)
-                                throwSemanticError(func->getLine(), "'" + func->getName() + "' has already been declared as a function in container '" + name + "' with the same parameters.");
                         }
+
+                        if (sameFuncFlag)
+                            throwSemanticError(func->getLine(), "'" + func->getName() + "' has already been declared as a function in container '" + name + "' with the same parameters.");
                     }
                 }
             }
-
-            std::vector<std::string> parameters;
-            for (int i = 0; i < func->getParameters().size(); i++)
-                parameters.push_back(func->getParameters()[i]->getType());
-
-            symbols.push_back(new FuncSymbol(func->getLine(), true, func->getName(), func->getType(), true, parameters));
         }
+
+        if (func->getName() == name)
+        {
+            if (func->getType() != name && func->getType() != "void")
+                throwSemanticError(func->getLine(), "'" + func->getName() + "' must return a class object.");
+
+            func->setReturnType(name);
+        }
+
+        std::vector<std::string> parameters;
+        for (int i = 0; i < func->getParameters().size(); i++)
+            parameters.push_back(func->getParameters()[i]->getType());
+
+        funcSymbols.push_back(new FuncSymbol(func->getLine(), true, func->getName(), func->getType(), true, parameters));
     }
 
-    symbolTable[visibleScope[0]].addSymbol(new ContainerSymbol(line, name));
+    ContainerSymbol *container = new ContainerSymbol(line, name, varSymbols, funcSymbols);
+    symbolTable[visibleScope[0]].addSymbol(container);
+}
+void ContainerNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global, std::string prefix)
+{
+    ir += "%" + name + " = type {\n";
+    for (int i = 0; i < variables.size(); i++)
+    {
+        if (i == variables.size() - 1)
+            ir += mapTypeIR(variables[i]->getType()) + "\n";
+        else
+            ir += mapTypeIR(variables[i]->getType()) + ", \n";
+    }
+    ir += "}\n\n";
 }
 
 CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
@@ -2295,7 +2338,7 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
         auto scope = symbolTable[visibleScope[i]];
         for (Symbol *symbol : scope.getSymbols())
         {
-            if (symbol->getType() == "FUNC" && symbol->getName() == name)
+            if ((symbol->getType() == "FUNC" && symbol->getName() == name))
             {
                 overridenFunction = true;
                 if (type == "" || symbol->getDataType() == type || canCoerce(symbol->getDataType(), type))
@@ -2343,6 +2386,12 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                 }
                 else
                     return false;
+            }
+
+            if (symbol->getType() == "CONTAINER" && symbol->getName() == name)
+            {
+                this->returnType = symbol->getName();
+                return true;
             }
         }
     }
@@ -2400,6 +2449,11 @@ std::string CallExprNode::inferType(std::unordered_map<std::string, Scope> &symb
             {
                 returnType = symbol->getDataType();
                 return symbol->getDataType();
+            }
+            if (symbol->getType() == "CONTAINER" && symbol->getName() == name)
+            {
+                returnType = symbol->getName();
+                return symbol->getName();
             }
         }
     }
@@ -3376,6 +3430,11 @@ ReturnStmtNode::~ReturnStmtNode()
 void ReturnStmtNode::setType(std::string type)
 {
     this->returnType = type;
+    if (IdentifierNode *id = dynamic_cast<IdentifierNode *>(identifier))
+    {
+        if (id->getName() == "this")
+            id->setType(returnType);
+    }
 }
 void ReturnStmtNode::print(int depth) const
 {
@@ -3400,7 +3459,7 @@ void ReturnStmtNode::checkSemantics(std::unordered_map<std::string, Scope> &symb
                     throwSemanticError(line, "Return statement found without an identifier.");
 
                 if (returnType == "void" && identifier != nullptr)
-                    throwSemanticError(line, "Return statement found in a function that doesn't have a return type.");
+                    throwSemanticError(line, "Return Statement found in a function that returns void.");
 
                 if (identifier != nullptr && !identifier->checkType(symbolTable, visibleScope, prefixSymbols, returnType) && !canCoerce(identifier->inferType(symbolTable, visibleScope, prefixSymbols), returnType))
                     throwSemanticError(line, "Return statement doesn't return the required return type.");
