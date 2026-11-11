@@ -182,7 +182,7 @@ int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, bool imp
             {
                 std::string f1 = ast->getRoot()->getFileName(), f2 = asts[1]->getRoot()->getFileName();
                 std::string f1name = ast->getImports()[i], f2name = asts[1]->getImports()[k];
-                if (f2.substr(f2.size() - f1name.size() - 3, f1name.size()) == f1name || f1.substr(f1.size() - f2name.size() - 3, f2name.size()) == f1name)
+                if (f2.substr(f2.size() - f1name.size() - 3, f1name.size()) == f1name || f1.substr(f1.size() - f2name.size() - 3, f2name.size()) == f2name)
                     throwImportError("Module A depends on Module B which depends back on Module A.");
             }
         }

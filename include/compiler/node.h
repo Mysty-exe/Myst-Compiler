@@ -123,11 +123,11 @@ public:
         else
         {
             bool globalVar = true;
-            for (int i = 0; i < tempvarMap.size(); i++)
+            for (int i = tempvarMap.size() - 1; i >= 0; i--)
             {
-                for (int j = 0; j < tempvarMap[i].size(); j++)
+                for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
                 {
-                    if (tempvarMap[i][j].size() == 1 && tempvarMap[i][j][0] == assignmentName)
+                    if (tempvarMap[i][j].size() == 2 && tempvarMap[i][j][0] == assignmentName && tempvarMap[i][j][1] == "ptr")
                     {
                         globalVar = false;
                         localOrGlobal = "%";
@@ -135,6 +135,9 @@ public:
                         break;
                     }
                 }
+
+                if (!globalVar)
+                    break;
             }
 
             if (globalVar)
