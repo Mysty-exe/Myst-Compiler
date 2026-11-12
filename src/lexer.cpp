@@ -4,7 +4,7 @@ bool validModule(const std::string &module)
 {
     for (int i = 0; i < module.size(); i++)
     {
-        if (!std::isalpha(module[i]) && module[i] != '.' && !std::isdigit(module[i]))
+        if (!std::isalpha(module[i]) && module[i] != '.' && module[i] != '_' && !std::isdigit(module[i]))
             return false;
     }
     return true;
@@ -39,9 +39,13 @@ bool validNumber(const std::string &number)
         if (!(number[i] >= '0' && number[i] <= '9'))
             return false;
     }
+
+    if (decimal && number.size() <= 1)
+        return false;
     return true;
 }
 
+// Constants
 const std::vector<std::string> Token::reservedFunctions = {"__main__"};
 const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"print", "var", "CHARTYPE"}, {"input"}, {"exit", "INTTYPE"}};
 const std::vector<std::string> Token::keywords = {"import", "export", "as", "ref", "func", "ref", "var", "if", "elseif", "while", "break", "skip", "return", "and", "or", "not"};
@@ -61,8 +65,11 @@ Token::Token(std::string value, int line, int col)
     this->lineNumber = line;
     this->columnNumber = col;
 
+    // Get Comments
     if (value.size() > 1 && value.substr(0, 2) == "//")
         type = TokenType::COMMENT;
+
+    // Get Characters
     else if (value[0] == '\'' && value[value.size() - 1] == '\'')
     {
         if (value[1] == '\\')
@@ -79,11 +86,15 @@ Token::Token(std::string value, int line, int col)
             type = TokenType::CHAR;
         }
     }
+
+    // Get Strings
     else if ((value[0] == '\"' && value[value.size() - 1] == '\"'))
     {
         value = value.substr(1, value.size() - 1);
         type = TokenType::STRING;
     }
+
+    // Get Numbers
     else if (validNumber(value))
     {
         if (std::count(value.begin(), value.end(), '.') == 1)
@@ -91,6 +102,7 @@ Token::Token(std::string value, int line, int col)
         else if (std::count(value.begin(), value.end(), '.') == 0)
             type = TokenType::INT;
     }
+
     else if (value == "true" || value == "false")
         type = TokenType::BOOL;
     else if (value == "char")
@@ -369,6 +381,7 @@ Lexer::Lexer()
 
 void Lexer::addTabsInLine(const std::string &line, int lineNum, int &col)
 {
+    // Get both tabs and spaces
     for (int i = 0; i < line.size(); i++)
     {
         if (line[i] == '\t')
@@ -394,7 +407,7 @@ bool Lexer::validNumber(const std::string &str) const
     try
     {
         size_t pos;
-        double test = std::stod(str, &pos);
+        std::stod(str, &pos);
         return pos == str.size();
     }
     catch (const std::out_of_range &)
@@ -461,97 +474,123 @@ void Lexer::addCurrentToken(std::string &token, int lineNum, int col)
     }
 }
 
-void Lexer::tokenizeFile(std::ifstream &file)
+void Lexer::tokenizeLine(const std::string &line)
 {
-    tokens.clear();
+    tokens.push_back({});
+    int col = 0;
+    addTabsInLine(line, lineNum + 1, col);
 
-    int lineNum = 0;
-    std::string line, currentToken;
-    bool inString = false;
-    bool inImport = false;
+    if (line.substr(0, 6) == "import")
+        inImport = true;
 
-    while (std::getline(file, line))
+    for (col; col < line.size(); col++)
     {
-        tokens.push_back({});
-        int col = 0;
-        addTabsInLine(line, lineNum + 1, col);
-
-        if (line.substr(0, 6) == "import")
-            inImport = true;
-
-        for (col; col < line.size(); col++)
+        if (stringHasntEnded(inString, line, col))
         {
-            if (stringHasntEnded(inString, line, col))
-            {
-                currentToken += line[col];
-                continue;
-            }
+            currentToken += line[col];
+            continue;
+        }
 
-            if (commentStarted(line, col))
-            {
+        if (commentStarted(line, col))
+        {
+            addCurrentToken(currentToken, lineNum + 1, col + 1);
+            break;
+        }
+
+        if (line[col] == ' ')
+        {
+            addCurrentToken(currentToken, lineNum + 1, col + 1);
+            continue;
+        }
+
+        if (startedNewString(line, col))
+        {
+            if (!inString)
                 addCurrentToken(currentToken, lineNum + 1, col + 1);
-                break;
-            }
 
-            if (line[col] == ' ')
-            {
+            currentToken += line[col];
+            inString = !inString;
+            if (!inString)
                 addCurrentToken(currentToken, lineNum + 1, col + 1);
-                continue;
-            }
+            continue;
+        }
 
-            if (startedNewString(line, col))
+        // Check if import was in the line
+        if (inImport)
+        {
+            if (tokens[tokens.size() - 1].size() > 0)
             {
-                if (!inString)
-                    addCurrentToken(currentToken, lineNum + 1, col + 1);
-
-                currentToken += line[col];
-                inString = !inString;
-                if (!inString)
-                    addCurrentToken(currentToken, lineNum + 1, col + 1);
-                continue;
-            }
-
-            if (inImport)
-            {
-                if (tokens[tokens.size() - 1].size() > 0)
+                Token lastPushedToken = tokens[tokens.size() - 1][tokens[tokens.size() - 1].size() - 1];
+                if (lastPushedToken.getToken() == "IMPORT")
                 {
-                    Token lastPushedToken = tokens[tokens.size() - 1][tokens[tokens.size() - 1].size() - 1];
-                    if (lastPushedToken.getToken() == "IMPORT")
-                    {
-                        currentToken += line[col];
-                        continue;
-                    }
-                }
-            }
-
-            if (isATwoCharOperator(line, col))
-            {
-                addCurrentToken(currentToken, lineNum + 1, col + 1);
-
-                tokens[tokens.size() - 1].push_back(Token(line.substr(col, 2), lineNum + 1, line.size()));
-                col += 1;
-                continue;
-            }
-
-            if (isAOneCharOperator(line, col))
-            {
-                if (!isNegativeNumber(line, col))
-                {
-                    addCurrentToken(currentToken, lineNum + 1, col + 1);
-                    tokens[tokens.size() - 1].push_back(Token(std::string() + line[col], lineNum + 1, line.size()));
+                    currentToken += line[col];
                     continue;
                 }
             }
+        }
 
-            currentToken += line[col];
-        };
+        if (isATwoCharOperator(line, col))
+        {
+            addCurrentToken(currentToken, lineNum + 1, col + 1);
 
-        addCurrentToken(currentToken, lineNum + 1, col + 1);
-        inString = false;
-        inImport = false;
+            tokens[tokens.size() - 1].push_back(Token(line.substr(col, 2), lineNum + 1, line.size()));
+            col += 1;
+            continue;
+        }
 
-        tokens[tokens.size() - 1].push_back(Token("\n", lineNum + 1, line.size()));
-        lineNum += 1;
+        if (isAOneCharOperator(line, col))
+        {
+            if (!isNegativeNumber(line, col))
+            {
+                addCurrentToken(currentToken, lineNum + 1, col + 1);
+                tokens[tokens.size() - 1].push_back(Token(std::string() + line[col], lineNum + 1, line.size()));
+                continue;
+            }
+        }
+
+        currentToken += line[col];
+    };
+
+    addCurrentToken(currentToken, lineNum + 1, col + 1);
+    inString = false;
+    inImport = false;
+
+    tokens[tokens.size() - 1].push_back(Token("\n", lineNum + 1, line.size()));
+    lineNum += 1;
+}
+
+void Lexer::tokenizeFile(const std::string &file)
+{
+    lineNum = 0;
+    inString = false;
+    inImport = false;
+
+    tokens.clear();
+
+    std::stringstream ss(file);
+    std::string line;
+
+    while (std::getline(ss, line))
+    {
+        tokenizeLine(line);
+    }
+
+    tokens.push_back({Token("\n", lineNum, line.size())});
+}
+
+void Lexer::tokenizeFile(std::ifstream &file)
+{
+    lineNum = 0;
+    inString = false;
+    inImport = false;
+
+    tokens.clear();
+
+    std::string line;
+
+    while (std::getline(file, line))
+    {
+        tokenizeLine(line);
     }
 
     tokens.push_back({Token("\n", lineNum, line.size())});

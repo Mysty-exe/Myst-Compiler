@@ -45,108 +45,42 @@ set_target_properties(mystc PROPERTIES
 
 find_package(Python3 REQUIRED)
 
-add_test(
-    NAME GoldenExpressions
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-    $<TARGET_FILE:mystc>
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/expr_comprehensive.ms
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/expr_comprehensive.out
-    ../tests/
+file(GLOB TEST_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/*.ms)
+
+foreach(TEST_FILE ${TEST_FILES})
+    string(REPLACE ".ms" "" TEST_NAME ${TEST_FILE})
+
+    set(TEST_MS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/${TEST_FILE}")
+    set(TEST_OUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests/output/${TEST_NAME}.out")
+
+    add_test(
+        NAME Golden_${TEST_NAME}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
+        $<TARGET_FILE:mystc>
+        ${TEST_MS_PATH}
+        ${TEST_OUT_PATH}
+    )
+endforeach()
+
+include(FetchContent)
+FetchContent_Declare(
+    Catch2
+    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+    GIT_TAG v3.4.0
+)
+FetchContent_MakeAvailable(Catch2)
+
+# Create the unit test executable pointing to your single test file
+add_executable(unit_tests
+    tests/units/test_lexer.cpp
 )
 
-add_test(
-    NAME GoldenFactorial
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-    $<TARGET_FILE:mystc>
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/factorial.ms
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/factorial.out
-    ../tests/
-)
+# Link against your compiler core library and Catch2
+target_link_libraries(unit_tests PRIVATE myst_lib Catch2::Catch2WithMain)
 
-add_test(
-    NAME GoldenReferences
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-    $<TARGET_FILE:mystc>
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/references.ms
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/references.out
-    ../tests/
-)
+# Include directories so it can find your headers
+target_include_directories(unit_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/include) # Adjust to your include folder
 
-add_test(
-    NAME GoldenDecimals
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-    $<TARGET_FILE:mystc>
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/decimals.ms
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/decimals.out
-    ../tests/
-)
-
-add_test(
-    NAME GoldenTypesAndVars
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-    $<TARGET_FILE:mystc>
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/types_and_vars.ms
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/types_and_vars.out
-    ../tests/
-)
-
-add_test(
-    NAME GoldenMultipleReferences
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-    $<TARGET_FILE:mystc>
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/multiple_references.ms
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/multiple_references.out
-    ../tests/
-)
-
-add_test(
-    NAME GoldenMultipleReturns
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-    $<TARGET_FILE:mystc>
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/multiple_returns.ms
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/multiple_returns.out
-    ../tests/
-)
-
-add_test(
-    NAME GoldenNestedLoops
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-    $<TARGET_FILE:mystc>
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/nested_loops.ms
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/nested_loops.out
-    ../tests/
-)
-
-add_test(
-    NAME GoldenScopeShadowing
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-    $<TARGET_FILE:mystc>
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/scope_shadowing.ms
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/scope_shadowing.out
-    ../tests/
-)
-
-add_test(
-    NAME GoldenScopeImportsExports
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-    $<TARGET_FILE:mystc>
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/modules/utility_import.ms
-    ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/utility.out
-    ../tests/modules/
-)
-
-# add_test(
-# NAME GoldenScopeContainers
-# COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-# $<TARGET_FILE:mystc>
-# ${CMAKE_CURRENT_SOURCE_DIR}/tests/containers.ms
-# ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/containers.out
-# )
-
-# add_test(
-# NAME GoldenImportExportContainers
-# COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
-# $<TARGET_FILE:mystc>
-# ${CMAKE_CURRENT_SOURCE_DIR}/tests/modules/import_containers.ms
-# ${CMAKE_CURRENT_SOURCE_DIR}/tests/output/import_export_containers.out
-# )
+# Register with CTest so it runs alongside your golden tests
+enable_testing()
+add_test(NAME Unit_Lexer COMMAND unit_tests)

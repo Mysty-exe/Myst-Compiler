@@ -1,5 +1,7 @@
 #include "compiler/node.h"
 
+int DIVBYZERO = 0;
+
 void throwLexicalError(int line, std::string message)
 {
     throw LexicalError(RootNode::getCurrentFile() + " - Lexical Error on line " + std::to_string(line) + ": " + message);
@@ -7,7 +9,7 @@ void throwLexicalError(int line, std::string message)
 
 void throwSyntaxError(int line, std::string message)
 {
-    throw LexicalError(RootNode::getCurrentFile() + " - Syntax Error on line " + std::to_string(line) + ": " + message);
+    throw SyntaxError(RootNode::getCurrentFile() + " - Syntax Error on line " + std::to_string(line) + ": " + message);
 }
 
 void throwSemanticWarning(int line, std::string message)
@@ -26,20 +28,19 @@ void throwSemanticError(int line, std::string message)
 void checkForDivisionByZero(std::string tempVar, std::string type, std::string &ir)
 {
     if (type == "INTTYPE")
-        ir += "%is_zero = icmp eq i32 " + tempVar + ", 0";
+        ir += "%.is_zero_" + std::to_string(DIVBYZERO) + " = icmp eq i32 " + tempVar + ", 0";
     else
-        ir += "%is_zero = fcmp oeq double " + tempVar + ", 0.0";
+        ir += "%.is_zero_" + std::to_string(DIVBYZERO) + " = fcmp oeq double " + tempVar + ", 0.0";
 
-    ir += R"(
-br i1 %is_zero, label %div_error, label %div_normal
-
-div_error:
-    call void @print_runtime_error(ptr @div_by_zero_msg)
+    ir += "\nbr i1 %.is_zero_" + std::to_string(DIVBYZERO) + ", label %div_error_" + std::to_string(DIVBYZERO) + ", label %div_normal_" + std::to_string(DIVBYZERO) + "\n";
+    ir += "div_error_" + std::to_string(DIVBYZERO) + ":\n";
+    ir += R"(call void @print_runtime_error(ptr @div_by_zero_msg)
     call void @myst_exit(i64 1)
     unreachable
 
-div_normal:
 )";
+    ir += "div_normal_" + std::to_string(DIVBYZERO) + ":\n";
+    DIVBYZERO++;
 }
 
 std::string repeat_string(const std::string &input, size_t num)
@@ -584,9 +585,9 @@ void IdentifierNode::loadVariables(std::string &ir, std::string &newType, std::v
                 if (newType == "DECIMALTYPE")
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
                 if (newType == "CHARTYPE")
-                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = trunc i32 %" + tempVarName + " to i8\n";
                 if (newType == "BOOLTYPE")
-                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = icmp ne i32 %" + tempVarName + ", 0\n";
                 tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
             }
             else if (Token::getType(type) == "DECIMALTYPE" && newType == "INTTYPE")
@@ -615,7 +616,7 @@ void IdentifierNode::loadVariables(std::string &ir, std::string &newType, std::v
     {
         for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
         {
-            if (tempvarMap[i][j][0].size() >= 7 && (tempvarMap[i][j][0].substr(0, 7) == ".ifnode" || tempvarMap[i][j][0].substr(0, 11) == ".elseifnode" || tempvarMap[i][j][0].substr(0, 9) == ".elsenode" || tempvarMap[i][j][0].substr(0, 10) == ".whilenode"))
+            if (tempvarMap[i][j][0].substr(0, 7) == ".ifnode" || tempvarMap[i][j][0].substr(0, 11) == ".elseifnode" || tempvarMap[i][j][0].substr(0, 9) == ".elsenode" || tempvarMap[i][j][0].substr(0, 10) == ".whilenode")
                 outOfScope -= 1;
             if (tempvarMap[i][j][0] == ".endScope")
                 outOfScope += 1;
@@ -634,9 +635,9 @@ void IdentifierNode::loadVariables(std::string &ir, std::string &newType, std::v
                         if (newType == "DECIMALTYPE")
                             ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
                         if (newType == "CHARTYPE")
-                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = trunc i32 %" + tempVarName + " to i8\n";
                         if (newType == "BOOLTYPE")
-                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                            ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = icmp ne i32 %" + tempVarName + ", 0\n";
                         tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
                     }
                     else if (Token::getType(type) == "DECIMALTYPE" && newType == "INTTYPE")
@@ -674,9 +675,9 @@ void IdentifierNode::loadVariables(std::string &ir, std::string &newType, std::v
                 if (newType == "DECIMALTYPE")
                     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
                 if (newType == "CHARTYPE")
-                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = trunc i32 %" + tempVarName + " to i8\n";
                 if (newType == "BOOLTYPE")
-                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + tempVarName + " to double\n";
+                    ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = icmp ne i32 %" + tempVarName + ", 0\n";
                 tempvarMap[tempvarMap.size() - 1].push_back({name, Token::getType(type), newType});
             }
             else if (Token::getType(type) == "DECIMALTYPE" && newType == "INTTYPE")
@@ -728,7 +729,7 @@ void IdentifierNode::storeValue(std::string &ir, std::string &newType, const std
     {
         for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
         {
-            if (tempvarMap[i][j][0].size() >= 7 && (tempvarMap[i][j][0].substr(0, 7) == ".ifnode" || tempvarMap[i][j][0].substr(0, 11) == ".elseifnode" || tempvarMap[i][j][0].substr(0, 9) == ".elsenode" || tempvarMap[i][j][0].substr(0, 10) == ".whilenode"))
+            if ((tempvarMap[i][j][0].substr(0, 7) == ".ifnode" || tempvarMap[i][j][0].substr(0, 11) == ".elseifnode" || tempvarMap[i][j][0].substr(0, 9) == ".elsenode" || tempvarMap[i][j][0].substr(0, 10) == ".whilenode"))
                 outOfScope -= 1;
             if (tempvarMap[i][j][0] == ".endScope")
                 outOfScope += 1;
@@ -1294,7 +1295,7 @@ void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std
     {
         for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
         {
-            if (tempvarMap[i][j][0].size() >= 7 && (tempvarMap[i][j][0].substr(0, 7) == ".ifnode" || tempvarMap[i][j][0].substr(0, 11) == ".elseifnode" || tempvarMap[i][j][0].substr(0, 9) == ".elsenode" || tempvarMap[i][j][0].substr(0, 10) == ".whilenode"))
+            if ((tempvarMap[i][j][0].substr(0, 7) == ".ifnode" || tempvarMap[i][j][0].substr(0, 11) == ".elseifnode" || tempvarMap[i][j][0].substr(0, 9) == ".elsenode" || tempvarMap[i][j][0].substr(0, 10) == ".whilenode"))
                 outOfScope -= 1;
             if (tempvarMap[i][j][0] == ".endScope")
                 outOfScope += 1;
@@ -1538,7 +1539,7 @@ void UnaryExprNode::storeValue(std::string &ir, std::string &newType, const std:
     {
         for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
         {
-            if (tempvarMap[i][j][0].size() >= 7 && (tempvarMap[i][j][0].substr(0, 7) == ".ifnode" || tempvarMap[i][j][0].substr(0, 11) == ".elseifnode" || tempvarMap[i][j][0].substr(0, 9) == ".elsenode" || tempvarMap[i][j][0].substr(0, 10) == ".whilenode"))
+            if ((tempvarMap[i][j][0].substr(0, 7) == ".ifnode" || tempvarMap[i][j][0].substr(0, 11) == ".elseifnode" || tempvarMap[i][j][0].substr(0, 9) == ".elsenode" || tempvarMap[i][j][0].substr(0, 10) == ".whilenode"))
                 outOfScope -= 1;
             if (tempvarMap[i][j][0] == ".endScope")
                 outOfScope += 1;
@@ -2012,7 +2013,7 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
         {
             std::string argType = arguments[0]->inferType(symbolTable, visibleScope, prefixSymbols);
             if (name == "toChar")
-                if (argType == "INTTYPE" || argType == "CHARTYPE")
+                if (argType == "INTTYPE")
                     returnType = "CHARTYPE";
                 else
                     throwSemanticError(line, "'" + name + "' can't be used with the type " + getDataTypeStr(argType) + ".");
@@ -2033,6 +2034,7 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                     throwSemanticError(line, "'" + name + "' can't be used with the type " + getDataTypeStr(argType) + ".");
 
             argTypes.push_back(argType);
+            arguments[0]->checkType(symbolTable, visibleScope, prefixSymbols, argType);
             return true;
         }
         else
@@ -2111,6 +2113,7 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                         }
 
                         this->argTypes.push_back(derivedSymbol->getParameters()[k]);
+                        arguments[k]->checkType(symbolTable, visibleScope, prefixSymbols, derivedSymbol->getParameters()[k]);
                         if (!canCoerce(arguments[k]->inferType(symbolTable, visibleScope, prefixSymbols), p))
                         {
                             if (!arguments[k]->checkType(symbolTable, visibleScope, prefixSymbols, p))
@@ -2174,6 +2177,7 @@ bool CallExprNode::checkType(std::unordered_map<std::string, Scope> &symbolTable
                         }
 
                         this->argTypes.push_back(derivedSymbol->getParameters()[k]);
+                        arguments[k]->checkType(symbolTable, visibleScope, prefixSymbols, derivedSymbol->getParameters()[k]);
                         if (!canCoerce(arguments[k]->inferType(symbolTable, visibleScope, prefixSymbols), p))
                         {
                             if (!arguments[k]->checkType(symbolTable, visibleScope, prefixSymbols, p))
@@ -2272,9 +2276,9 @@ void CallExprNode::storeValue(std::string &ir, std::string &newType, const std::
             if (newType == "DECIMALTYPE")
                 ir += "%" + tempVarName + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
             if (newType == "CHARTYPE")
-                ir += "%" + tempVarName + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                ir += "%" + tempVarName + " = trunc i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i8\n";
             if (newType == "BOOLTYPE")
-                ir += "%" + tempVarName + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                ir += "%" + tempVarName + " = icmp ne i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", 0\n";
             tempvarMap[tempvarMap.size() - 1].push_back({name, returnType, newType});
         }
         else if (returnType == "DECIMALTYPE" && newType == "INTTYPE")
@@ -2310,7 +2314,7 @@ void CallExprNode::storeValue(std::string &ir, std::string &newType, const std::
     {
         for (int j = tempvarMap[i].size() - 1; j >= 0; j--)
         {
-            if (tempvarMap[i][j][0].size() >= 7 && (tempvarMap[i][j][0].substr(0, 7) == ".ifnode" || tempvarMap[i][j][0].substr(0, 11) == ".elseifnode" || tempvarMap[i][j][0].substr(0, 9) == ".elsenode" || tempvarMap[i][j][0].substr(0, 10) == ".whilenode"))
+            if ((tempvarMap[i][j][0].substr(0, 7) == ".ifnode" || tempvarMap[i][j][0].substr(0, 11) == ".elseifnode" || tempvarMap[i][j][0].substr(0, 9) == ".elsenode" || tempvarMap[i][j][0].substr(0, 10) == ".whilenode"))
                 outOfScope -= 1;
             if (tempvarMap[i][j][0] == ".endScope")
                 outOfScope += 1;
@@ -2429,9 +2433,9 @@ void CallExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<
             if (returnType == "DECIMALTYPE")
                 ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
             if (returnType == "CHARTYPE")
-                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = trunc i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to i8\n";
             if (returnType == "BOOLTYPE")
-                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = sitofp i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + " to double\n";
+                ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = icmp ne i32 %" + std::to_string(tempvarMap[tempvarMap.size() - 1].size()) + ", 0\n";
             tempvarMap[tempvarMap.size() - 1].push_back({name, argTypes[0], returnType});
         }
         else if (argTypes[0] == "DECIMALTYPE" && returnType == "INTTYPE")
@@ -2763,11 +2767,11 @@ void IfStmtNode::mapCondition(std::string &ir, std::vector<std::vector<std::vect
     std::vector<std::string> loadedVars;
     std::string loadTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
     ir += "%" + loadTemp + " = alloca i1, align 1" + "\n";
-    tempvarMap[tempvarMap.size() - 1].push_back({".ifnode_" + loadTemp, "ptr"});
+    tempvarMap[tempvarMap.size() - 1].push_back({".ifcondition_" + loadTemp, "ptr"});
 
     std::string newType = "BOOLTYPE";
     condition->loadVariables(ir, newType, loadedVars, tempvarMap, prefixImports, global, prefix);
-    condition->storeValue(ir, newType, ".ifnode_" + loadTemp, tempvarMap, prefixImports, false, prefix);
+    condition->storeValue(ir, newType, ".ifcondition_" + loadTemp, tempvarMap, prefixImports, false, prefix);
     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
     tempvarMap[tempvarMap.size() - 1].push_back({".ifnode_" + loadTemp, "ptr"});
 }
@@ -2850,11 +2854,11 @@ void ElseIfStmtNode::mapCondition(std::string &ir, std::vector<std::vector<std::
     std::vector<std::string> loadedVars;
     std::string loadTemp = std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1);
     ir += "%" + loadTemp + " = alloca i1, align 1" + "\n";
-    tempvarMap[tempvarMap.size() - 1].push_back({".elseifnode_" + loadTemp, "ptr"});
+    tempvarMap[tempvarMap.size() - 1].push_back({".elseifcondition_" + loadTemp, "ptr"});
 
     std::string newType = "BOOLTYPE";
     condition->loadVariables(ir, newType, loadedVars, tempvarMap, prefixImports, global, prefix);
-    condition->storeValue(ir, newType, ".elseifnode_" + loadTemp, tempvarMap, prefixImports, false, prefix);
+    condition->storeValue(ir, newType, ".elseifcondition_" + loadTemp, tempvarMap, prefixImports, false, prefix);
     ir += "%" + std::to_string(tempvarMap[tempvarMap.size() - 1].size() + 1) + " = load i1" + ", ptr %" + loadTemp + ", align 1" + "\n";
     tempvarMap[tempvarMap.size() - 1].push_back({".elseifnode_" + loadTemp, "ptr"});
 }

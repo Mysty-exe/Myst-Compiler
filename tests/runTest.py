@@ -5,14 +5,13 @@ import sys
 compiler = sys.argv[1]
 source_file = sys.argv[2]
 expected_file = sys.argv[3]
-generated_binary_folder = sys.argv[4]
 
 # Check if Valgrind should be used on the compiler
 use_valgrind = os.environ.get("USE_VALGRIND", "0") == "1"
 
 # Determine the generated binary path based on how your compiler names it
 base_name = os.path.splitext(os.path.basename(source_file))[0]
-generated_binary = generated_binary_folder + base_name
+generated_binary = "../tests/integrations/" + base_name
 
 if os.path.exists(generated_binary):
     os.remove(generated_binary)

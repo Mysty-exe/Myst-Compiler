@@ -132,19 +132,24 @@ define void @myst_exit(i64 %status) {
 }
 )";
 #else
-    ir += R"(define void @myst_exit(i64 %status) {
+    ir += R"(declare i32 @fflush(ptr)
+
+define void @myst_exit(i64 %status) {
+    ; Flush stdout (NULL flushes all output streams in C's fflush)
+    call i32 @fflush(ptr null)
+    
+    ; Then execute the raw exit syscall
     call void asm sideeffect "syscall", "{rax},{rdi},~{dirflag},~{fpsr},~{flags},~{memory}" (
         i64 60,
         i64 %status
     )
     unreachable
 }
-
 )";
 #endif
 }
 
-std::string execCommand(const std::string &cmd)
+std::pair<std::string, int> execCommand(const std::string &cmd)
 {
     std::array<char, 128> buffer;
     std::string result;
@@ -160,14 +165,14 @@ std::string execCommand(const std::string &cmd)
         result += buffer.data();
     }
 
-    pclose(pipe);
-    return result;
+    int status = pclose(pipe);
+    return {result, status};
 }
 
-void LLVM::mapToIR(std::vector<AbstractSyntaxTree *> asts)
+void LLVM::mapToIR(std::vector<AbstractSyntaxTree *> asts, const std::string &outputFile)
 {
     std::vector<std::vector<std::vector<std::string>>> tempvarMap = {{}};
-    std::ofstream tempFile("temp.ll");
+    std::ofstream tempFile(outputFile + ".ll");
     if (!tempFile.is_open())
     {
         std::cerr << "\033[31m";
@@ -228,21 +233,27 @@ void LLVM::mapToIR(std::vector<AbstractSyntaxTree *> asts)
     tempFile.close();
 }
 
-void LLVM::generateExecutable(const std::string &outputFile)
+void LLVM::generateExecutable(const std::string &outputFile, bool keepIr)
 {
-    try
-    {
 #if defined(_WIN32)
-        std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile + ".exe");
+    std::string cmd = "clang -Wno-override-module " + outputFile + ".ll -o " + outputFile + ".exe";
 #else
-        std::string output = execCommand("clang -Wno-override-module temp.ll -o " + outputFile + " -lm");
+    std::string cmd = "clang -Wno-override-module " + outputFile + ".ll -o " + outputFile + " -lm";
 #endif
-        std::cout << output;
-    }
-    catch (const std::exception &e)
-    {
-        std::cerr << "Error: " << e.what() << std::endl;
-    }
 
-    // std::filesystem::remove("temp.ll");
+    auto [output, exitStatus] = execCommand(cmd);
+
+    // If Clang produced output (warnings or errors), print it
+    if (!output.empty())
+        std::cout << output;
+
+    // Check if Clang failed (non-zero exit status)
+    if (exitStatus != 0)
+        throw std::runtime_error("Clang compilation failed with exit code: " + std::to_string(exitStatus));
+
+    // Clean up the temporary IR file unless the keep flag is set
+    if (!keepIr)
+        std::filesystem::remove(outputFile + ".ll");
+    else
+        std::cout << "[Myst] Keeping intermediate IR file: " << outputFile << ".ll\n";
 }

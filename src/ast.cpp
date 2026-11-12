@@ -229,7 +229,7 @@ Token AbstractSyntaxTree::getNthToken(const std::vector<Token> &tokenLine, int n
     }
 
     throwSyntaxError(tokenLine[0].getLineNumber(), "Line couldn't be parsed.");
-    exit(-1);
+    return Token();
 }
 
 // Assumes Function isn't Tabbed
@@ -449,7 +449,7 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
                     {
                         if (level >= currentLevel)
                         {
-                            if ((line[i].getValue() == "+" || line[i].getValue() == "-") && line[i + 1].getToken() == "LPAREN")
+                            if ((line[i].getValue() == "+" || line[i].getValue() == "-"))
                             {
                                 if (i == start || (i - 1 >= start && std::find(Token::operators.begin(), Token::operators.end(), line[i - 1].getValue()) != Token::operators.end()))
                                     break;
@@ -462,7 +462,7 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
             }
         }
 
-        if (splitIndex != -1)
+        if (splitIndex != -1 && splitIndex != start)
         {
             BinaryExprNode *binaryExpr = new BinaryExprNode(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
             binaryExpr->setLine(line[start].getLineNumber());
@@ -471,7 +471,19 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
 
         if (line[start].getToken() == "PLUS" || line[start].getToken() == "MINUS" || line[start].getToken() == "NOT")
         {
-            UnaryExprNode *unaryExpr = new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, end));
+            int lparen = 0, rparen = 0, endIdentifier = end;
+            for (int i = start + 1; i <= end; i++)
+            {
+                endIdentifier = i;
+                if (line[i].getToken() == "LPAREN")
+                    lparen++;
+                if (line[i].getToken() == "RPAREN")
+                    rparen++;
+                if (std::find(Token::operators.begin(), Token::operators.end(), line[i].getValue()) != Token::operators.end() && lparen != rparen)
+                    endIdentifier = i - 1;
+            }
+
+            UnaryExprNode *unaryExpr = new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, endIdentifier));
             unaryExpr->setLine(line[start].getLineNumber());
             return unaryExpr;
         }

@@ -13,6 +13,6 @@
 class LLVM
 {
 public:
-    static void mapToIR(std::vector<AbstractSyntaxTree *> roots);
-    static void generateExecutable(const std::string &outputFile);
+    static void mapToIR(std::vector<AbstractSyntaxTree *> roots, const std::string &outputFile);
+    static void generateExecutable(const std::string &outputFile, bool keepIR = false);
 };

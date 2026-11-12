@@ -61,7 +61,22 @@ func checkNumber(int x):
 
 ---
 
-## 3. References and Memory Management
+## 3. Top-Level Execution (No `main` Required)
+
+Unlike traditional systems languages like C or C++, **Myst does not require a `main()` function**. 
+
+Myst supports **top-level execution** out of the box. Code written at the root level of a file executes sequentially from top to bottom on startup. This gives Myst a clean, modern feel suitable for both scripting and building large systems modules without boilerplate entry-point wrappers.
+
+```myst
+// Top-level statements run immediately
+int x = 10
+int y = 20
+print(x + y)
+```
+
+---
+
+## 4. References and Memory Management
 
 Because Myst is a systems language without a garbage collector, managing how data is passed into functions is critical for performance:
 
@@ -75,7 +90,7 @@ func increment(ref int val):
 
 ---
 
-## 4. Custom Types (Containers)
+## 5. Custom Types (Containers)
 
 Custom data aggregates in Myst are called **containers** and are defined by ending the declaration header with a **colon (`:`)**. Under the hood, these map directly to LLVM identified structs with strict hardware alignment and padding rules.
 
@@ -93,15 +108,14 @@ container Person:
 You can instantiate containers using their constructor and access or mutate their fields directly.
 
 ```myst
-func main() -> int:
-    Person p = Person(1, 30, 3, 'A', '1')
-    p.age = 31
-    return 0
+Person p = Person(1, 30, 3, 'A', '1')
+p.age = 31
+print(p.age)
 ```
 
 ---
 
-## 5. Modules, Imports, and Exports
+## 6. Modules, Imports, and Exports
 
 Myst uses a clean, file-based module system using standard **dot notation** for paths without file extension strings.
 
@@ -129,17 +143,15 @@ Other files import functionality using dot notation at the top of the file.
 // main.myst
 import math as M
 
-func main() -> int:
-    M::Vector v = M::Vector(10, 20)
-    M::Vector scaled = M::scale(v, 2)
-    return 0
+M::Vector v = M::Vector(10, 20)
+M::Vector scaled = M::scale(v, 2)
 ```
 
 ---
 
-## 6. A Complete Example Program
+## 7. A Complete Example Program
 
-Here is what a complete, working Myst script looks like, combining indentation-based control flow, explicit typing, containers, and output routines:
+Here is what a complete, working Myst script looks like, leveraging **top-level execution** directly without needing an explicit `main()` entry point:
 
 ```myst
 // factorial.ms
@@ -153,9 +165,8 @@ func computeFactorial(int n) -> int:
 
     return result
 
-func main() -> int:
-    int val = 5
-    int fact = computeFactorial(val)
-    print(fact)
-    return 0
+// Top-level execution runs immediately
+int val = 5
+int fact = computeFactorial(val)
+print(fact)
 ```
