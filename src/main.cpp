@@ -88,14 +88,13 @@ void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
             }
         }
 
-        std::unordered_map<std::string, Scope> symbolTable;
-        std::vector<std::string> visibleScope;
+        Table table;
+        table.setPrefixSymbols(ast->getPrefixSymbols());
 
         RootNode::setCurrentFile(ast->getRoot()->getFileName());
 
-        std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixSymbols = ast->getPrefixSymbols();
-        ast->getRoot()->checkSemantics(symbolTable, visibleScope, prefixSymbols);
-        ast->setSymbolTable(symbolTable);
+        ast->getRoot()->checkSemantics(table);
+        ast->setSymbolTable(table.getSymbolTable());
         loadedAsts.push_back(ast->getRoot()->getFileName());
 
         for (AbstractSyntaxTree *a : asts)
@@ -107,7 +106,7 @@ void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
             for (int i = 0; i < a->getImports().size(); i++)
             {
                 if (a->getImports()[i] == ast->getRoot()->getFileName())
-                    a->setSymbols(a->getPrefixes()[i], symbolTable);
+                    a->setSymbols(a->getPrefixes()[i], table.getSymbolTable());
             }
         }
 

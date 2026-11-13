@@ -10,6 +10,74 @@ void throwSemanticWarning(int line, std::string message);
 [[noreturn]] void throwSemanticError(int line, std::string message);
 std::string repeat_string(const std::string &input, size_t num);
 
+struct Table
+{
+    std::unordered_map<std::string, Scope> symbolTable;
+    std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixSymbols;
+    std::vector<std::string> visibleScope;
+
+    std::unordered_map<std::string, Scope> getSymbolTable()
+    {
+        return symbolTable;
+    }
+    std::unordered_map<std::string, std::unordered_map<std::string, Scope>> getPrefixSymbols()
+    {
+        return prefixSymbols;
+    }
+    void setPrefixSymbols(std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixes)
+    {
+        this->prefixSymbols = prefixes;
+    }
+    void addVisibleScope()
+    {
+        visibleScope.push_back(std::to_string(visibleScope.size() + 1));
+    }
+    std::string getLatestVisibleScope()
+    {
+        return getVisibleScope()[getVisibleScope().size() - 1];
+    }
+    void removeVisibleScope()
+    {
+        visibleScope.pop_back();
+    }
+    std::vector<std::string> getVisibleScope()
+    {
+        return visibleScope;
+    }
+    Scope getScope(std::string scope)
+    {
+        return symbolTable[scope];
+    }
+    void setScope(std::string visibleScope, Scope scope)
+    {
+        symbolTable[visibleScope] = scope;
+    }
+    void removeScope()
+    {
+        symbolTable[visibleScope[visibleScope.size() - 1]] = {};
+    }
+    void addSymbol(std::string scope, Symbol *symbol)
+    {
+        symbolTable[scope].addSymbol(symbol);
+    }
+};
+
+struct TemporaryVariables
+{
+    std::vector<std::vector<std::vector<std::string>>> tempvarMap;
+    std::unordered_map<std::string, std::string> prefixImports;
+
+    TemporaryVariables()
+    {
+        tempvarMap = {{}};
+    }
+
+    void addPrefix(std::string key, std::string import)
+    {
+        prefixImports[key] = import;
+    }
+};
+
 struct Node
 {
 protected:
@@ -18,13 +86,13 @@ protected:
 public:
     Node();
     virtual ~Node() = default;
-    virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols);
-    virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols, const std::string &type);
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols);
-    virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols);
-    virtual void loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "");
-    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "");
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "");
+    virtual void lookForCallExprs(Table &table);
+    virtual bool checkType(Table &table, const std::string &type);
+    virtual void checkSemantics(Table &table);
+    virtual std::string inferType(Table &table);
+    virtual void loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, TemporaryVariables &tempVars, bool global = false, std::string prefix = "");
+    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, TemporaryVariables &tempVars, bool global = false, std::string prefix = "");
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "");
     virtual void findReturnStmts(std::vector<Node *> &stmts);
     virtual void print(int depth = 0) const = 0;
     int getLine() const;
@@ -54,7 +122,7 @@ public:
     void setGlobalCode(Node *block);
     std::vector<Node *> getChildren();
     std::vector<Node *> &getChildrenRef();
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
+    virtual void checkSemantics(Table &table) override;
     virtual void print(int depth = 0) const override;
     void sendWarnings(std::unordered_map<std::string, Scope> symbolTable);
 };
@@ -83,7 +151,7 @@ public:
         std::cout << depthTabs << "LiteralNode: " << value << std::endl;
     }
 
-    bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols, const std::string &type)
+    bool checkType(Table &table, const std::string &type)
     {
         if (this->type == "CHAR" && type == "CHARTYPE")
             return true;
@@ -99,7 +167,7 @@ public:
         return false;
     }
 
-    virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols)
+    virtual std::string inferType(Table &table)
     {
         if constexpr (std::is_same_v<T, int>)
             return "INTTYPE";
@@ -113,7 +181,7 @@ public:
         return "";
     }
 
-    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "")
+    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, TemporaryVariables &tempVars, bool global = false, std::string prefix = "")
     {
         std::string localOrGlobal;
         std::string name = assignmentName;
@@ -180,7 +248,7 @@ public:
                 ir += "store i1 " + std::to_string(static_cast<bool>(value)) + ", ptr " + localOrGlobal + name + ", align 1\n";
     }
 
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "")
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "")
     {
         if constexpr (std::is_same_v<T, int>)
             ir += std::to_string(value);
@@ -223,11 +291,11 @@ public:
     bool isImported();
     void setImported(std::string modName);
     virtual void print(int depth = 0) const override;
-    virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols, const std::string &type) override;
-    virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
-    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual bool checkType(Table &table, const std::string &type) override;
+    virtual std::string inferType(Table &table) override;
+    virtual void loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
+    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
 };
 
 struct BinaryExprNode : Node
@@ -242,14 +310,14 @@ public:
     ~BinaryExprNode() override;
     std::string getOperandType() const;
     std::string getResultType() const;
-    void traverseBinary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global, std::string prefix = "");
+    void traverseBinary(std::string &ir, std::string &newType, TemporaryVariables &tempVars, bool global, std::string prefix = "");
     virtual void print(int depth = 0) const override;
-    virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols, const std::string &type) override;
-    virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
-    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void lookForCallExprs(Table &table) override;
+    virtual bool checkType(Table &table, const std::string &type) override;
+    virtual std::string inferType(Table &table) override;
+    virtual void loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
+    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
 };
 
 struct UnaryExprNode : Node
@@ -264,14 +332,14 @@ public:
     ~UnaryExprNode() override;
     std::string getOperandType() const;
     std::string getResultType() const;
-    void traverseUnary(std::string &ir, std::string &newType, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global, std::string prefix = "");
+    void traverseUnary(std::string &ir, std::string &newType, TemporaryVariables &tempVars, bool global, std::string prefix = "");
     virtual void print(int depth = 0) const override;
-    virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols, const std::string &type) override;
-    virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
-    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void lookForCallExprs(Table &table) override;
+    virtual bool checkType(Table &table, const std::string &type) override;
+    virtual std::string inferType(Table &table) override;
+    virtual void loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
+    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
 };
 
 struct CallExprNode : Node
@@ -290,12 +358,12 @@ public:
     std::string getModName() const;
     void setImported(std::string modName);
     virtual void print(int depth = 0) const override;
-    virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual bool checkType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols, const std::string &type) override;
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual std::string inferType(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void lookForCallExprs(Table &table) override;
+    virtual bool checkType(Table &table, const std::string &type) override;
+    virtual void checkSemantics(Table &table) override;
+    virtual std::string inferType(Table &table) override;
+    virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
 };
 
 struct AssignNode : Node
@@ -313,9 +381,9 @@ public:
     bool isDeclared() const;
     ~AssignNode() override;
     virtual void print(int depth = 0) const override;
-    virtual void lookForCallExprs(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void lookForCallExprs(Table &table) override;
+    virtual void checkSemantics(Table &table) override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
 };
 
 struct ReturnStmtNode : Node
@@ -328,8 +396,8 @@ public:
     ReturnStmtNode(Node *identifier = nullptr);
     ~ReturnStmtNode() override;
     void setType(std::string type);
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void checkSemantics(Table &table) override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
     virtual void print(int depth = 0) const override;
 };
@@ -346,10 +414,10 @@ public:
     void clearStatments();
     int getNumStatements() const;
     std::vector<Node *> getStatements() const;
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
+    virtual void checkSemantics(Table &table) override;
     void mapToGlobalIR(std::string &ir, std::string prefix);
-    void mapImportsToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global, std::vector<std::string> imports);
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    void mapImportsToIR(std::string &ir, TemporaryVariables &tempVars, bool global, std::vector<std::string> imports);
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
     virtual void print(int depth = 0) const override;
 };
@@ -369,7 +437,7 @@ public:
     TokenType getType() const;
     bool isReference() const;
     virtual void print(int depth = 0) const override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
 };
 
 struct FuncNode : Node
@@ -385,9 +453,9 @@ public:
     FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line);
     ~FuncNode() override;
     virtual void print(int depth = 0) const override;
-    void addSignatureToTable(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, bool includeParams = true);
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    void addSignatureToTable(Table &table, bool includeParams = true);
+    virtual void checkSemantics(Table &table) override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
@@ -403,9 +471,9 @@ public:
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
     bool endsWithBranchStmt();
-    void mapCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global, std::string prefix = "");
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    void mapCondition(std::string &ir, TemporaryVariables &tempVars, bool global, std::string prefix = "");
+    virtual void checkSemantics(Table &table) override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
@@ -421,9 +489,9 @@ public:
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
     bool endsWithBranchStmt();
-    void mapCondition(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global, std::string prefix = "");
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    void mapCondition(std::string &ir, TemporaryVariables &tempVars, bool global, std::string prefix = "");
+    virtual void checkSemantics(Table &table) override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
@@ -438,8 +506,8 @@ public:
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
     bool endsWithBranchStmt();
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void checkSemantics(Table &table) override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
@@ -456,8 +524,8 @@ public:
     void setCurrentWhile(int currentStmt);
     void addBranch(Node *branch);
     virtual void print(int depth = 0) const override;
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void checkSemantics(Table &table) override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
@@ -476,8 +544,8 @@ public:
     void setSkip(bool skip);
     virtual void print(int depth = 0) const override;
     bool endsWithBranchStmt();
-    virtual void checkSemantics(std::unordered_map<std::string, Scope> &symbolTable, std::vector<std::string> &visibleScope, const std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols) override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void checkSemantics(Table &table) override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
@@ -491,7 +559,7 @@ public:
     ~BreakNode() override;
     void setCurrentWhile(int currentStmt);
     virtual void print(int depth = 0) const override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
 };
 
 struct SkipNode : Node
@@ -504,5 +572,5 @@ public:
     ~SkipNode() override;
     void setCurrentWhile(int currentStmt);
     virtual void print(int depth = 0) const override;
-    virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
+    virtual void mapToIR(std::string &ir, TemporaryVariables &tempVars, bool global = false, std::string prefix = "") override;
 };

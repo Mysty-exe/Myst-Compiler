@@ -171,7 +171,8 @@ std::pair<std::string, int> execCommand(const std::string &cmd)
 
 void LLVM::mapToIR(std::vector<AbstractSyntaxTree *> asts, const std::string &outputFile)
 {
-    std::vector<std::vector<std::vector<std::string>>> tempvarMap = {{}};
+    TemporaryVariables tempVars = TemporaryVariables();
+
     std::ofstream tempFile(outputFile + ".ll");
     if (!tempFile.is_open())
     {
@@ -200,7 +201,6 @@ void LLVM::mapToIR(std::vector<AbstractSyntaxTree *> asts, const std::string &ou
         BlockNode *global = static_cast<BlockNode *>(ast->getRoot()->getGlobalCode());
         global->mapToGlobalIR(ir, prefix);
 
-        std::unordered_map<std::string, std::string> prefixImports;
         for (int i = 0; i < ast->getImports().size(); i++)
         {
             std::string import = ast->getImports()[i];
@@ -213,19 +213,19 @@ void LLVM::mapToIR(std::vector<AbstractSyntaxTree *> asts, const std::string &ou
                     importWDots += import[j];
             }
 
-            prefixImports[ast->getPrefixes()[i]] = importWDots;
+            tempVars.addPrefix(ast->getPrefixes()[i], importWDots);
         }
 
         for (Node *node : ast->getRoot()->getChildren())
         {
             FuncNode *function = static_cast<FuncNode *>(node);
-            function->mapToIR(ir, tempvarMap, prefixImports, false, prefix);
+            function->mapToIR(ir, tempVars, false, prefix);
         }
 
         if (ast->isImported())
-            global->mapToIR(ir, tempvarMap, prefixImports, true, prefix);
+            global->mapToIR(ir, tempVars, true, prefix);
         else
-            global->mapImportsToIR(ir, tempvarMap, prefixImports, true, imports);
+            global->mapImportsToIR(ir, tempVars, true, imports);
     }
 
     tempFile << "target triple = \"" << getTargetTriple() << "\"\n\n";
