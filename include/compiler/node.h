@@ -4,10 +4,10 @@
 #include "compiler/error.h"
 #include "compiler/scope.h"
 
-void throwLexicalError(int line, std::string message);
-void throwSyntaxError(int line, std::string message);
+[[noreturn]] void throwLexicalError(int line, std::string message);
+[[noreturn]] void throwSyntaxError(int line, std::string message);
 void throwSemanticWarning(int line, std::string message);
-void throwSemanticError(int line, std::string message);
+[[noreturn]] void throwSemanticError(int line, std::string message);
 std::string repeat_string(const std::string &input, size_t num);
 
 struct Node
@@ -274,17 +274,7 @@ public:
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
 };
 
-struct StmtNode : Node
-{
-private:
-protected:
-public:
-    StmtNode();
-    ~StmtNode() override;
-    virtual void print(int depth = 0) const override;
-};
-
-struct CallExprNode : StmtNode
+struct CallExprNode : Node
 {
 private:
     std::string name, returnType, modName;
@@ -308,7 +298,7 @@ public:
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
 };
 
-struct AssignNode : StmtNode
+struct AssignNode : Node
 {
 private:
     IdentifierNode *identifier;
@@ -328,7 +318,7 @@ public:
     virtual void mapToIR(std::string &ir, std::vector<std::vector<std::vector<std::string>>> &tempvarMap, const std::unordered_map<std::string, std::string> &prefixImports, bool global = false, std::string prefix = "") override;
 };
 
-struct ReturnStmtNode : StmtNode
+struct ReturnStmtNode : Node
 {
 private:
     std::string returnType;
@@ -497,7 +487,7 @@ private:
     int currentWhileStmt;
 
 public:
-    BreakNode();
+    BreakNode(int line);
     ~BreakNode() override;
     void setCurrentWhile(int currentStmt);
     virtual void print(int depth = 0) const override;
@@ -510,7 +500,7 @@ private:
     int currentWhileStmt;
 
 public:
-    SkipNode();
+    SkipNode(int line);
     ~SkipNode() override;
     void setCurrentWhile(int currentStmt);
     virtual void print(int depth = 0) const override;

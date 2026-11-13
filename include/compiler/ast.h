@@ -12,6 +12,7 @@ enum ExportState
 class AbstractSyntaxTree
 {
 private:
+    std::vector<ImportNode *> importNodes;
     std::unordered_map<std::string, Scope> symbolTable;
     std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixSymbols;
     std::vector<std::string> prefixes, imports, exports;
@@ -35,13 +36,8 @@ private:
 public:
     AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens, std::string fileName);
     ~AbstractSyntaxTree();
+
     RootNode *getRoot() const;
-    std::unordered_map<std::string, Scope> getSymbolTable() const;
-    void setSymbolTable(std::unordered_map<std::string, Scope> symbolTable);
-    void buildExports(const std::vector<std::vector<Token>> &tokens, int &startLine);
-    Node *buildIdentifier(const std::vector<Token> &line, int start, int end);
-    BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false, bool inLoop = false);
-    void buildTree(const std::vector<std::vector<Token>> &tokens);
     void format();
     void printTree() const;
     bool isImported() const;
@@ -53,4 +49,22 @@ public:
     std::vector<std::string> getImports() const;
     void setImports(std::vector<std::string>);
     void freeMemory();
+
+    std::unordered_map<std::string, Scope> getSymbolTable() const;
+    void setSymbolTable(std::unordered_map<std::string, Scope> symbolTable);
+    void buildExports(const std::vector<std::vector<Token>> &tokens, int &startLine);
+    Node *buildLiteral(const std::vector<Token> &line, int start);
+    Node *buildIdentifier(const std::vector<Token> &line, int start, int end);
+    CallExprNode *buildCallExpr(const std::vector<Token> &line, int start, int end);
+    Node *buildExpression(const std::vector<Token> &line, int start, int end);
+    BranchBlockNode *getIfStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop);
+    void addElseIfStatement(int index, BlockNode *blockNode, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop);
+    void addElseStatement(int index, BlockNode *blockNode, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop);
+    WhileNode *getWhileStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop);
+    AssignNode *getAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs);
+    AssignNode *getOperatorAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs);
+    BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false, bool inLoop = false);
+    void addImport(const std::vector<std::vector<Token>> &tokens, int &line);
+    void addFunction(const std::vector<std::vector<Token>> &tokens, int &line);
+    void buildTree(const std::vector<std::vector<Token>> &tokens);
 };

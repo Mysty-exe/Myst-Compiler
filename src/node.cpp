@@ -1596,13 +1596,6 @@ void UnaryExprNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector
 {
 }
 
-StmtNode::StmtNode()
-{
-}
-StmtNode::~StmtNode()
-{
-}
-
 ParamNode::ParamNode(std::string identifier, int line)
 {
     reference = false;
@@ -2633,10 +2626,6 @@ void BlockNode::checkSemantics(std::unordered_map<std::string, Scope> &symbolTab
     for (Node *statement : statements)
         statement->checkSemantics(symbolTable, visibleScope, prefixSymbols);
 }
-void StmtNode::print(int depth) const
-{
-    std::cout << "StatementNode: \n";
-}
 void BlockNode::mapToGlobalIR(std::string &ir, std::string prefix)
 {
     for (Node *node : statements)
@@ -3298,8 +3287,9 @@ void ReturnStmtNode::findReturnStmts(std::vector<Node *> &stmts)
     stmts.push_back(this);
 }
 
-BreakNode::BreakNode()
+BreakNode::BreakNode(int line)
 {
+    this->line = line;
     currentWhileStmt = 0;
 }
 BreakNode::~BreakNode()
@@ -3319,8 +3309,9 @@ void BreakNode::mapToIR(std::string &ir, std::vector<std::vector<std::vector<std
     ir += "br label %while_end_" + std::to_string(currentWhileStmt) + "\n";
 }
 
-SkipNode::SkipNode()
+SkipNode::SkipNode(int line)
 {
+    this->line = line;
     currentWhileStmt = 0;
 }
 SkipNode::~SkipNode()

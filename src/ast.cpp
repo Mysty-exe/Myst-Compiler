@@ -1,5 +1,6 @@
 #include "compiler/ast.h"
 
+// Get the escape sequence from a string
 char extractChar(const std::string &str)
 {
     if (str.size() == 1)
@@ -52,6 +53,79 @@ AbstractSyntaxTree::~AbstractSyntaxTree()
 RootNode *AbstractSyntaxTree::getRoot() const
 {
     return root;
+}
+
+bool AbstractSyntaxTree::isImported() const
+{
+    return imported;
+}
+
+void AbstractSyntaxTree::setImported(bool imported)
+{
+    this->imported = imported;
+}
+
+bool AbstractSyntaxTree::hasImports() const
+{
+    return imports.size() > 0;
+}
+
+std::vector<std::string> AbstractSyntaxTree::getPrefixes() const
+{
+    return prefixes;
+}
+
+std::unordered_map<std::string, std::unordered_map<std::string, Scope>> AbstractSyntaxTree::getPrefixSymbols() const
+{
+    return prefixSymbols;
+}
+
+void AbstractSyntaxTree::setSymbols(std::string prefix, std::unordered_map<std::string, Scope> symbols)
+{
+    prefixSymbols[prefix] = symbols;
+}
+
+std::vector<std::string> AbstractSyntaxTree::getImports() const
+{
+    return imports;
+}
+
+void AbstractSyntaxTree::setImports(std::vector<std::string> imports)
+{
+    this->imports = imports;
+}
+
+void AbstractSyntaxTree::printTree() const
+{
+    root->print();
+}
+
+void AbstractSyntaxTree::freeMemory()
+{
+    delete root;
+    delete this;
+}
+
+void AbstractSyntaxTree::format()
+{
+    BlockNode *globalCode = new BlockNode();
+    for (auto it = root->getChildrenRef().begin(); it != root->getChildrenRef().end();)
+    {
+        if (BlockNode *d = dynamic_cast<BlockNode *>(*it))
+        {
+            for (Node *stmt : d->getStatements())
+                globalCode->addStatement(stmt);
+
+            d->clearStatments();
+
+            delete *it;
+            it = root->getChildrenRef().erase(it);
+        }
+        else
+            ++it;
+    }
+
+    root->setGlobalCode(globalCode);
 }
 
 std::unordered_map<std::string, Scope> AbstractSyntaxTree::getSymbolTable() const
@@ -232,6 +306,20 @@ Token AbstractSyntaxTree::getNthToken(const std::vector<Token> &tokenLine, int n
     return Token();
 }
 
+std::string AbstractSyntaxTree::splitLine(const std::vector<Token> &tokens, int startIndex, int endIndex) const
+{
+    std::string result;
+    for (int token = startIndex; token <= endIndex; token++)
+    {
+        if (result.size() > 0)
+            result += " " + tokens[token].getValue();
+        else
+            result += tokens[token].getValue();
+    }
+
+    return result;
+}
+
 // Assumes Function isn't Tabbed
 std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::vector<Token> &tokenLine) const
 {
@@ -298,20 +386,6 @@ std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::v
     return result;
 }
 
-std::string AbstractSyntaxTree::splitLine(const std::vector<Token> &tokens, int startIndex, int endIndex) const
-{
-    std::string result;
-    for (int token = startIndex; token <= endIndex; token++)
-    {
-        if (result.size() > 0)
-            result += " " + tokens[token].getValue();
-        else
-            result += tokens[token].getValue();
-    }
-
-    return result;
-}
-
 void AbstractSyntaxTree::buildExports(const std::vector<std::vector<Token>> &tokens, int &startLine)
 {
     ExportState state = ExportState::STANDBY;
@@ -372,130 +446,192 @@ void AbstractSyntaxTree::buildExports(const std::vector<std::vector<Token>> &tok
         throwSyntaxError(startLine + 1, "Couldn't parse exports.");
 }
 
+Node *AbstractSyntaxTree::buildLiteral(const std::vector<Token> &line, int start)
+{
+    std::string tokenType = line[start].getToken();
+    if (tokenType == "CHAR")
+    {
+        char c = extractChar(line[start].getValue().substr(1, line[start].getValue().size() - 2));
+        LiteralNode<char> *literal = new LiteralNode(c, line[start].getToken());
+        literal->setLine(line[start].getLineNumber());
+        return literal;
+    }
+    else if (tokenType == "STRING")
+    {
+        LiteralNode<std::string> *literal = new LiteralNode(line[start].getValue(), line[start].getToken());
+        literal->setLine(line[start].getLineNumber());
+        return literal;
+    }
+    else if (tokenType == "INT")
+    {
+        LiteralNode<int> *literal = new LiteralNode(std::stoi(line[start].getValue()), line[start].getToken());
+        literal->setLine(line[start].getLineNumber());
+        return literal;
+    }
+    else if (tokenType == "DECIMAL")
+    {
+        LiteralNode<double> *literal = new LiteralNode(std::stod(line[start].getValue()), line[start].getToken());
+        literal->setLine(line[start].getLineNumber());
+        return literal;
+    }
+    else if (tokenType == "BOOL")
+    {
+        if (line[start].getValue() == "true")
+        {
+            LiteralNode<bool> *literal = new LiteralNode(true, line[start].getToken());
+            literal->setLine(line[start].getLineNumber());
+            return literal;
+        }
+        else if (line[start].getValue() == "false")
+        {
+            LiteralNode<bool> *literal = new LiteralNode(false, line[start].getToken());
+            literal->setLine(line[start].getLineNumber());
+            return literal;
+        }
+    }
+
+    throwSyntaxError(line[start].getLineNumber(), "Unexpected Literal '" + line[start].getValue() + "' found.");
+    return nullptr;
+}
+
+CallExprNode *AbstractSyntaxTree::buildCallExpr(const std::vector<Token> &line, int start, int end)
+{
+    bool callExpr = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
+    bool importedCallExpr = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "DOUBLECOLON" && line[start + 2].getToken() == "IDENTIFIER" && line[start + 3].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
+
+    if (callExpr || importedCallExpr)
+    {
+        std::vector<Node *> arguments;
+        int startArg = 0, lparen = 0, rparen = 0;
+        if (callExpr)
+            startArg = start + 2;
+        else
+            startArg = start + 4;
+
+        for (int i = startArg; i <= end - 1; i++)
+        {
+            if (line[i].getToken() == "LPAREN")
+                lparen++;
+            if (line[i].getToken() == "RPAREN")
+                rparen++;
+
+            if (line[i].getToken() == "COMMA" && lparen == rparen)
+            {
+                rparen = 0, lparen = 0;
+                arguments.push_back(buildIdentifier(line, startArg, i - 1));
+                startArg = i + 1;
+            }
+        }
+
+        if (startArg <= end - 1)
+            arguments.push_back(buildIdentifier(line, startArg, end - 1));
+
+        CallExprNode *callExpression;
+        if (callExpr)
+            callExpression = new CallExprNode(line[start].getValue(), arguments);
+        else
+            callExpression = new CallExprNode(line[start + 2].getValue(), arguments);
+
+        callExpression->setLine(line[start].getLineNumber());
+
+        if (importedCallExpr)
+            callExpression->setImported(line[start].getValue());
+
+        return callExpression;
+    }
+
+    throwSyntaxError(line[0].getLineNumber(), "Line couldn't be parsed.");
+    return nullptr;
+}
+
+Node *AbstractSyntaxTree::buildExpression(const std::vector<Token> &line, int start, int end)
+{
+    int lparen = 0, rparen = 0;
+    int splitIndex = -1, currentLevel = -1;
+    for (int i = start; i <= end; i++)
+    {
+        if (line[i].getToken() == "LPAREN")
+            lparen++;
+
+        else if (line[i].getToken() == "RPAREN")
+            rparen++;
+
+        if (lparen != rparen)
+            continue;
+
+        for (int level = 0; level < operatorPrecedence.size(); level++)
+        {
+            for (int op = 0; op < operatorPrecedence[level].size(); op++)
+            {
+                if (line[i].getToken() == operatorPrecedence[level][op])
+                {
+                    if (level >= currentLevel)
+                    {
+                        if ((line[i].getValue() == "+" || line[i].getValue() == "-"))
+                        {
+                            if (i == start || (i - 1 >= start && std::find(Token::operators.begin(), Token::operators.end(), line[i - 1].getValue()) != Token::operators.end()))
+                                break;
+                        }
+                        splitIndex = i;
+                        currentLevel = level;
+                    }
+                }
+            }
+        }
+    }
+
+    if (splitIndex != -1 && splitIndex != start)
+    {
+        BinaryExprNode *binaryExpr = new BinaryExprNode(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
+        binaryExpr->setLine(line[start].getLineNumber());
+        return binaryExpr;
+    }
+
+    if (line[start].getToken() == "PLUS" || line[start].getToken() == "MINUS" || line[start].getToken() == "NOT")
+    {
+        int lparen = 0, rparen = 0, endIdentifier = end;
+        for (int i = start + 1; i <= end; i++)
+        {
+            endIdentifier = i;
+            if (line[i].getToken() == "LPAREN")
+                lparen++;
+            if (line[i].getToken() == "RPAREN")
+                rparen++;
+            if (std::find(Token::operators.begin(), Token::operators.end(), line[i].getValue()) != Token::operators.end() && lparen != rparen)
+                endIdentifier = i - 1;
+        }
+
+        UnaryExprNode *unaryExpr = new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, endIdentifier));
+        unaryExpr->setLine(line[start].getLineNumber());
+        return unaryExpr;
+    }
+
+    return nullptr;
+}
+
 Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int start, int end)
 {
     if (end - start == 0)
     {
-        std::string tokenType = line[start].getToken();
-        if (tokenType == "IDENTIFIER")
+        if (line[start].getToken() == "IDENTIFIER")
         {
             IdentifierNode *identifier = new IdentifierNode(line[start].getValue());
             identifier->setLine(line[start].getLineNumber());
             return identifier;
         }
-        else if (tokenType == "CHAR")
-        {
-            char c = extractChar(line[start].getValue().substr(1, line[start].getValue().size() - 2));
-            LiteralNode<char> *literal = new LiteralNode(c, line[start].getToken());
-            literal->setLine(line[start].getLineNumber());
-            return literal;
-        }
-        else if (tokenType == "STRING")
-        {
-            LiteralNode<std::string> *literal = new LiteralNode(line[start].getValue(), line[start].getToken());
-            literal->setLine(line[start].getLineNumber());
-            return literal;
-        }
-        else if (tokenType == "INT")
-        {
-            LiteralNode<int> *literal = new LiteralNode(std::stoi(line[start].getValue()), line[start].getToken());
-            literal->setLine(line[start].getLineNumber());
-            return literal;
-        }
-        else if (tokenType == "DECIMAL")
-        {
-            LiteralNode<double> *literal = new LiteralNode(std::stod(line[start].getValue()), line[start].getToken());
-            literal->setLine(line[start].getLineNumber());
-            return literal;
-        }
-        else if (tokenType == "BOOL")
-        {
-            if (line[start].getValue() == "true")
-            {
-                LiteralNode<bool> *literal = new LiteralNode(true, line[start].getToken());
-                literal->setLine(line[start].getLineNumber());
-                return literal;
-            }
-            else if (line[start].getValue() == "false")
-            {
-                LiteralNode<bool> *literal = new LiteralNode(false, line[start].getToken());
-                literal->setLine(line[start].getLineNumber());
-                return literal;
-            }
-        }
         else
-            throwSyntaxError(line[start].getLineNumber(), "Unexpected Identifier '" + line[start].getValue() + "' found.");
+            return buildLiteral(line, start);
     }
     else if (hasOperator(line, start, end))
     {
-        int lparen = 0, rparen = 0;
-        int splitIndex = -1, currentLevel = -1;
-        for (int i = start; i <= end; i++)
-        {
-            if (line[i].getToken() == "LPAREN")
-                lparen++;
-
-            else if (line[i].getToken() == "RPAREN")
-                rparen++;
-
-            if (lparen != rparen)
-                continue;
-
-            for (int level = 0; level < operatorPrecedence.size(); level++)
-            {
-                for (int op = 0; op < operatorPrecedence[level].size(); op++)
-                {
-                    if (line[i].getToken() == operatorPrecedence[level][op])
-                    {
-                        if (level >= currentLevel)
-                        {
-                            if ((line[i].getValue() == "+" || line[i].getValue() == "-"))
-                            {
-                                if (i == start || (i - 1 >= start && std::find(Token::operators.begin(), Token::operators.end(), line[i - 1].getValue()) != Token::operators.end()))
-                                    break;
-                            }
-                            splitIndex = i;
-                            currentLevel = level;
-                        }
-                    }
-                }
-            }
-        }
-
-        if (splitIndex != -1 && splitIndex != start)
-        {
-            BinaryExprNode *binaryExpr = new BinaryExprNode(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
-            binaryExpr->setLine(line[start].getLineNumber());
-            return binaryExpr;
-        }
-
-        if (line[start].getToken() == "PLUS" || line[start].getToken() == "MINUS" || line[start].getToken() == "NOT")
-        {
-            int lparen = 0, rparen = 0, endIdentifier = end;
-            for (int i = start + 1; i <= end; i++)
-            {
-                endIdentifier = i;
-                if (line[i].getToken() == "LPAREN")
-                    lparen++;
-                if (line[i].getToken() == "RPAREN")
-                    rparen++;
-                if (std::find(Token::operators.begin(), Token::operators.end(), line[i].getValue()) != Token::operators.end() && lparen != rparen)
-                    endIdentifier = i - 1;
-            }
-
-            UnaryExprNode *unaryExpr = new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, endIdentifier));
-            unaryExpr->setLine(line[start].getLineNumber());
-            return unaryExpr;
-        }
+        return buildExpression(line, start, end);
     }
     else
     {
         if (line[start].getToken() == "LPAREN" && line[end].getToken() == "RPAREN")
             return buildIdentifier(line, start + 1, end - 1);
 
-        bool callExpr = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
         bool importedIdentifier = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "DOUBLECOLON" && line[end].getToken() == "IDENTIFIER";
-        bool importedCallExpr = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "DOUBLECOLON" && line[start + 2].getToken() == "IDENTIFIER" && line[start + 3].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
 
         if (importedIdentifier)
         {
@@ -505,50 +641,170 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
             return identifier;
         }
 
-        if (callExpr || importedCallExpr)
-        {
-            std::vector<Node *> arguments;
-            int startArg = 0, lparen = 0, rparen = 0;
-            if (callExpr)
-                startArg = start + 2;
-            else
-                startArg = start + 4;
+        return buildCallExpr(line, start, end);
+    }
+}
 
-            for (int i = startArg; i <= end - 1; i++)
-            {
-                if (line[i].getToken() == "LPAREN")
-                    lparen++;
-                if (line[i].getToken() == "RPAREN")
-                    rparen++;
+BranchBlockNode *AbstractSyntaxTree::getIfStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
+{
+    if (getNthToken(tokens[line], 1).getToken() != "IF")
+        throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'if' statement found.");
 
-                if (line[i].getToken() == "COMMA" && lparen == rparen)
-                {
-                    rparen = 0, lparen = 0;
-                    arguments.push_back(buildIdentifier(line, startArg, i - 1));
-                    startArg = i + 1;
-                }
-            }
+    line++;
+    if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
+        throwSyntaxError(line, "Expected ':' at the end of 'if' statement.");
 
-            if (startArg <= end - 1)
-                arguments.push_back(buildIdentifier(line, startArg, end - 1));
+    Node *condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
+    condition->setLine(line);
 
-            CallExprNode *callExpression;
-            if (callExpr)
-                callExpression = new CallExprNode(line[start].getValue(), arguments);
-            else
-                callExpression = new CallExprNode(line[start + 2].getValue(), arguments);
+    BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
+    if (block->getNumStatements() == 0)
+        throwSyntaxError(line, "Missing body in 'if' statement.");
 
-            callExpression->setLine(line[start].getLineNumber());
+    BranchBlockNode *branchBlock = new BranchBlockNode();
+    IfStmtNode *ifStmt = new IfStmtNode(condition, block);
+    ifStmt->setLine(line);
 
-            if (importedCallExpr)
-                callExpression->setImported(line[start].getValue());
+    branchBlock->addBranch(ifStmt);
+    return branchBlock;
+}
 
-            return callExpression;
-        }
+void AbstractSyntaxTree::addElseIfStatement(int index, BlockNode *blockNode, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
+{
+    if (getNthToken(tokens[line], 1).getToken() != "ELSEIF")
+        throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'elseif' statement found.");
+
+    line++;
+
+    if (blockNode->getNumStatements() == 0 || !dynamic_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
+        throwSyntaxError(line, "'elseif' statement found without a preceding 'if' statement.");
+    if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
+        throwSyntaxError(line, "Expected ':' at the end of elseif statement.");
+    Node *condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
+    condition->setLine(line);
+
+    BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
+    if (block->getNumStatements() == 0)
+        throwSyntaxError(line, "Missing body in 'elseif' statement.");
+
+    ElseIfStmtNode *elseIfStmt = new ElseIfStmtNode(condition, block);
+    elseIfStmt->setLine(line);
+
+    BranchBlockNode *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
+    branchBlock->addBranch(elseIfStmt);
+}
+
+void AbstractSyntaxTree::addElseStatement(int index, BlockNode *blockNode, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
+{
+    if (getNthToken(tokens[line], 1).getToken() != "ELSE")
+        throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'else' statement found.");
+
+    line++;
+    if (blockNode->getNumStatements() == 0 || !dynamic_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
+        throwSyntaxError(line, "'else' statement found without a preceding 'if' statement.");
+    int colonIndex = getTokenIndex(tokens[line - 1], "COLON");
+    if (colonIndex == -1)
+        throwSyntaxError(line, "Expected ':' at the end of else statement.");
+
+    int numValidTokens = getNumValidTokens(tokens[line - 1]);
+    if (numValidTokens != 2)
+        throwSyntaxError(line, "Line couldn't be parsed.");
+
+    BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
+    if (block->getNumStatements() == 0)
+        throwSyntaxError(line, "Missing body in 'else' statement.");
+
+    ElseStmtNode *elseStmt = new ElseStmtNode(block);
+    elseStmt->setLine(line);
+
+    BranchBlockNode *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
+    branchBlock->addBranch(elseStmt);
+}
+
+WhileNode *AbstractSyntaxTree::getWhileStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
+{
+    if (getNthToken(tokens[line], 1).getToken() != "WHILE")
+        throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'while' statement found.");
+
+    line++;
+    if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
+        throwSyntaxError(line, "Expected ':' at the end of 'while' loop.");
+    Node *condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
+    condition->setLine(line);
+
+    BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, true);
+    if (block->getNumStatements() == 0)
+        throwSyntaxError(line, "Missing body in 'while' loop.");
+
+    WhileNode *whileStmt = new WhileNode(condition, block);
+    whileStmt->setLine(line);
+
+    return whileStmt;
+}
+
+AssignNode *AbstractSyntaxTree::getAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs)
+{
+    if (getNumValidTokens(tokens[line]) > 2 && index > 0)
+    {
+        if (tokens[line][index - 1].getToken() != "IDENTIFIER")
+            throwSyntaxError(tokens[line][0].getLineNumber(), "'" + tokens[line][index - 1].getValue() + "' can't be used as a variable name.");
     }
 
-    throwSyntaxError(line[0].getLineNumber(), "Line couldn't be parsed.");
-    exit(-1);
+    if (getNumValidTokens(tokens[line]) > 4 && index > 2)
+    {
+        if (tokens[line][index - 1].getToken() == "IDENTIFIER" && tokens[line][index - 2].getToken() == "DOUBLECOLON" && tokens[line][index - 3].getToken() == "IDENTIFIER")
+            throwSyntaxError(tokens[line][0].getLineNumber(), "Imported variables are read-only.");
+    }
+
+    std::string type = splitLine(tokens[line], tabs, index - 2);
+    if (type != "" && !isDataType(tokens[line][index - 2].getToken()) && tokens[line][index - 2].getToken() != "VAR")
+        throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected type used for variable '" + tokens[line][index - 1].getValue() + "'.");
+
+    AssignNode *assignStmt = new AssignNode(tokens[line][index - 1].getValue(), splitLine(tokens[line], tabs, index - 2), buildIdentifier(tokens[line], index + 1, tokens[line].size() - 2));
+    assignStmt->setLine(line + 1);
+
+    return assignStmt;
+}
+
+AssignNode *AbstractSyntaxTree::getOperatorAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs)
+{
+    if (getNumValidTokens(tokens[line]) > 2 && index > 0)
+    {
+        if (tokens[line][index - 1].getToken() != "IDENTIFIER")
+            throwSyntaxError(tokens[line][0].getLineNumber(), "'" + tokens[line][index - 1].getValue() + "' can't be used as a variable name.");
+    }
+
+    if (getNumValidTokens(tokens[line]) > 4 && index > 2)
+    {
+        if (tokens[line][index - 1].getToken() == "IDENTIFIER" && tokens[line][index - 2].getToken() == "DOUBLECOLON" && tokens[line][index - 3].getToken() == "IDENTIFIER")
+            throwSyntaxError(tokens[line][0].getLineNumber(), "Imported variables are read-only.");
+    }
+
+    std::string type = splitLine(tokens[line], tabs, index - 2);
+    if (type != "")
+        throwSyntaxError(tokens[line][0].getLineNumber(), "Can't assign a type for the variable '" + tokens[line][index - 1].getValue() + "'.");
+
+    std::vector<Token> l;
+    l.push_back(tokens[line][index - 1]);
+
+    if (tokens[line][index].getToken() == "PLUSASSIGN")
+        l.push_back(Token("+", line + 1, 0));
+    if (tokens[line][index].getToken() == "MINUSASSIGN")
+        l.push_back(Token("-", line + 1, 0));
+    if (tokens[line][index].getToken() == "STARASSIGN")
+        l.push_back(Token("*", line + 1, 0));
+    if (tokens[line][index].getToken() == "SLASHASSIGN")
+        l.push_back(Token("/", line + 1, 0));
+    if (tokens[line][index].getToken() == "EXPASSIGN")
+        l.push_back(Token("^", line + 1, 0));
+
+    for (int i = index + 1; i < tokens[line].size() - 1; i++)
+        l.push_back(tokens[line][i]);
+
+    AssignNode *assignStmt = new AssignNode(tokens[line][index - 1].getValue(), "", buildIdentifier(l, 0, l.size() - 1));
+    assignStmt->setLine(line + 1);
+
+    return assignStmt;
 }
 
 BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction, bool inLoop)
@@ -581,187 +837,48 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
         }
 
         int ifIndex = getTokenIndex(tokens[line], "IF");
+        int elseIfIndex = getTokenIndex(tokens[line], "ELSEIF");
+        int elseIndex = getTokenIndex(tokens[line], "ELSE");
+        int whileIndex = getTokenIndex(tokens[line], "WHILE");
+        int assignIndex = getTokenIndex(tokens[line], "ASSIGN");
+        int operatorAssignIndex = getTokenIndex(tokens[line], {"PLUSASSIGN", "MINUSASSIGN", "STARASSIGN", "SLASHASSIGN", "EXPASSIGN"});
+        int returnIndex = getTokenIndex(tokens[line], "RETURN");
+        int breakIndex = getTokenIndex(tokens[line], "BREAK");
+        int skipIndex = getTokenIndex(tokens[line], "SKIP");
+
         if (ifIndex != -1)
         {
-            if (getNthToken(tokens[line], 1).getToken() != "IF")
-                throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'if' statement found.");
-
-            line++;
-            if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
-                throwSyntaxError(line, "Expected ':' at the end of 'if' statement.");
-
-            Node *condition = buildIdentifier(tokens[line - 1], ifIndex + 1, tokens[line - 1].size() - 3);
-            condition->setLine(line);
-
-            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
-            if (block->getNumStatements() == 0)
-                throwSyntaxError(line, "Missing body in 'if' statement.");
-
-            BranchBlockNode *branchBlock = new BranchBlockNode();
-            IfStmtNode *ifStmt = new IfStmtNode(condition, block);
-            ifStmt->setLine(line);
-
-            branchBlock->addBranch(ifStmt);
-            blockNode->addStatement(branchBlock);
+            blockNode->addStatement(getIfStatement(ifIndex, tokens, line, currentIndent, inFunction, inLoop));
             startLine = line;
             line--;
-            continue;
         }
-
-        int elseIfIndex = getTokenIndex(tokens[line], "ELSEIF");
-        if (elseIfIndex != -1)
+        else if (elseIfIndex != -1)
         {
-            if (getNthToken(tokens[line], 1).getToken() != "ELSEIF")
-                throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'elseif' statement found.");
-
-            line++;
-
-            if (blockNode->getNumStatements() == 0 || !dynamic_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
-                throwSyntaxError(line, "'elseif' statement found without a preceding 'if' statement.");
-            if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
-                throwSyntaxError(line, "Expected ':' at the end of elseif statement.");
-            Node *condition = buildIdentifier(tokens[line - 1], elseIfIndex + 1, tokens[line - 1].size() - 3);
-            condition->setLine(line);
-
-            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
-            if (block->getNumStatements() == 0)
-                throwSyntaxError(line, "Missing body in 'elseif' statement.");
-
-            ElseIfStmtNode *elseIfStmt = new ElseIfStmtNode(condition, block);
-            elseIfStmt->setLine(line);
-
-            BranchBlockNode *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
-            branchBlock->addBranch(elseIfStmt);
-
+            addElseIfStatement(elseIfIndex, blockNode, tokens, line, currentIndent, inFunction, inLoop);
             startLine = line;
             line--;
-            continue;
         }
-        int elseIndex = getTokenIndex(tokens[line], "ELSE");
-        if (elseIndex != -1)
+        else if (elseIndex != -1)
         {
-            if (getNthToken(tokens[line], 1).getToken() != "ELSE")
-                throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'else' statement found.");
-
-            line++;
-            if (blockNode->getNumStatements() == 0 || !dynamic_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
-                throwSyntaxError(line, "'else' statement found without a preceding 'if' statement.");
-            int colonIndex = getTokenIndex(tokens[line - 1], "COLON");
-            if (colonIndex == -1)
-                throwSyntaxError(line, "Expected ':' at the end of else statement.");
-
-            int numValidTokens = getNumValidTokens(tokens[line - 1]);
-            if (numValidTokens != 2)
-                throwSyntaxError(line, "Line couldn't be parsed.");
-
-            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
-            if (block->getNumStatements() == 0)
-                throwSyntaxError(line, "Missing body in 'else' statement.");
-
-            ElseStmtNode *elseStmt = new ElseStmtNode(block);
-            elseStmt->setLine(line);
-
-            BranchBlockNode *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
-            branchBlock->addBranch(elseStmt);
-
+            addElseStatement(elseIndex, blockNode, tokens, line, currentIndent, inFunction, inLoop);
             startLine = line;
             line--;
-            continue;
         }
-
-        int whileIndex = getTokenIndex(tokens[line], "WHILE");
-        if (whileIndex != -1)
+        else if (whileIndex != -1)
         {
-            if (getNthToken(tokens[line], 1).getToken() != "WHILE")
-                throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'while' statement found.");
-
-            line++;
-            if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
-                throwSyntaxError(line, "Expected ':' at the end of 'while' loop.");
-            Node *condition = buildIdentifier(tokens[line - 1], whileIndex + 1, tokens[line - 1].size() - 3);
-            condition->setLine(line);
-
-            BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, true);
-            if (block->getNumStatements() == 0)
-                throwSyntaxError(line, "Missing body in 'while' loop.");
-
-            WhileNode *whileStmt = new WhileNode(condition, block);
-            whileStmt->setLine(line);
-            blockNode->addStatement(whileStmt);
+            blockNode->addStatement(getWhileStatement(whileIndex, tokens, line, currentIndent, inFunction, inLoop));
             line--;
             startLine = line;
-            continue;
         }
-
-        int assignIndex = getTokenIndex(tokens[line], "ASSIGN");
-        if (assignIndex != -1)
+        else if (assignIndex != -1)
         {
-            if (getNumValidTokens(tokens[line]) > 2 && assignIndex > 0)
-            {
-                if (tokens[line][assignIndex - 1].getToken() != "IDENTIFIER")
-                    throwSyntaxError(tokens[line][0].getLineNumber(), "'" + tokens[line][assignIndex - 1].getValue() + "' can't be used as a variable name.");
-            }
-
-            if (getNumValidTokens(tokens[line]) > 4 && assignIndex > 2)
-            {
-                if (tokens[line][assignIndex - 1].getToken() == "IDENTIFIER" && tokens[line][assignIndex - 2].getToken() == "DOUBLECOLON" && tokens[line][assignIndex - 3].getToken() == "IDENTIFIER")
-                    throwSyntaxError(tokens[line][0].getLineNumber(), "Imported variables are read-only.");
-            }
-
-            std::string type = splitLine(tokens[line], tabs, assignIndex - 2);
-            if (type != "" && !isDataType(tokens[line][assignIndex - 2].getToken()) && tokens[line][assignIndex - 2].getToken() != "VAR")
-                throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected type used for variable '" + tokens[line][assignIndex - 1].getValue() + "'.");
-
-            AssignNode *assignStmt = new AssignNode(tokens[line][assignIndex - 1].getValue(), splitLine(tokens[line], tabs, assignIndex - 2), buildIdentifier(tokens[line], assignIndex + 1, tokens[line].size() - 2));
-            assignStmt->setLine(line + 1);
-            blockNode->addStatement(assignStmt);
-            continue;
+            blockNode->addStatement(getAssignStatement(assignIndex, tokens, line, tabs));
         }
-
-        int operatorAssignIndex = getTokenIndex(tokens[line], {"PLUSASSIGN", "MINUSASSIGN", "STARASSIGN", "SLASHASSIGN", "EXPASSIGN"});
-        if (operatorAssignIndex != -1)
+        else if (operatorAssignIndex != -1)
         {
-            if (getNumValidTokens(tokens[line]) > 2 && assignIndex > 0)
-            {
-                if (tokens[line][operatorAssignIndex - 1].getToken() != "IDENTIFIER")
-                    throwSyntaxError(tokens[line][0].getLineNumber(), "'" + tokens[line][operatorAssignIndex - 1].getValue() + "' can't be used as a variable name.");
-            }
-
-            if (getNumValidTokens(tokens[line]) > 4 && assignIndex > 2)
-            {
-                if (tokens[line][assignIndex - 1].getToken() == "IDENTIFIER" && tokens[line][assignIndex - 2].getToken() == "DOUBLECOLON" && tokens[line][assignIndex - 3].getToken() == "IDENTIFIER")
-                    throwSyntaxError(tokens[line][0].getLineNumber(), "Imported variables are read-only.");
-            }
-
-            std::string type = splitLine(tokens[line], tabs, operatorAssignIndex - 2);
-            if (type != "")
-                throwSyntaxError(tokens[line][0].getLineNumber(), "Can't assign a type for the variable '" + tokens[line][operatorAssignIndex - 1].getValue() + "'.");
-
-            std::vector<Token> l;
-            l.push_back(tokens[line][operatorAssignIndex - 1]);
-
-            if (tokens[line][operatorAssignIndex].getToken() == "PLUSASSIGN")
-                l.push_back(Token("+", line + 1, 0));
-            if (tokens[line][operatorAssignIndex].getToken() == "MINUSASSIGN")
-                l.push_back(Token("-", line + 1, 0));
-            if (tokens[line][operatorAssignIndex].getToken() == "STARASSIGN")
-                l.push_back(Token("*", line + 1, 0));
-            if (tokens[line][operatorAssignIndex].getToken() == "SLASHASSIGN")
-                l.push_back(Token("/", line + 1, 0));
-            if (tokens[line][operatorAssignIndex].getToken() == "EXPASSIGN")
-                l.push_back(Token("^", line + 1, 0));
-
-            for (int i = operatorAssignIndex + 1; i < tokens[line].size() - 1; i++)
-                l.push_back(tokens[line][i]);
-
-            AssignNode *assignStmt = new AssignNode(tokens[line][operatorAssignIndex - 1].getValue(), "", buildIdentifier(l, 0, l.size() - 1));
-            assignStmt->setLine(line + 1);
-            blockNode->addStatement(assignStmt);
-            continue;
+            blockNode->addStatement(getOperatorAssignStatement(operatorAssignIndex, tokens, line, tabs));
         }
-
-        int returnIndex = getTokenIndex(tokens[line], "RETURN");
-        if (returnIndex != -1)
+        else if (returnIndex != -1)
         {
             if (!inFunction)
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'return' statement found outside of a function.");
@@ -777,11 +894,8 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
                 returnStmt->setLine(line + 1);
                 blockNode->addStatement(returnStmt);
             }
-
-            continue;
         }
-        int breakIndex = getTokenIndex(tokens[line], "BREAK");
-        if (breakIndex != -1)
+        else if (breakIndex != -1)
         {
             if (!inLoop)
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'break' statement found outside of loop.");
@@ -789,15 +903,11 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'break' statement shouldn't have anything after it.");
             else
             {
-                BreakNode *breakStmt = new BreakNode();
-                breakStmt->setLine(line + 1);
+                BreakNode *breakStmt = new BreakNode(line + 1);
                 blockNode->addStatement(breakStmt);
             }
-
-            continue;
         }
-        int skipIndex = getTokenIndex(tokens[line], "SKIP");
-        if (skipIndex != -1)
+        else if (skipIndex != -1)
         {
             if (!inLoop)
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'skip' statement found outside of loop.");
@@ -805,17 +915,17 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'skip' statement shouldn't have anything after it.");
             else
             {
-                SkipNode *skipStmt = new SkipNode();
-                skipStmt->setLine(line + 1);
+                SkipNode *skipStmt = new SkipNode(line + 1);
                 blockNode->addStatement(skipStmt);
             }
-
-            continue;
         }
+        else
+        {
+            blockNode->addStatement(buildIdentifier(tokens[line], tabs, tokens[line].size() - 2));
 
-        blockNode->addStatement(buildIdentifier(tokens[line], tabs, tokens[line].size() - 2));
-        if (!dynamic_cast<CallExprNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
-            throwSyntaxError(line + 1, "Line couldn't be parsed.");
+            if (!dynamic_cast<CallExprNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
+                throwSyntaxError(line + 1, "Line couldn't be parsed.");
+        }
 
         startLine = line;
     }
@@ -824,11 +934,63 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
     return blockNode;
 }
 
+void AbstractSyntaxTree::addImport(const std::vector<std::vector<Token>> &tokens, int &line)
+{
+    if (getNumValidTokens(tokens[line]) != 4)
+        throwSyntaxError(line + 1, "Import Statement couldn't be parsed");
+
+    if ((getNthToken(tokens[line], 2).getToken() != "MODULE" && getNthToken(tokens[line], 2).getToken() != "IDENTIFIER" || getNthToken(tokens[line], 3).getToken() != "AS" || getNthToken(tokens[line], 4).getToken() != "IDENTIFIER"))
+        throwSyntaxError(line + 1, "Import Statement couldn't be parsed");
+
+    std::string file = getNthToken(tokens[line], 2).getValue(), prefix = getNthToken(tokens[line], 4).getValue();
+    ImportNode *i = new ImportNode(file, prefix);
+
+    if (std::find(prefixes.begin(), prefixes.end(), prefix) != prefixes.end())
+        throwSyntaxError(line, "Module alias '" + prefix + "' is already defined in this scope.");
+
+    prefixes.push_back(prefix);
+    prefixSymbols[prefix] = {};
+    imports.push_back(file);
+    importNodes.push_back(i);
+}
+
+void AbstractSyntaxTree::addFunction(const std::vector<std::vector<Token>> &tokens, int &line)
+{
+    std::vector<std::string> information = getFunctionInformation(tokens[line]);
+    if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), information[0]) != Token::reservedFunctions.end())
+        throwSyntaxError(line, "Reserved function name used: '" + information[0] + "'.");
+
+    line++;
+
+    std::vector<ParamNode *> parameters;
+
+    for (int i = 2; i < information.size(); i++)
+    {
+        ParamNode *parameter = new ParamNode(information[i], line);
+        parameters.push_back(parameter);
+    }
+
+    BlockNode *body = buildBlock(tokens, line, 1, true);
+    if (body->getNumStatements() == 0)
+    {
+        if (tokens[body->getLine() - 2][tokens[body->getLine() - 2].size() - 2].getToken() == "COLON")
+            throwSyntaxError(body->getLine() - 1, "Missing body in function '" + information[0] + "'.");
+    }
+    else
+    {
+        if (tokens[body->getLine() - 2][tokens[body->getLine() - 2].size() - 2].getToken() != "COLON")
+            throwSyntaxError(body->getLine() - 1, "Colon missing for the function '" + information[0] + "'.");
+    }
+    line--;
+
+    FuncNode *func = new FuncNode(information[0], information[1], parameters, body, line - 1);
+    root->addNode(func);
+}
+
 void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens)
 {
     bool checkForImports = true;
     bool checkForExports = true;
-    std::vector<ImportNode *> importNodes;
     for (int line = 0; line < tokens.size(); line++)
     {
         if (!isValidLine(tokens[line]))
@@ -848,22 +1010,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
         {
             if (getNthToken(tokens[line], 1).getToken() == "IMPORT")
             {
-                if (getNumValidTokens(tokens[line]) != 4)
-                    throwSyntaxError(line + 1, "Import Statement couldn't be parsed");
-
-                if ((getNthToken(tokens[line], 2).getToken() != "MODULE" && getNthToken(tokens[line], 2).getToken() != "IDENTIFIER" || getNthToken(tokens[line], 3).getToken() != "AS" || getNthToken(tokens[line], 4).getToken() != "IDENTIFIER"))
-                    throwSyntaxError(line + 1, "Import Statement couldn't be parsed");
-
-                std::string file = getNthToken(tokens[line], 2).getValue(), prefix = getNthToken(tokens[line], 4).getValue();
-                ImportNode *i = new ImportNode(file, prefix);
-
-                if (std::find(prefixes.begin(), prefixes.end(), prefix) != prefixes.end())
-                    throwSyntaxError(line, "Module alias '" + prefix + "' is already defined in this scope.");
-
-                prefixes.push_back(prefix);
-                prefixSymbols[prefix] = {};
-                imports.push_back(file);
-                importNodes.push_back(i);
+                addImport(tokens, line);
                 continue;
             }
             else
@@ -885,113 +1032,11 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
         if (getNthToken(tokens[line], 1).getValue() == "func")
         {
             checkForExports = false;
-
-            std::vector<std::string> information = getFunctionInformation(tokens[line]);
-            if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), information[0]) != Token::reservedFunctions.end())
-                throwSyntaxError(line, "Reserved function name used: '" + information[0] + "'.");
-
-            line++;
-
-            std::vector<ParamNode *> parameters;
-
-            for (int i = 2; i < information.size(); i++)
-            {
-                ParamNode *parameter = new ParamNode(information[i], line);
-                parameters.push_back(parameter);
-            }
-
-            BlockNode *body = buildBlock(tokens, line, 1, true);
-            if (body->getNumStatements() == 0)
-            {
-                if (tokens[body->getLine() - 2][tokens[body->getLine() - 2].size() - 2].getToken() == "COLON")
-                    throwSyntaxError(body->getLine() - 1, "Missing body in function '" + information[0] + "'.");
-            }
-            else
-            {
-                if (tokens[body->getLine() - 2][tokens[body->getLine() - 2].size() - 2].getToken() != "COLON")
-                    throwSyntaxError(body->getLine() - 1, "Colon missing for the function '" + information[0] + "'.");
-            }
-            line--;
-
-            FuncNode *func = new FuncNode(information[0], information[1], parameters, body, line - 1);
-            root->addNode(func);
+            addFunction(tokens, line);
             continue;
         }
 
         root->addNode(buildBlock(tokens, line, 0));
         checkForExports = false;
     }
-}
-
-void AbstractSyntaxTree::format()
-{
-    BlockNode *globalCode = new BlockNode();
-    for (auto it = root->getChildrenRef().begin(); it != root->getChildrenRef().end();)
-    {
-        if (BlockNode *d = dynamic_cast<BlockNode *>(*it))
-        {
-            for (Node *stmt : d->getStatements())
-                globalCode->addStatement(stmt);
-
-            d->clearStatments();
-
-            delete *it;
-            it = root->getChildrenRef().erase(it);
-        }
-        else
-            ++it;
-    }
-
-    root->setGlobalCode(globalCode);
-}
-
-bool AbstractSyntaxTree::isImported() const
-{
-    return imported;
-}
-
-void AbstractSyntaxTree::setImported(bool imported)
-{
-    this->imported = imported;
-}
-
-bool AbstractSyntaxTree::hasImports() const
-{
-    return imports.size() > 0;
-}
-
-std::vector<std::string> AbstractSyntaxTree::getPrefixes() const
-{
-    return prefixes;
-}
-
-std::unordered_map<std::string, std::unordered_map<std::string, Scope>> AbstractSyntaxTree::getPrefixSymbols() const
-{
-    return prefixSymbols;
-}
-
-void AbstractSyntaxTree::setSymbols(std::string prefix, std::unordered_map<std::string, Scope> symbols)
-{
-    prefixSymbols[prefix] = symbols;
-}
-
-std::vector<std::string> AbstractSyntaxTree::getImports() const
-{
-    return imports;
-}
-
-void AbstractSyntaxTree::setImports(std::vector<std::string> imports)
-{
-    this->imports = imports;
-}
-
-void AbstractSyntaxTree::printTree() const
-{
-    root->print();
-}
-
-void AbstractSyntaxTree::freeMemory()
-{
-    delete root;
-    delete this;
 }
