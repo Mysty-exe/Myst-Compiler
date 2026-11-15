@@ -4,6 +4,7 @@
 #include <vector>
 #include <cctype>
 #include <algorithm>
+#include <sstream>
 #include <string>
 
 enum class TokenType
@@ -95,6 +96,10 @@ public:
 class Lexer
 {
 private:
+    int lineNum;
+    std::string currentToken;
+    bool inString, inImport;
+
     std::vector<std::vector<Token>> tokens;
     void addTabsInLine(const std::string &line, int lineNum, int &col);
     int countSubstrings(const std::string &str, const std::string &substr) const;
@@ -109,6 +114,8 @@ private:
 
 public:
     Lexer();
+    void tokenizeLine(const std::string &line);
+    void tokenizeFile(const std::string &file);
     void tokenizeFile(std::ifstream &file);
     void readTokens() const;
     void readFile() const;

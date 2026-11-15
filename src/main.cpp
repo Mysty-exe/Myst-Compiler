@@ -30,12 +30,12 @@ void throwImportError(std::string message)
 
 struct Parameters
 {
-    bool help, disableWarnings, seeTokens, seeAST;
+    bool help, disableWarnings, seeTokens, seeAST, keepIR;
     std::string inputFile, outputFile;
 
     Parameters()
     {
-        help = false, disableWarnings = false, seeTokens = false, seeAST = false;
+        help = false, disableWarnings = false, seeTokens = false, seeAST = false, keepIR = false;
         inputFile = "", outputFile = "";
     }
 };
@@ -52,6 +52,7 @@ void printHelp()
     std::cout << "-o {file} = Set Executable Name" << std::endl;
 }
 
+// Get Extension from a file
 std::string getExtension(const std::string &file)
 {
     std::string ext = "";
@@ -66,6 +67,7 @@ std::string getExtension(const std::string &file)
     return "";
 }
 
+// Loop through ASTS and semantically check them
 void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
 {
     std::vector<std::string> loadedAsts;
@@ -86,14 +88,13 @@ void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
             }
         }
 
-        std::unordered_map<std::string, Scope> symbolTable;
-        std::vector<std::string> visibleScope;
+        SemanticsInfo semanticsInfo;
+        semanticsInfo.setPrefixSymbols(ast->getPrefixSymbols());
 
         RootNode::setCurrentFile(ast->getRoot()->getFileName());
 
-        std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixSymbols = ast->getPrefixSymbols();
-        ast->getRoot()->checkSemantics(symbolTable, visibleScope, prefixSymbols);
-        ast->setSymbolTable(symbolTable);
+        ast->getRoot()->checkSemantics(semanticsInfo);
+        ast->setSymbolTable(semanticsInfo.getSymbolTable());
         loadedAsts.push_back(ast->getRoot()->getFileName());
 
         for (AbstractSyntaxTree *a : asts)
@@ -101,10 +102,11 @@ void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
             if (ast == a)
                 continue;
 
+            // Sets the import symbols for any other file that needs the ast symbols
             for (int i = 0; i < a->getImports().size(); i++)
             {
                 if (a->getImports()[i] == ast->getRoot()->getFileName())
-                    a->setSymbols(a->getPrefixes()[i], symbolTable);
+                    a->setSymbols(a->getPrefixes()[i], semanticsInfo.getSymbolTable());
             }
         }
 
@@ -119,6 +121,7 @@ void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
         }
     }
 
+    // Deletes all symbols and sends warnings
     for (AbstractSyntaxTree *ast : asts)
     {
         RootNode::setCurrentFile(ast->getRoot()->getFileName());
@@ -154,6 +157,7 @@ AbstractSyntaxTree *parseFile(const std::string &name, std::ifstream &inputFile)
 int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, bool importedFile = false)
 {
     std::ifstream inputFile(file);
+
     if (!inputFile.is_open())
     {
         throwParameterError("Could not open the file '" + file + "'.");
@@ -174,6 +178,7 @@ int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, bool imp
 
     asts.insert(asts.begin(), ast);
 
+    // Checks for ciruclar imports
     if (asts.size() > 1)
     {
         for (int i = 0; i < asts[0]->getImports().size(); i++)
@@ -182,12 +187,13 @@ int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, bool imp
             {
                 std::string f1 = ast->getRoot()->getFileName(), f2 = asts[1]->getRoot()->getFileName();
                 std::string f1name = ast->getImports()[i], f2name = asts[1]->getImports()[k];
-                if (f2.substr(f2.size() - f1name.size() - 3, f1name.size()) == f1name || f1.substr(f1.size() - f2name.size() - 3, f2name.size()) == f1name)
+                if (f2.substr(f2.size() - f1name.size() - 3, f1name.size()) == f1name || f1.substr(f1.size() - f2name.size() - 3, f2name.size()) == f2name)
                     throwImportError("Module A depends on Module B which depends back on Module A.");
             }
         }
     }
 
+    // Looks for imports in the file and loads them up
     if (ast->hasImports())
     {
         std::vector<std::string> imports;
@@ -221,6 +227,7 @@ int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, bool imp
                 else
                     newImport.push_back(import[i]);
             }
+
             newImport += ".ms";
 
             if (file.size() > 0)
@@ -253,6 +260,7 @@ int main(int argc, char *argv[])
             }
         }
 
+        // Looks for arguments in the command
         std::string ext = getExtension(parameter);
         if (ext == "ms")
             parameters.inputFile = parameter;
@@ -265,6 +273,9 @@ int main(int argc, char *argv[])
 
         if (parameter == "-a")
             parameters.seeAST = true;
+
+        if (parameter == "-ir")
+            parameters.keepIR = true;
 
         if (parameter == "-o")
         {
@@ -290,12 +301,29 @@ int main(int argc, char *argv[])
     }
 
     std::vector<AbstractSyntaxTree *> asts;
-    runFiles(parameters.inputFile, asts);
-    analyzeFiles(asts);
-
     std::string output = (parameters.outputFile.size() == 0) ? parameters.inputFile.substr(0, parameters.inputFile.size() - 3) : parameters.outputFile;
-    LLVM::mapToIR(asts);
-    LLVM::generateExecutable(output);
+
+    try
+    {
+        runFiles(parameters.inputFile, asts);
+        analyzeFiles(asts);
+        LLVM::mapToIR(asts, output);
+        LLVM::generateExecutable(output, parameters.keepIR);
+    }
+    catch (const CompilerError &e)
+    {
+        std::cerr << "\033[31m";
+        std::cerr << e.what() << std::endl;
+        std::cerr << "\033[0m";
+        return 1;
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr << "\033[31m";
+        std::cerr << e.what() << std::endl;
+        std::cerr << "\033[0m";
+        return 1;
+    }
 
     return 0;
 }
