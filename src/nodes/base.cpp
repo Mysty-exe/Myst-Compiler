@@ -611,7 +611,7 @@ IdentifierNode::IdentifierNode(std::string name, std::string type)
     else if (type == "var")
         this->type = "VAR";
     else
-        this->type = "";
+        this->type = type;
 }
 IdentifierNode::~IdentifierNode()
 {
@@ -660,6 +660,9 @@ bool IdentifierNode::checkType(SemanticsInfo &semanticsInfo, const std::string &
 {
     if (imported)
     {
+        if (semanticsInfo.getPrefixSymbols().count(modName) == 0)
+            throwSemanticError(line, "Module '" + modName + "' was not found.");
+
         auto scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
         for (Symbol *symbol : scope.getSymbols())
         {
@@ -699,6 +702,9 @@ std::string IdentifierNode::inferType(SemanticsInfo &semanticsInfo)
 {
     if (imported)
     {
+        if (semanticsInfo.getPrefixSymbols().count(modName) == 0)
+            throwSemanticError(line, "Module '" + modName + "' was not found.");
+
         auto scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
         for (Symbol *symbol : scope.getSymbols())
         {

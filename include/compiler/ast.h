@@ -30,7 +30,7 @@ private:
     int getTokenIndex(const std::vector<Token> &tokenLine, const std::vector<std::string> &tokenStrs, bool includeOnlyValidTokens = false) const;
     int getNumTabs(const std::vector<Token> &tokenLine) const;
     Token getNthToken(const std::vector<Token> &tokenLine, int n) const;
-    std::vector<std::string> getFunctionInformation(const std::vector<Token> &tokenLine) const;
+    std::vector<std::string> getFunctionInformation(const std::vector<Token> &tokenLine, bool inContainer = false) const;
     std::string splitLine(const std::vector<Token> &tokens, int startIndex, int endIndex) const;
 
 public:
@@ -63,6 +63,7 @@ public:
     WhileNode *getWhileStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop);
     AssignNode *getAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs);
     AssignNode *getOperatorAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs);
+    std::vector<Node *> buildContainer(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent);
     BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false, bool inLoop = false);
     void addImport(const std::vector<std::vector<Token>> &tokens, int &line);
     void addFunction(const std::vector<std::vector<Token>> &tokens, int &line);

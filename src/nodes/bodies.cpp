@@ -368,6 +368,41 @@ void BlockNode::findReturnStmts(std::vector<Node *> &stmts)
         statements[i]->findReturnStmts(stmts);
 }
 
+ContainerNode::ContainerNode(std::string name, std::vector<Node *> body, int line)
+{
+    this->name = name;
+    this->body = body;
+    this->line = line;
+}
+
+ContainerNode::~ContainerNode()
+{
+    for (Node *node : body)
+    {
+        delete node;
+        node = nullptr;
+    }
+}
+
+void ContainerNode::print(int depth) const
+{
+    std::string depthTabs = repeat_string("\t", depth);
+    std::cout << depthTabs << "ContainerNode: " << name << std::endl;
+    std::cout << depthTabs << "\tVariables: " << std::endl;
+    for (Node *node : body)
+    {
+        if (dynamic_cast<IdentifierNode *>(node))
+            node->print(depth + 2);
+    }
+
+    std::cout << depthTabs << "\tMethods: " << std::endl;
+    for (Node *node : body)
+    {
+        if (dynamic_cast<FuncNode *>(node))
+            node->print(depth + 2);
+    }
+}
+
 IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
 {
     this->condition = condition;

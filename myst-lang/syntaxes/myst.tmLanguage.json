@@ -23,7 +23,7 @@
     "keywords": {
       "patterns": [{
         "name": "keyword.control.ms",
-        "match": "\\b(import|export|as|func|ref|var|if|elseif|else|while|break|skip|return|and|or|not)\\b"
+        "match": "\\b(container|import|export|as|func|ref|var|if|elseif|else|while|break|skip|return|and|or|not)\\b"
       }]
     },
     "built-ins": {

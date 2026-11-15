@@ -9,6 +9,7 @@
 
 enum class TokenType
 {
+    CONTAINER,
     EXPORT,
     IMPORT,
     MODULE,
