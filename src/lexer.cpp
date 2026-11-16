@@ -42,6 +42,7 @@ bool validNumber(const std::string &number)
 
     if (decimal && number.size() <= 1)
         return false;
+
     return true;
 }
 

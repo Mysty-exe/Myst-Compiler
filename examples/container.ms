@@ -2,9 +2,7 @@ container Person:
     int age, year, date
     char test, testing
 
-    Person(int a, int b):
-        age = a
-        year = b
+    Person(int a, int b)
 
     getAge() -> int:
         return age
@@ -12,5 +10,4 @@ container Person:
     getYear() -> int:
         return year
 
-Person p = 34
 print(34)

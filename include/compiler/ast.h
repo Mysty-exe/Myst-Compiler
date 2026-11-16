@@ -63,7 +63,7 @@ public:
     WhileNode *getWhileStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop);
     AssignNode *getAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs);
     AssignNode *getOperatorAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs);
-    std::vector<Node *> buildContainer(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent);
+    std::vector<Node *> buildContainer(const std::string &name, const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent);
     BlockNode *buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction = false, bool inLoop = false);
     void addImport(const std::vector<std::vector<Token>> &tokens, int &line);
     void addFunction(const std::vector<std::vector<Token>> &tokens, int &line);

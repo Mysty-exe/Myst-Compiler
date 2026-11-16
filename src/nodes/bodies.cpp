@@ -125,6 +125,18 @@ FuncNode::~FuncNode()
 
     delete body;
 }
+std::string FuncNode::getName()
+{
+    return name;
+}
+std::string FuncNode::getReturnType()
+{
+    return returnType;
+}
+void FuncNode::setReturnType(std::string type)
+{
+    returnType = type;
+}
 void FuncNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -401,6 +413,9 @@ void ContainerNode::print(int depth) const
         if (dynamic_cast<FuncNode *>(node))
             node->print(depth + 2);
     }
+}
+void ContainerNode::checkSemantics(SemanticsInfo &semanticsInfo)
+{
 }
 
 IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)

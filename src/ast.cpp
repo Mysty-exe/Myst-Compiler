@@ -325,6 +325,18 @@ std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::v
 {
     std::vector<std::string> result;
     Token name = (inContainer) ? getNthToken(tokenLine, 1) : getNthToken(tokenLine, 2);
+
+    if (inContainer)
+    {
+        if (getNthToken(tokenLine, 2).getToken() != "LPAREN")
+            throwSyntaxError(name.getLineNumber(), "Function couldn't be parsed.");
+    }
+    else
+    {
+        if (getNthToken(tokenLine, 3).getToken() != "LPAREN")
+            throwSyntaxError(name.getLineNumber(), "Function couldn't be parsed.");
+    }
+
     if (name.getToken() == "IDENTIFIER")
         result.push_back(name.getValue());
     else
@@ -366,15 +378,12 @@ std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::v
         {
             if (currentParameter.size() > 0)
             {
-                if (tokenLine[i].getToken() == "IDENTIFIER" || tokenLine[i].getToken() == "INTTYPE" || tokenLine[i].getToken() == "DECIMALTYPE" || tokenLine[i].getToken() == "BOOLTYPE" || tokenLine[i].getToken() == "CHARTYPE")
+                if (tokenLine[i].getToken() == "IDENTIFIER" || tokenLine[i].getToken() == "REF" || isDataType(tokenLine[i].getToken()))
                     currentParameter += " " + tokenLine[i].getValue();
-                else
-                    throwSyntaxError(tokenLine[i].getLineNumber(), "Unexpected identifier '" + tokenLine[i].getValue() + "' used as parameter name.");
             }
             else
             {
-
-                if (tokenLine[i].getToken() == "REF" || tokenLine[i].getToken() == "INTTYPE" || tokenLine[i].getToken() == "DECIMALTYPE" || tokenLine[i].getToken() == "BOOLTYPE" || tokenLine[i].getToken() == "CHARTYPE")
+                if (tokenLine[i].getToken() == "IDENTIFIER" || tokenLine[i].getToken() == "REF" || isDataType(tokenLine[i].getToken()))
                     currentParameter += tokenLine[i].getValue();
             }
         }
@@ -583,7 +592,7 @@ Node *AbstractSyntaxTree::buildExpression(const std::vector<Token> &line, int st
     if (splitIndex != -1 && splitIndex != start)
     {
         BinaryExprNode *binaryExpr = new BinaryExprNode(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
-        binaryExpr->setLine(line[start].getLineNumber());
+        binaryExpr->setLine(line[splitIndex].getLineNumber());
         return binaryExpr;
     }
 
@@ -652,14 +661,14 @@ BranchBlockNode *AbstractSyntaxTree::getIfStatement(int index, const std::vector
 
     line++;
     if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
-        throwSyntaxError(line, "Expected ':' at the end of 'if' statement.");
+        throwSyntaxError(line - 1, "Expected ':' at the end of 'if' statement.");
 
     Node *condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
     condition->setLine(line);
 
     BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
     if (block->getNumStatements() == 0)
-        throwSyntaxError(line, "Missing body in 'if' statement.");
+        throwSyntaxError(line - 1, "Missing body in 'if' statement.");
 
     BranchBlockNode *branchBlock = new BranchBlockNode();
     IfStmtNode *ifStmt = new IfStmtNode(condition, block);
@@ -679,13 +688,13 @@ void AbstractSyntaxTree::addElseIfStatement(int index, BlockNode *blockNode, con
     if (blockNode->getNumStatements() == 0 || !dynamic_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
         throwSyntaxError(line, "'elseif' statement found without a preceding 'if' statement.");
     if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
-        throwSyntaxError(line, "Expected ':' at the end of elseif statement.");
+        throwSyntaxError(line - 1, "Expected ':' at the end of elseif statement.");
     Node *condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
     condition->setLine(line);
 
     BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
     if (block->getNumStatements() == 0)
-        throwSyntaxError(line, "Missing body in 'elseif' statement.");
+        throwSyntaxError(line - 1, "Missing body in 'elseif' statement.");
 
     ElseIfStmtNode *elseIfStmt = new ElseIfStmtNode(condition, block);
     elseIfStmt->setLine(line);
@@ -704,11 +713,11 @@ void AbstractSyntaxTree::addElseStatement(int index, BlockNode *blockNode, const
         throwSyntaxError(line, "'else' statement found without a preceding 'if' statement.");
     int colonIndex = getTokenIndex(tokens[line - 1], "COLON");
     if (colonIndex == -1)
-        throwSyntaxError(line, "Expected ':' at the end of else statement.");
+        throwSyntaxError(line - 1, "Expected ':' at the end of else statement.");
 
     int numValidTokens = getNumValidTokens(tokens[line - 1]);
     if (numValidTokens != 2)
-        throwSyntaxError(line, "Line couldn't be parsed.");
+        throwSyntaxError(line - 1, "Line couldn't be parsed.");
 
     BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
     if (block->getNumStatements() == 0)
@@ -730,14 +739,14 @@ WhileNode *AbstractSyntaxTree::getWhileStatement(int index, const std::vector<st
     if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
         throwSyntaxError(line, "Expected ':' at the end of 'while' loop.");
     Node *condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
-    condition->setLine(line);
+    condition->setLine(line - 1);
 
     BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, true);
     if (block->getNumStatements() == 0)
         throwSyntaxError(line, "Missing body in 'while' loop.");
 
     WhileNode *whileStmt = new WhileNode(condition, block);
-    whileStmt->setLine(line);
+    whileStmt->setLine(line - 1);
 
     return whileStmt;
 }
@@ -808,7 +817,7 @@ AssignNode *AbstractSyntaxTree::getOperatorAssignStatement(int index, const std:
     return assignStmt;
 }
 
-std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent)
+std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::string &name, const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent)
 {
     std::vector<Node *> body;
     for (int line = startLine; line < tokens.size(); line++)
@@ -823,11 +832,11 @@ std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::vector<std::ve
             return body;
         }
 
-        if (getNthToken(tokens[line], 1).getToken() == "IDENTIFIER" && getNthToken(tokens[line], 2).getToken() == "LPAREN" && getNthToken(tokens[line], -1).getToken() == "COLON")
+        if (getNthToken(tokens[line], 1).getToken() == "IDENTIFIER" && getNthToken(tokens[line], 2).getToken() == "LPAREN")
         {
             std::vector<std::string> information = getFunctionInformation(tokens[line], true);
             if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), information[0]) != Token::reservedFunctions.end())
-                throwSyntaxError(line, "Reserved function name used: '" + information[0] + "'.");
+                throwSyntaxError(line + 1, "Reserved function name used: '" + information[0] + "'.");
 
             line++;
 
@@ -842,7 +851,7 @@ std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::vector<std::ve
             BlockNode *funcBody = buildBlock(tokens, line, 2, true);
             if (funcBody->getNumStatements() == 0)
             {
-                if (tokens[funcBody->getLine() - 2][tokens[funcBody->getLine() - 2].size() - 2].getToken() == "COLON")
+                if (tokens[funcBody->getLine() - 2][tokens[funcBody->getLine() - 2].size() - 2].getToken() == "COLON" && name != information[0])
                     throwSyntaxError(funcBody->getLine() - 1, "Missing body in function '" + information[0] + "'.");
             }
             else
@@ -853,6 +862,9 @@ std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::vector<std::ve
             line--;
 
             FuncNode *func = new FuncNode(information[0], information[1], parameters, funcBody, line - 1);
+            if (func->getName() == name)
+                func->setReturnType(name);
+
             body.push_back(func);
             continue;
         }
@@ -916,10 +928,18 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
             return blockNode;
         }
 
-        if (getNthToken(tokens[line], 1).getValue() == "func")
+        if (getNthToken(tokens[line], 1).getToken() == "CONTAINER")
         {
             if (inFunction)
-                throwSyntaxError(line, "Function can't be defined in a function.");
+                throwSyntaxError(line + 1, "Container can't be defined in a function.");
+            startLine = line - 1;
+            return blockNode;
+        }
+
+        if (getNthToken(tokens[line], 1).getToken() == "FUNC")
+        {
+            if (inFunction)
+                throwSyntaxError(line + 1, "Function can't be defined in a function.");
             startLine = line - 1;
             return blockNode;
         }
@@ -1046,7 +1066,7 @@ void AbstractSyntaxTree::addFunction(const std::vector<std::vector<Token>> &toke
 {
     std::vector<std::string> information = getFunctionInformation(tokens[line]);
     if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), information[0]) != Token::reservedFunctions.end())
-        throwSyntaxError(line, "Reserved function name used: '" + information[0] + "'.");
+        throwSyntaxError(line + 1, "Reserved function name used: '" + information[0] + "'.");
 
     line++;
 
@@ -1125,13 +1145,15 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
                 throwSyntaxError(line + 1, "Couldn't parse container statement.");
 
             std::string name = getNthToken(tokens[line], 2).getValue();
+            int origLine = line + 1;
+
             line++;
             checkForExports = false;
 
-            std::vector<Node *> body = buildContainer(tokens, line, 1);
+            std::vector<Node *> body = buildContainer(name, tokens, line, 1);
 
             line--;
-            ContainerNode *container = new ContainerNode(name, body, line - 1);
+            ContainerNode *container = new ContainerNode(name, body, origLine);
             root->addNode(container);
 
             continue;

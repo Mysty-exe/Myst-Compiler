@@ -376,7 +376,7 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
         auto it = symbols.begin();
         while (it != symbols.end())
         {
-            if (FuncSymbol *symbol = dynamic_cast<FuncSymbol *>(*it))
+            if (dynamic_cast<FuncSymbol *>(*it))
                 it = symbols.erase(it);
             else
                 ++it;
@@ -395,6 +395,9 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
                     stmt->checkSemantics(semanticsInfo);
             }
         }
+
+        if (ContainerNode *container = dynamic_cast<ContainerNode *>(child))
+            container->checkSemantics(semanticsInfo);
 
         if (FuncNode *func = dynamic_cast<FuncNode *>(child))
             func->checkSemantics(semanticsInfo);
@@ -599,6 +602,8 @@ IdentifierNode::IdentifierNode(std::string name)
 IdentifierNode::IdentifierNode(std::string name, std::string type)
 {
     this->name = name;
+    imported = false;
+    modName = "";
 
     if (type == "char")
         this->type = "CHARTYPE";

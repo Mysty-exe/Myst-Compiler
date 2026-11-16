@@ -127,6 +127,20 @@ public:
     }
 };
 
+struct ContainerSymbol : Symbol
+{
+private:
+public:
+    ContainerSymbol(int line, std::string name, bool used = true, std::string type = "") : Symbol(line, used, name, type)
+    {
+    }
+
+    virtual std::string getType() override
+    {
+        return "CONTAINER";
+    }
+};
+
 struct Scope
 {
 private:

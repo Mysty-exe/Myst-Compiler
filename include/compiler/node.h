@@ -389,6 +389,9 @@ private:
 public:
     FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line);
     ~FuncNode() override;
+    std::string getName();
+    std::string getReturnType();
+    void setReturnType(std::string type);
     virtual void print(int depth = 0) const override;
     void addSignatureToTable(SemanticsInfo &semanticsInfo, bool includeParams = true);
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
@@ -406,6 +409,7 @@ public:
     ContainerNode(std::string name, std::vector<Node *> body, int line);
     ~ContainerNode() override;
     virtual void print(int depth = 0) const override;
+    virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
 };
 
 struct IfStmtNode : Node
