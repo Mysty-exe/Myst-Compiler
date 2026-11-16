@@ -356,6 +356,9 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
         if (FuncNode *func = dynamic_cast<FuncNode *>(child))
             func->addSignatureToTable(semanticsInfo, false);
 
+        if (ContainerNode *container = dynamic_cast<ContainerNode *>(child))
+            container->checkSemantics(semanticsInfo);
+
         if (BlockNode *block = dynamic_cast<BlockNode *>(child))
         {
             for (Node *stmt : block->getStatements())
@@ -374,13 +377,15 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
         auto scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
         auto symbols = scope.getSymbols();
         auto it = symbols.begin();
+
         while (it != symbols.end())
         {
-            if (dynamic_cast<FuncSymbol *>(*it))
+            if (dynamic_cast<FuncSymbol *>(*it) || dynamic_cast<ContainerSymbol *>(*it))
                 it = symbols.erase(it);
             else
                 ++it;
         }
+
         scope.setSymbols(symbols);
         semanticsInfo.setScope(semanticsInfo.getVisibleScope()[i], scope);
     }

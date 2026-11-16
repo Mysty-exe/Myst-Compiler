@@ -535,12 +535,9 @@ CallExprNode *AbstractSyntaxTree::buildCallExpr(const std::vector<Token> &line, 
         if (startArg <= end - 1)
             arguments.push_back(buildIdentifier(line, startArg, end - 1));
 
-        CallExprNode *callExpression;
-        if (callExpr)
-            callExpression = new CallExprNode(line[start].getValue(), arguments);
-        else
-            callExpression = new CallExprNode(line[start + 2].getValue(), arguments);
-
+        std::string name = (callExpr) ? line[start].getValue() : line[start + 2].getValue();
+        bool inContainer = std::find(containers.begin(), containers.end(), name) != containers.end();
+        CallExprNode *callExpression = new CallExprNode(name, arguments, inContainer);
         callExpression->setLine(line[start].getLineNumber());
 
         if (importedCallExpr)
@@ -819,11 +816,16 @@ AssignNode *AbstractSyntaxTree::getOperatorAssignStatement(int index, const std:
 
 std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::string &name, const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent)
 {
+    containers.push_back(name);
+
     std::vector<Node *> body;
     for (int line = startLine; line < tokens.size(); line++)
     {
         if (!isValidLine(tokens[line]))
+        {
+            startLine = line;
             continue;
+        }
 
         int currentIndent = getNumTabs(tokens[line]);
         if (currentIndent < expectedIndent)
@@ -851,7 +853,7 @@ std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::string &name, 
             BlockNode *funcBody = buildBlock(tokens, line, 2, true);
             if (funcBody->getNumStatements() == 0)
             {
-                if (tokens[funcBody->getLine() - 2][tokens[funcBody->getLine() - 2].size() - 2].getToken() == "COLON" && name != information[0])
+                if (tokens[funcBody->getLine() - 2][tokens[funcBody->getLine() - 2].size() - 2].getToken() == "COLON")
                     throwSyntaxError(funcBody->getLine() - 1, "Missing body in function '" + information[0] + "'.");
             }
             else
@@ -866,6 +868,8 @@ std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::string &name, 
                 func->setReturnType(name);
 
             body.push_back(func);
+
+            startLine = line;
             continue;
         }
 

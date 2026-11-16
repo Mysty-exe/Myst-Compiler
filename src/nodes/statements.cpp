@@ -1,9 +1,10 @@
 #include "compiler/node.h"
 
-CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments)
+CallExprNode::CallExprNode(std::string name, std::vector<Node *> arguments, bool isConstructor)
 {
     this->name = name;
     this->arguments = arguments;
+    this->isConstructor = isConstructor;
     imported = false;
     modName = "";
 }
@@ -111,61 +112,70 @@ void CallExprNode::lookForCallExprs(SemanticsInfo &semanticsInfo)
         }
     }
 }
+bool CallExprNode::checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *funcSymbol)
+{
+    if (arguments.size() != funcSymbol->getNumParameters())
+        return false;
+
+    for (int k = 0; k < funcSymbol->getParameters().size(); k++)
+    {
+        std::string p = funcSymbol->getParameters()[k];
+        if (p.substr(0, 3) == "REF")
+        {
+            p = p.substr(3);
+            if (!dynamic_cast<IdentifierNode *>(arguments[k]))
+                throwSemanticError(line, "Must use an identifier (variable) for a reference.");
+
+            if (!arguments[k]->checkType(semanticsInfo, p))
+                return false;
+        }
+
+        this->argTypes.push_back(funcSymbol->getParameters()[k]);
+        arguments[k]->checkType(semanticsInfo, funcSymbol->getParameters()[k]);
+        if (!canCoerce(arguments[k]->inferType(semanticsInfo), p))
+        {
+            if (!arguments[k]->checkType(semanticsInfo, p))
+                return false;
+        }
+    }
+
+    this->returnType = funcSymbol->getDataType();
+    return true;
+}
 int CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, bool &overridenFunction, bool importing)
 {
     for (Symbol *symbol : scope.getSymbols())
     {
-        if (symbol->getType() == "FUNC" && symbol->getName() == name)
+        if (importing)
         {
-            if (importing)
+            if (!symbol->isExported())
+                continue;
+        }
+
+        if (symbol->getType() == "CONTAINER" && symbol->getName() == name)
+        {
+            ContainerSymbol *derivedSymbol = static_cast<ContainerSymbol *>(symbol);
+            for (FuncSymbol *func : derivedSymbol->getFunctions())
             {
-                if (!symbol->isExported())
-                    continue;
+                if (type == "" || func->getDataType() == type || canCoerce(func->getDataType(), type))
+                {
+                    if (checkFuncArgs(semanticsInfo, func))
+                        return 1;
+                }
             }
 
+            throwSemanticError(line, "Constructor with these parameter types couldn't be found.");
+            return -1;
+        }
+
+        if (symbol->getType() == "FUNC" && symbol->getName() == name)
+        {
             overridenFunction = true;
             if (type == "" || symbol->getDataType() == type || canCoerce(symbol->getDataType(), type))
             {
                 FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
-                if (arguments.size() != derivedSymbol->getNumParameters())
-                    continue;
-
-                bool wrongType = false;
-                for (int k = 0; k < derivedSymbol->getParameters().size(); k++)
-                {
-                    std::string p = derivedSymbol->getParameters()[k];
-                    if (p.substr(0, 3) == "REF")
-                    {
-                        p = p.substr(3);
-                        if (!dynamic_cast<IdentifierNode *>(arguments[k]))
-                            throwSemanticError(line, "Must use an identifier (variable) for a reference.");
-
-                        if (!arguments[k]->checkType(semanticsInfo, p))
-                        {
-                            wrongType = true;
-                            break;
-                        }
-                    }
-
-                    this->argTypes.push_back(derivedSymbol->getParameters()[k]);
-                    arguments[k]->checkType(semanticsInfo, derivedSymbol->getParameters()[k]);
-                    if (!canCoerce(arguments[k]->inferType(semanticsInfo), p))
-                    {
-                        if (!arguments[k]->checkType(semanticsInfo, p))
-                        {
-                            wrongType = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (wrongType)
-                    continue;
-                else
-                {
-                    this->returnType = symbol->getDataType();
+                if (checkFuncArgs(semanticsInfo, derivedSymbol))
                     return 1;
-                }
             }
             else
                 return -1;
@@ -317,6 +327,11 @@ std::string CallExprNode::inferType(SemanticsInfo &semanticsInfo)
                 returnType = symbol->getDataType();
                 return symbol->getDataType();
             }
+            if (symbol->getType() == "CONTAINER" && symbol->getName() == name && symbol->isExported())
+            {
+                returnType = symbol->getName();
+                return symbol->getName();
+            }
         }
 
         throwSemanticError(line, "function '" + name + "' was not found in Module '" + modName + "'.");
@@ -332,6 +347,11 @@ std::string CallExprNode::inferType(SemanticsInfo &semanticsInfo)
             {
                 returnType = symbol->getDataType();
                 return symbol->getDataType();
+            }
+            if (symbol->getType() == "CONTAINER" && symbol->getName() == name)
+            {
+                returnType = symbol->getName();
+                return symbol->getName();
             }
         }
     }

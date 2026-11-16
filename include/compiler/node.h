@@ -284,12 +284,13 @@ private:
     std::string name, returnType, modName;
     std::vector<std::string> argTypes;
     std::vector<Node *> arguments;
-    bool imported;
+    bool imported, isConstructor;
 
+    bool checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *funcSymbol);
     int checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, bool &overridenFunction, bool importing);
 
 public:
-    CallExprNode(std::string name, std::vector<Node *> arguments);
+    CallExprNode(std::string name, std::vector<Node *> arguments, bool isConstructor = false);
     ~CallExprNode() override;
     std::string getName() const;
     std::string getReturnType() const;
@@ -392,6 +393,7 @@ public:
     std::string getName();
     std::string getReturnType();
     void setReturnType(std::string type);
+    std::vector<ParamNode *> getParameters();
     virtual void print(int depth = 0) const override;
     void addSignatureToTable(SemanticsInfo &semanticsInfo, bool includeParams = true);
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
@@ -403,7 +405,8 @@ struct ContainerNode : Node
 {
 private:
     std::string name;
-    std::vector<Node *> body;
+    std::vector<IdentifierNode *> variables;
+    std::vector<FuncNode *> functions;
 
 public:
     ContainerNode(std::string name, std::vector<Node *> body, int line);

@@ -137,6 +137,10 @@ void FuncNode::setReturnType(std::string type)
 {
     returnType = type;
 }
+std::vector<ParamNode *> FuncNode::getParameters()
+{
+    return parameters;
+}
 void FuncNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -383,13 +387,27 @@ void BlockNode::findReturnStmts(std::vector<Node *> &stmts)
 ContainerNode::ContainerNode(std::string name, std::vector<Node *> body, int line)
 {
     this->name = name;
-    this->body = body;
     this->line = line;
+
+    for (Node *node : body)
+    {
+        if (IdentifierNode *variable = dynamic_cast<IdentifierNode *>(node))
+            variables.push_back(variable);
+
+        if (FuncNode *function = dynamic_cast<FuncNode *>(node))
+            functions.push_back(function);
+    }
 }
 
 ContainerNode::~ContainerNode()
 {
-    for (Node *node : body)
+    for (Node *node : variables)
+    {
+        delete node;
+        node = nullptr;
+    }
+
+    for (Node *node : functions)
     {
         delete node;
         node = nullptr;
@@ -401,21 +419,96 @@ void ContainerNode::print(int depth) const
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "ContainerNode: " << name << std::endl;
     std::cout << depthTabs << "\tVariables: " << std::endl;
-    for (Node *node : body)
-    {
-        if (dynamic_cast<IdentifierNode *>(node))
-            node->print(depth + 2);
-    }
+    for (IdentifierNode *node : variables)
+        node->print(depth + 2);
 
     std::cout << depthTabs << "\tMethods: " << std::endl;
-    for (Node *node : body)
-    {
-        if (dynamic_cast<FuncNode *>(node))
-            node->print(depth + 2);
-    }
+    for (FuncNode *node : functions)
+        node->print(depth + 2);
 }
 void ContainerNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {
+    for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
+    {
+        auto scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
+        for (Symbol *symbol : scope.getSymbols())
+        {
+            if (symbol->getType() == "CONTAINER" && symbol->getName() == name)
+                throwSemanticError(line, "'" + name + "' has already been declared as a container.");
+        }
+    }
+
+    std::vector<VarSymbol *> varSymbols;
+    for (IdentifierNode *identifier : variables)
+    {
+        for (Symbol *symbol : varSymbols)
+        {
+            if (symbol->getName() == identifier->getName() && symbol->getType() == "VAR")
+                throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a variable in container '" + name + "'.");
+        }
+
+        varSymbols.push_back(new VarSymbol(identifier->getLine(), true, identifier->getName(), identifier->getType()));
+    }
+
+    bool foundConstructor;
+    std::vector<FuncSymbol *> funcSymbols;
+    for (FuncNode *func : functions)
+    {
+        if (func->getName() == name)
+            foundConstructor = true;
+
+        for (Symbol *symbol : varSymbols)
+        {
+            if (symbol->getName() == func->getName() && symbol->getType() == "VAR")
+                throwSemanticError(func->getLine(), "'" + func->getName() + "' has already been declared as a variable in container '" + name + "'.");
+        }
+
+        for (Symbol *symbol : funcSymbols)
+        {
+            if (symbol->getName() == func->getName() && symbol->getType() == "FUNC")
+            {
+                if (symbol->getType() == "FUNC" && symbol->getName() == name)
+                {
+                    FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
+                    if (derivedSymbol->getNumParameters() == func->getParameters().size())
+                    {
+                        bool sameFuncFlag = true;
+                        for (int i = 0; i < func->getParameters().size(); i++)
+                        {
+                            if (func->getParameters()[i]->getType() != derivedSymbol->getParameters()[i])
+                            {
+                                sameFuncFlag = false;
+                                break;
+                            }
+                        }
+
+                        if (sameFuncFlag)
+                            throwSemanticError(func->getLine(), "'" + func->getName() + "' has already been declared as a function in container '" + name + "' with the same parameters.");
+                    }
+                }
+            }
+        }
+
+        if (func->getName() == name)
+        {
+            if (func->getReturnType() != name && func->getReturnType() != "")
+                throwSemanticError(func->getLine(), "'" + func->getName() + "' must return a class object.");
+
+            func->setReturnType(name);
+        }
+
+        std::vector<std::string> parameters;
+        for (int i = 0; i < func->getParameters().size(); i++)
+            parameters.push_back(func->getParameters()[i]->getType());
+
+        funcSymbols.push_back(new FuncSymbol(func->getLine(), true, func->getName(), func->getReturnType(), true, parameters));
+    }
+
+    if (!foundConstructor || functions.size() == 0)
+        throwSemanticError(line, "No constructor was found in container '" + name + "'.");
+
+    ContainerSymbol *container = new ContainerSymbol(line, name, varSymbols, funcSymbols);
+    semanticsInfo.addSymbol(semanticsInfo.getVisibleScope()[0], container);
 }
 
 IfStmtNode::IfStmtNode(Node *condition, BlockNode *body)
