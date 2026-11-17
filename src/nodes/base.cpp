@@ -95,6 +95,28 @@ bool canCoerce(std::string origType, std::string newType)
     return false;
 }
 
+bool canCoerceLossless(std::string origType, std::string newType)
+{
+    if (origType == "DECIMALTYPE" && newType == "INTTYPE")
+        return true;
+
+    return false;
+}
+
+bool canCoerceLossy(std::string origType, std::string newType)
+{
+    if (origType == "INTTYPE" && newType == "DECIMALTYPE")
+        return true;
+
+    if (origType == "CHARTYPE" && newType == "INTTYPE")
+        return true;
+
+    if (origType == "BOOLTYPE" && newType == "INTTYPE")
+        return true;
+
+    return false;
+}
+
 std::string mapOperatorIR(const std::string &op, const std::string &type)
 {
     if (op == "+")
@@ -421,7 +443,7 @@ void RootNode::sendWarnings(std::unordered_map<std::string, Scope> symbolTable)
             if (!symbol->isUsed())
                 if (symbol->getType() == "VAR")
                     throwSemanticWarning(symbol->getLine(), "Unused variable '" + symbol->getName() + "' found.");
-                else
+                else if (symbol->getType() == "FUNC")
                 {
                     FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
                     std::string errorMsg = "Unused function " + symbol->getName() + "(";
@@ -435,7 +457,7 @@ void RootNode::sendWarnings(std::unordered_map<std::string, Scope> symbolTable)
             if (symbol->getType() == "FUNC")
             {
                 FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
-                if (!derivedSymbol->hasReturn() && getDataTypeStr(derivedSymbol->getDataType()) != "void")
+                if (!derivedSymbol->hasReturn() && getDataTypeStr(derivedSymbol->getDataType()) != "")
                     throwSemanticWarning(derivedSymbol->getLine(), "Function '" + symbol->getName() + "' returns '" + getDataTypeStr(derivedSymbol->getDataType()) + "' but return statement not found.");
             }
         }

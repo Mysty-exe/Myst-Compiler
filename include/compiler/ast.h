@@ -31,7 +31,7 @@ private:
     int getTokenIndex(const std::vector<Token> &tokenLine, const std::vector<std::string> &tokenStrs, bool includeOnlyValidTokens = false) const;
     int getNumTabs(const std::vector<Token> &tokenLine) const;
     Token getNthToken(const std::vector<Token> &tokenLine, int n) const;
-    std::vector<std::string> getFunctionInformation(const std::vector<Token> &tokenLine, bool inContainer = false) const;
+    std::vector<std::vector<std::string>> getFunctionInformation(const std::vector<Token> &tokenLine, bool inContainer, std::string &name, std::string &returnType) const;
     std::string splitLine(const std::vector<Token> &tokens, int startIndex, int endIndex) const;
 
 public:

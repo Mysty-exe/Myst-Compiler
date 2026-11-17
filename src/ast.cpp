@@ -321,36 +321,35 @@ std::string AbstractSyntaxTree::splitLine(const std::vector<Token> &tokens, int 
 }
 
 // Assumes Function isn't Tabbed
-std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::vector<Token> &tokenLine, bool inContainer) const
+std::vector<std::vector<std::string>> AbstractSyntaxTree::getFunctionInformation(const std::vector<Token> &tokenLine, bool inContainer, std::string &name, std::string &returnType) const
 {
-    std::vector<std::string> result;
-    Token name = (inContainer) ? getNthToken(tokenLine, 1) : getNthToken(tokenLine, 2);
+    std::vector<std::vector<std::string>> parameters;
+    Token nameToken = (inContainer) ? getNthToken(tokenLine, 1) : getNthToken(tokenLine, 2);
 
     if (inContainer)
     {
         if (getNthToken(tokenLine, 2).getToken() != "LPAREN")
-            throwSyntaxError(name.getLineNumber(), "Function couldn't be parsed.");
+            throwSyntaxError(nameToken.getLineNumber(), "Function couldn't be parsed.");
     }
     else
     {
         if (getNthToken(tokenLine, 3).getToken() != "LPAREN")
-            throwSyntaxError(name.getLineNumber(), "Function couldn't be parsed.");
+            throwSyntaxError(nameToken.getLineNumber(), "Function couldn't be parsed.");
     }
 
-    if (name.getToken() == "IDENTIFIER")
-        result.push_back(name.getValue());
+    if (nameToken.getToken() == "IDENTIFIER")
+        name = nameToken.getValue();
     else
-        throwSyntaxError(name.getLineNumber(), "Unexpected identifier after 'func' found.");
+        throwSyntaxError(nameToken.getLineNumber(), "Unexpected identifier after 'func' found.");
 
     int arrowIndex = getTokenIndex(tokenLine, "ARROW");
-    std::string returnType = "";
+
     if (arrowIndex != -1)
     {
         if (!isDataType(tokenLine[arrowIndex + 1].getToken()) && tokenLine[arrowIndex + 1].getToken() != "IDENTIFIER")
             throwSyntaxError(tokenLine[arrowIndex + 1].getLineNumber(), "Unexpected idenifier '" + tokenLine[arrowIndex + 1].getValue() + "' used as the function return type.");
         returnType = tokenLine[arrowIndex + 1].getValue();
     }
-    result.push_back(returnType);
 
     int colonIndex = getTokenIndex(tokenLine, "COLON", false);
 
@@ -366,33 +365,27 @@ std::vector<std::string> AbstractSyntaxTree::getFunctionInformation(const std::v
     else
         endParams = arrowIndex - 2;
 
-    std::string currentParameter = "";
+    std::vector<std::string> currentParam;
     for (int i = startParams; i <= endParams; i++)
     {
         if (tokenLine[i].getToken() == "COMMA")
         {
-            result.push_back(currentParameter);
-            currentParameter = "";
+            parameters.push_back(currentParam);
+            currentParam.clear();
         }
         else
         {
-            if (currentParameter.size() > 0)
-            {
-                if (tokenLine[i].getToken() == "IDENTIFIER" || tokenLine[i].getToken() == "REF" || isDataType(tokenLine[i].getToken()))
-                    currentParameter += " " + tokenLine[i].getValue();
-            }
+            if (tokenLine[i].getToken() == "IDENTIFIER" || tokenLine[i].getToken() == "REF" || isDataType(tokenLine[i].getToken()))
+                currentParam.push_back(tokenLine[i].getValue());
             else
-            {
-                if (tokenLine[i].getToken() == "IDENTIFIER" || tokenLine[i].getToken() == "REF" || isDataType(tokenLine[i].getToken()))
-                    currentParameter += tokenLine[i].getValue();
-            }
+                throwSyntaxError(tokenLine[arrowIndex + 1].getLineNumber(), "Unexpected idenifier '" + tokenLine[i].getValue() + "' used in the function parameters.");
         }
     }
 
-    if (currentParameter.size() > 0)
-        result.push_back(currentParameter);
+    if (currentParam.size() > 0)
+        parameters.push_back(currentParam);
 
-    return result;
+    return parameters;
 }
 
 void AbstractSyntaxTree::buildExports(const std::vector<std::vector<Token>> &tokens, int &startLine)
@@ -836,34 +829,37 @@ std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::string &name, 
 
         if (getNthToken(tokens[line], 1).getToken() == "IDENTIFIER" && getNthToken(tokens[line], 2).getToken() == "LPAREN")
         {
-            std::vector<std::string> information = getFunctionInformation(tokens[line], true);
-            if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), information[0]) != Token::reservedFunctions.end())
-                throwSyntaxError(line + 1, "Reserved function name used: '" + information[0] + "'.");
+            std::string funcName, returnType;
+            std::vector<std::vector<std::string>> params = getFunctionInformation(tokens[line], true, funcName, returnType);
+            if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), funcName) != Token::reservedFunctions.end())
+                throwSyntaxError(line + 1, "Reserved function name used: '" + funcName + "'.");
 
             line++;
 
             std::vector<ParamNode *> parameters;
 
-            for (int i = 2; i < information.size(); i++)
+            for (int i = 0; i < params.size(); i++)
             {
-                ParamNode *parameter = new ParamNode(information[i], line);
+                ParamNode *parameter = new ParamNode(params[i], line);
                 parameters.push_back(parameter);
             }
 
             BlockNode *funcBody = buildBlock(tokens, line, 2, true);
             if (funcBody->getNumStatements() == 0)
             {
+                if (funcName == name && returnType != "" && returnType != name)
+                    throwSyntaxError(funcBody->getLine() - 1, "Constructor must return '" + funcName + "'.");
                 if (tokens[funcBody->getLine() - 2][tokens[funcBody->getLine() - 2].size() - 2].getToken() == "COLON")
-                    throwSyntaxError(funcBody->getLine() - 1, "Missing body in function '" + information[0] + "'.");
+                    throwSyntaxError(funcBody->getLine() - 1, "Missing body in function '" + funcName + "'.");
             }
             else
             {
                 if (tokens[funcBody->getLine() - 2][tokens[funcBody->getLine() - 2].size() - 2].getToken() != "COLON")
-                    throwSyntaxError(funcBody->getLine() - 1, "Colon missing for the function '" + information[0] + "'.");
+                    throwSyntaxError(funcBody->getLine() - 1, "Colon missing for the function '" + funcName + "'.");
             }
             line--;
 
-            FuncNode *func = new FuncNode(information[0], information[1], parameters, funcBody, line - 1);
+            FuncNode *func = new FuncNode(name, returnType, parameters, funcBody, line - 1);
             if (func->getName() == name)
                 func->setReturnType(name);
 
@@ -1068,17 +1064,18 @@ void AbstractSyntaxTree::addImport(const std::vector<std::vector<Token>> &tokens
 
 void AbstractSyntaxTree::addFunction(const std::vector<std::vector<Token>> &tokens, int &line)
 {
-    std::vector<std::string> information = getFunctionInformation(tokens[line]);
-    if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), information[0]) != Token::reservedFunctions.end())
-        throwSyntaxError(line + 1, "Reserved function name used: '" + information[0] + "'.");
+    std::string funcName, returnType;
+    std::vector<std::vector<std::string>> params = getFunctionInformation(tokens[line], false, funcName, returnType);
+    if (std::find(Token::reservedFunctions.begin(), Token::reservedFunctions.end(), funcName) != Token::reservedFunctions.end())
+        throwSyntaxError(line + 1, "Reserved function name used: '" + funcName + "'.");
 
     line++;
 
     std::vector<ParamNode *> parameters;
 
-    for (int i = 2; i < information.size(); i++)
+    for (int i = 0; i < params.size(); i++)
     {
-        ParamNode *parameter = new ParamNode(information[i], line);
+        ParamNode *parameter = new ParamNode(params[i], line);
         parameters.push_back(parameter);
     }
 
@@ -1086,16 +1083,16 @@ void AbstractSyntaxTree::addFunction(const std::vector<std::vector<Token>> &toke
     if (body->getNumStatements() == 0)
     {
         if (tokens[body->getLine() - 2][tokens[body->getLine() - 2].size() - 2].getToken() == "COLON")
-            throwSyntaxError(body->getLine() - 1, "Missing body in function '" + information[0] + "'.");
+            throwSyntaxError(body->getLine() - 1, "Missing body in function '" + funcName + "'.");
     }
     else
     {
         if (tokens[body->getLine() - 2][tokens[body->getLine() - 2].size() - 2].getToken() != "COLON")
-            throwSyntaxError(body->getLine() - 1, "Colon missing for the function '" + information[0] + "'.");
+            throwSyntaxError(body->getLine() - 1, "Colon missing for the function '" + funcName + "'.");
     }
     line--;
 
-    FuncNode *func = new FuncNode(information[0], information[1], parameters, body, line - 1);
+    FuncNode *func = new FuncNode(funcName, returnType, parameters, body, line - 1);
     root->addNode(func);
 }
 

@@ -1,45 +1,22 @@
 #include "compiler/node.h"
 
-ParamNode::ParamNode(std::string identifier, int line)
+ParamNode::ParamNode(std::vector<std::string> identifier, int line)
 {
     reference = false;
     this->line = line;
-    std::string refStr, typeStr, nameStr;
-    for (int i = identifier.size() - 1; i > -1; i--)
+    if (identifier.size() == 2)
     {
-        if (identifier[i] == ' ')
-        {
-            name = identifier.substr(i + 1);
-
-            std::string type = identifier.substr(0, i);
-            if (identifier.substr(0, 3) == "ref")
-            {
-                type = identifier.substr(4, i - 4);
-                reference = true;
-            }
-
-            if (type == "char")
-                this->type = "CHARTYPE";
-            else if (type == "int")
-                this->type = "INTTYPE";
-            else if (type == "decimal")
-                this->type = "DECIMALTYPE";
-            else if (type == "bool")
-                this->type = "BOOLTYPE";
-            else
-                this->type = type;
-
-            return;
-        }
+        type = identifier[0];
+        name = identifier[1];
     }
-
-    throwSyntaxError(line, "Missing parameter type (or name) for '" + identifier + "'");
-}
-ParamNode::ParamNode(std::string name, std::string type, int line)
-{
-    this->name = name;
-    this->line = line;
-    reference = false;
+    else if (identifier.size() == 3 && identifier[0] == "ref")
+    {
+        reference = true;
+        type = identifier[1];
+        name = identifier[2];
+    }
+    else
+        throwSyntaxError(line, "Couldn't parse parameters.");
 
     if (type == "char")
         this->type = "CHARTYPE";
@@ -158,7 +135,7 @@ void FuncNode::addSignatureToTable(SemanticsInfo &semanticsInfo, bool includePar
     for (ParamNode *parameter : parameters)
     {
         if (parameter->isReference())
-            parameterTypes.push_back("REF" + parameter->getType());
+            parameterTypes.push_back("REF." + parameter->getType());
         else
             parameterTypes.push_back(parameter->getType());
     }
@@ -219,7 +196,7 @@ void FuncNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::st
     std::string funcName = prefix + callName;
     for (int i = 0; i < parameters.size(); i++)
     {
-        funcName += (parameters[i]->isReference()) ? ".REF" + parameters[i]->getType() : "." + parameters[i]->getType();
+        funcName += (parameters[i]->isReference()) ? ".REF." + parameters[i]->getType() : "." + parameters[i]->getType();
     }
 
     ir += "define " + mapTypeIR(returnType) + " @" + funcName + "(";

@@ -112,37 +112,75 @@ void CallExprNode::lookForCallExprs(SemanticsInfo &semanticsInfo)
         }
     }
 }
-bool CallExprNode::checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *funcSymbol)
+std::vector<int> CallExprNode::checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *funcSymbol)
 {
-    if (arguments.size() != funcSymbol->getNumParameters())
-        return false;
-
+    std::vector<int> result;
     for (int k = 0; k < funcSymbol->getParameters().size(); k++)
     {
         std::string p = funcSymbol->getParameters()[k];
-        if (p.substr(0, 3) == "REF")
+        if (p.substr(0, 4) == "REF.")
         {
-            p = p.substr(3);
-            if (!dynamic_cast<IdentifierNode *>(arguments[k]))
-                throwSemanticError(line, "Must use an identifier (variable) for a reference.");
+            p = p.substr(4);
 
             if (!arguments[k]->checkType(semanticsInfo, p))
-                return false;
+                result.push_back(3);
+
+            if (arguments[k]->inferType(semanticsInfo) == p)
+                result.push_back(0);
+            else if (canCoerceLossless(p, arguments[k]->inferType(semanticsInfo)))
+                result.push_back(1);
+            else if (canCoerceLossy(p, arguments[k]->inferType(semanticsInfo)))
+                result.push_back(2);
         }
 
-        this->argTypes.push_back(funcSymbol->getParameters()[k]);
         arguments[k]->checkType(semanticsInfo, funcSymbol->getParameters()[k]);
-        if (!canCoerce(arguments[k]->inferType(semanticsInfo), p))
+        if (!canCoerce(p, arguments[k]->inferType(semanticsInfo)))
         {
             if (!arguments[k]->checkType(semanticsInfo, p))
-                return false;
+                result.push_back(3);
+
+            if (arguments[k]->inferType(semanticsInfo) == p)
+                result.push_back(0);
+            else if (canCoerceLossless(p, arguments[k]->inferType(semanticsInfo)))
+                result.push_back(1);
+            else if (canCoerceLossy(p, arguments[k]->inferType(semanticsInfo)))
+                result.push_back(2);
         }
     }
 
     this->returnType = funcSymbol->getDataType();
+    funcSymbol->setUsed(true);
+
+    return result;
+}
+bool CallExprNode::validFunc(std::vector<int> current)
+{
+    for (int i = 0; i < current.size(); i++)
+    {
+        if (current[i] == -1)
+            return false;
+    }
+
     return true;
 }
-int CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, bool &overridenFunction, bool importing)
+bool CallExprNode::betterFunc(std::vector<int> current, std::vector<int> next)
+{
+    if (current.size() != next.size())
+        return false;
+
+    bool betterThan = false;
+    for (int i = 0; i < current.size(); i++)
+    {
+        if (next[i] > current[i])
+            betterThan = true;
+
+        if (next[i] < current[i])
+            return false;
+    }
+
+    return betterThan;
+}
+void CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, FuncSymbol *&funcSymbol, std::vector<int> &funcArgs, bool importing)
 {
     for (Symbol *symbol : scope.getSymbols())
     {
@@ -157,32 +195,32 @@ int CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo,
             ContainerSymbol *derivedSymbol = static_cast<ContainerSymbol *>(symbol);
             for (FuncSymbol *func : derivedSymbol->getFunctions())
             {
-                if (type == "" || func->getDataType() == type || canCoerce(func->getDataType(), type))
+                if ((type == "" || func->getDataType() == type || canCoerce(func->getDataType(), type)) && arguments.size() == func->getNumParameters())
                 {
-                    if (checkFuncArgs(semanticsInfo, func))
-                        return 1;
+                    std::vector<int> next = checkFuncArgs(semanticsInfo, func);
+                    if (validFunc(next) && (betterFunc(funcArgs, next) || funcArgs.size() == 0))
+                    {
+                        funcSymbol = func;
+                        funcArgs = next;
+                    }
                 }
             }
-
-            throwSemanticError(line, "Constructor with these parameter types couldn't be found.");
-            return -1;
         }
 
         if (symbol->getType() == "FUNC" && symbol->getName() == name)
         {
-            overridenFunction = true;
-            if (type == "" || symbol->getDataType() == type || canCoerce(symbol->getDataType(), type))
+            FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
+            if ((type == "" || symbol->getDataType() == type || canCoerce(symbol->getDataType(), type)) && arguments.size() == derivedSymbol->getNumParameters())
             {
-                FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
-                if (checkFuncArgs(semanticsInfo, derivedSymbol))
-                    return 1;
+                std::vector<int> next = checkFuncArgs(semanticsInfo, derivedSymbol);
+                if (validFunc(next) && (betterFunc(funcArgs, next) || funcArgs.size() == 0))
+                {
+                    funcSymbol = derivedSymbol;
+                    funcArgs = next;
+                }
             }
-            else
-                return -1;
         }
     }
-
-    return 0;
 }
 bool CallExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &type)
 {
@@ -261,42 +299,38 @@ bool CallExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &ty
     if (name == "print" || name == "input" || name == "exit")
         throwSemanticError(line, "function '" + name + "' has the wrong arguments passed in.");
 
-    bool overridenFunction = false;
+    FuncSymbol *funcSymbol = nullptr;
+    std::vector<int> funcArgs;
     if (imported)
     {
         auto scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
-        for (Symbol *symbol : scope.getSymbols())
-        {
-            int checked = checkCallExprInScope(scope, semanticsInfo, type, overridenFunction, true);
-            if (checked == 1)
-                return true;
-            else if (checked == -1)
-                return false;
-        }
+        checkCallExprInScope(scope, semanticsInfo, type, funcSymbol, funcArgs, true);
 
-        if (overridenFunction)
-            throwSemanticError(line, "Coulnd't find proper function signature for '" + name + "' call expression in Module '" + modName + "'.");
+        if (funcSymbol == nullptr)
+            throwSemanticError(line, "Couldn't find proper function signature for '" + name + "' call expression in Module '" + modName + "'.");
 
-        throwSemanticError(line, "function '" + name + "' was not found in Module '" + modName + "'.");
-        return false;
+        for (int i = 0; i < funcSymbol->getNumParameters(); i++)
+            this->argTypes.push_back(funcSymbol->getParameters()[i]);
+
+        return true;
     }
 
-    overridenFunction = false;
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
         auto scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
-        int checked = checkCallExprInScope(scope, semanticsInfo, type, overridenFunction, false);
-        if (checked == 1)
-            return true;
-        else if (checked == -1)
-            return false;
+        checkCallExprInScope(scope, semanticsInfo, type, funcSymbol, funcArgs, false);
     }
 
-    if (overridenFunction)
-        throwSemanticError(line, "Coulnd't find proper function signature for '" + name + "' call expression.");
+    if (funcSymbol == nullptr)
+        throwSemanticError(line, "Couldn't find proper function signature for '" + name + "' call expression.");
 
-    throwSemanticError(line, "function '" + name + "' hasn't been declared.");
-    return false;
+    for (int i = 0; i < funcSymbol->getNumParameters(); i++)
+        this->argTypes.push_back(funcSymbol->getParameters()[i]);
+
+    return true;
+
+    // throwSemanticError(line, "function '" + name + "' hasn't been declared.");
+    // return false;
 }
 void CallExprNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {
@@ -450,7 +484,7 @@ void CallExprNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std
     std::vector<std::string> args;
     for (int i = 0; i < arguments.size(); i++)
     {
-        bool isRef = argTypes[i].substr(0, 3) == "REF";
+        bool isRef = argTypes[i].substr(0, 4) == "REF.";
         if (!isRef)
         {
             std::string callArg = ".callarg_" + std::to_string(llvmInfo.getNextTempVar());
@@ -523,7 +557,7 @@ void CallExprNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std
 
         for (int i = 0; i < args.size(); i++)
         {
-            if (argTypes[i].substr(0, 3) == "REF")
+            if (argTypes[i].substr(0, 4) == "REF.")
             {
                 if (i == args.size() - 1)
                     ir += "ptr " + args[i];

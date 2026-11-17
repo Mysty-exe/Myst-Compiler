@@ -122,6 +122,8 @@ std::string mapTypeIR(const std::string &type);
 std::string mapNumBytesIR(const std::string &type);
 std::string mapOperatorIR(const std::string &op, const std::string &type);
 bool canCoerce(std::string origType, std::string newType);
+bool canCoerceLossless(std::string origType, std::string newType);
+bool canCoerceLossy(std::string origType, std::string newType);
 bool checkTempVarInScope(std::string currentTempVar, int &outOfScope);
 void coerceValue(std::string &ir, LLVMInfo &llvmInfo, std::string name, std::string newTempName, std::string oldTempName, std::string origType, std::string newType, bool isExpression = false);
 
@@ -286,8 +288,10 @@ private:
     std::vector<Node *> arguments;
     bool imported, isConstructor;
 
-    bool checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *funcSymbol);
-    int checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, bool &overridenFunction, bool importing);
+    std::vector<int> checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *funcSymbol);
+    void checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, FuncSymbol *&funcSymbol, std::vector<int> &funcArgs, bool importing);
+    bool validFunc(std::vector<int> current);
+    bool betterFunc(std::vector<int> current, std::vector<int> next);
 
 public:
     CallExprNode(std::string name, std::vector<Node *> arguments, bool isConstructor = false);
@@ -369,8 +373,7 @@ private:
     bool reference;
 
 public:
-    ParamNode(std::string identifier, int line);
-    ParamNode(std::string name, std::string type, int line);
+    ParamNode(std::vector<std::string> identifier, int line);
     ~ParamNode() override;
     std::string getName() const;
     std::string getType() const;
