@@ -68,13 +68,13 @@ std::string getExtension(const std::string &file)
 }
 
 // Loop through ASTS and semantically check them
-void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
+void analyzeFiles(std::vector<std::unique_ptr<AbstractSyntaxTree>> &asts)
 {
     std::vector<std::string> loadedAsts;
     bool skip = false;
     for (int i = 0; i < asts.size(); i++)
     {
-        AbstractSyntaxTree *ast = asts[i];
+        const auto &ast = asts[i];
 
         if (std::find(loadedAsts.begin(), loadedAsts.end(), ast->getRoot()->getFileName()) != loadedAsts.end())
             continue;
@@ -88,8 +88,7 @@ void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
             }
         }
 
-        SemanticsInfo semanticsInfo;
-        semanticsInfo.setPrefixSymbols(ast->getPrefixSymbols());
+        SemanticsInfo semanticsInfo = SemanticsInfo(ast->getSymbolTable(), ast->getPrefixSymbols());
 
         RootNode::setCurrentFile(ast->getRoot()->getFileName());
 
@@ -97,7 +96,7 @@ void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
         ast->setSymbolTable(semanticsInfo.getSymbolTable());
         loadedAsts.push_back(ast->getRoot()->getFileName());
 
-        for (AbstractSyntaxTree *a : asts)
+        for (std::unique_ptr<AbstractSyntaxTree> &a : asts)
         {
             if (ast == a)
                 continue;
@@ -122,18 +121,12 @@ void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
     }
 
     // Deletes all symbols and sends warnings
-    for (AbstractSyntaxTree *ast : asts)
+    for (std::unique_ptr<AbstractSyntaxTree> &ast : asts)
     {
         RootNode::setCurrentFile(ast->getRoot()->getFileName());
 
         if (!parameters.disableWarnings)
             ast->getRoot()->sendWarnings(ast->getSymbolTable());
-
-        for (auto &[_, scope] : ast->getSymbolTable())
-        {
-            for (Symbol *symbol : scope.getSymbols())
-                delete symbol;
-        }
 
         ast->format();
     }
@@ -141,7 +134,7 @@ void analyzeFiles(std::vector<AbstractSyntaxTree *> &asts)
     std::cout << std::endl;
 }
 
-AbstractSyntaxTree *parseFile(const std::string &name, std::ifstream &inputFile)
+std::unique_ptr<AbstractSyntaxTree> parseFile(const std::string &name, std::ifstream &inputFile)
 {
     Lexer lexer;
     lexer.tokenizeFile(inputFile);
@@ -149,12 +142,12 @@ AbstractSyntaxTree *parseFile(const std::string &name, std::ifstream &inputFile)
     if (parameters.seeTokens)
         lexer.readTokens();
 
-    AbstractSyntaxTree *ast = new AbstractSyntaxTree(lexer.getTokens(), name);
+    std::unique_ptr<AbstractSyntaxTree> ast = std::make_unique<AbstractSyntaxTree>(AbstractSyntaxTree(lexer.getTokens(), name));
 
     return ast;
 }
 
-int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, bool importedFile = false)
+int runFiles(std::string file, std::vector<std::unique_ptr<AbstractSyntaxTree>> &asts, bool importedFile = false)
 {
     std::ifstream inputFile(file);
 
@@ -164,13 +157,13 @@ int runFiles(std::string file, std::vector<AbstractSyntaxTree *> &asts, bool imp
         return -1;
     }
 
-    for (AbstractSyntaxTree *a : asts)
+    for (std::unique_ptr<AbstractSyntaxTree> &a : asts)
     {
         if (a->getRoot()->getFileName() == file)
             return 0;
     }
 
-    AbstractSyntaxTree *ast = parseFile(file, inputFile);
+    std::unique_ptr<AbstractSyntaxTree> ast = parseFile(file, inputFile);
     if (importedFile)
     {
         ast->setImported(true);
@@ -300,7 +293,7 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    std::vector<AbstractSyntaxTree *> asts;
+    std::vector<std::unique_ptr<AbstractSyntaxTree>> asts;
     std::string output = (parameters.outputFile.size() == 0) ? parameters.inputFile.substr(0, parameters.inputFile.size() - 3) : parameters.outputFile;
 
     try
@@ -315,6 +308,7 @@ int main(int argc, char *argv[])
         std::cerr << "\033[31m";
         std::cerr << e.what() << std::endl;
         std::cerr << "\033[0m";
+
         return 1;
     }
     catch (const std::exception &e)
@@ -322,6 +316,7 @@ int main(int argc, char *argv[])
         std::cerr << "\033[31m";
         std::cerr << e.what() << std::endl;
         std::cerr << "\033[0m";
+
         return 1;
     }
 

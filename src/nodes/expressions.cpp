@@ -20,18 +20,14 @@ void checkForDivisionByZero(std::string tempVar, std::string type, std::string &
     DIVBYZERO++;
 }
 
-BinaryExprNode::BinaryExprNode(std::string op, Node *left, Node *right)
+BinaryExprNode::BinaryExprNode(std::string op, std::unique_ptr<Node> left, std::unique_ptr<Node> right)
 {
     this->op = op;
-    this->left = left;
-    this->right = right;
+    this->left = std::move(left);
+    this->right = std::move(right);
 }
 BinaryExprNode::~BinaryExprNode()
 {
-    delete left;
-    left = nullptr;
-    delete right;
-    right = nullptr;
 }
 std::string BinaryExprNode::getOperandType() const
 {
@@ -81,7 +77,7 @@ bool BinaryExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &
         if (leftSide == "BOOLTYPE" || rightSide == "BOOLTYPE")
         {
             if (leftSide != rightSide)
-                throwSemanticError(line, "Can't compare these two types with '" + op + "' operator.");
+                throwSemanticError(line, "Can't compare these two types with operator '" + op + "'.");
         }
     }
 
@@ -140,7 +136,7 @@ std::string BinaryExprNode::inferType(SemanticsInfo &semanticsInfo)
 
     if (leftType != rightType)
     {
-        throwSemanticError(line, "Mismatched types found with '" + op + "' operator.");
+        throwSemanticError(line, "Mismatched types found with operator '" + op + "'.");
         return "";
     }
 
@@ -148,9 +144,9 @@ std::string BinaryExprNode::inferType(SemanticsInfo &semanticsInfo)
 }
 void BinaryExprNode::traverseBinaryBinary(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
-    BinaryExprNode *leftIdentifier, *rightIdentifier;
-    leftIdentifier = static_cast<BinaryExprNode *>(left);
-    rightIdentifier = static_cast<BinaryExprNode *>(right);
+    std::unique_ptr<BinaryExprNode> leftIdentifier, rightIdentifier;
+    leftIdentifier = static_cast<std::unique_ptr<BinaryExprNode>>(left);
+    rightIdentifier = static_cast<std::unique_ptr<BinaryExprNode>>(right);
 
     leftIdentifier->traverseBinary(ir, newType, llvmInfo, global, prefix);
     std::string l = std::to_string(llvmInfo.getCurrentTempVar());
@@ -184,8 +180,8 @@ void BinaryExprNode::traverseBinaryBinary(std::string &ir, std::string &newType,
 }
 void BinaryExprNode::traverseBinaryExpr(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
-    BinaryExprNode *leftIdentifier;
-    leftIdentifier = static_cast<BinaryExprNode *>(left);
+    std::unique_ptr<BinaryExprNode> leftIdentifier;
+    leftIdentifier = static_cast<std::unique_ptr<BinaryExprNode>>(left);
     leftIdentifier->traverseBinary(ir, newType, llvmInfo, global, prefix);
 
     if (leftIdentifier->getOperandType() != operandType)
@@ -195,7 +191,7 @@ void BinaryExprNode::traverseBinaryExpr(std::string &ir, std::string &newType, L
 
     std::string l = std::to_string(llvmInfo.getCurrentTempVar());
     std::string r;
-    if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(right))
+    if (std::unique_ptr<UnaryExprNode> rightIdentifier = dynamic_cast<std::unique_ptr<UnaryExprNode>>(right))
     {
         rightIdentifier->traverseUnary(ir, newType, llvmInfo, global);
         r = "%" + std::to_string(llvmInfo.getCurrentTempVar());
@@ -206,7 +202,7 @@ void BinaryExprNode::traverseBinaryExpr(std::string &ir, std::string &newType, L
             r = "%" + std::to_string(llvmInfo.getCurrentTempVar());
         }
     }
-    else if (CallExprNode *rightIdentifier = dynamic_cast<CallExprNode *>(right))
+    else if (std::unique_ptr<CallExprNode> rightIdentifier = dynamic_cast<std::unique_ptr<CallExprNode>>(right))
     {
         rightIdentifier->mapToIR(ir, llvmInfo, false);
 
@@ -217,7 +213,7 @@ void BinaryExprNode::traverseBinaryExpr(std::string &ir, std::string &newType, L
 
         r = "%" + std::to_string(llvmInfo.getCurrentTempVar());
     }
-    else if (IdentifierNode *rightIdentifier = dynamic_cast<IdentifierNode *>(right))
+    else if (std::unique_ptr<IdentifierNode> rightIdentifier = dynamic_cast<std::unique_ptr<IdentifierNode>>(right))
     {
         std::vector<std::string> loadedVars;
         rightIdentifier->loadVariables(ir, operandType, loadedVars, llvmInfo, global, prefix);
@@ -248,8 +244,8 @@ void BinaryExprNode::traverseBinaryExpr(std::string &ir, std::string &newType, L
 }
 void BinaryExprNode::traverseExprBinary(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
-    BinaryExprNode *rightIdentifier;
-    rightIdentifier = static_cast<BinaryExprNode *>(right);
+    std::unique_ptr<BinaryExprNode> rightIdentifier;
+    rightIdentifier = static_cast<std::unique_ptr<BinaryExprNode>>(right);
     rightIdentifier->traverseBinary(ir, newType, llvmInfo, global, prefix);
 
     if (rightIdentifier->getOperandType() != operandType)
@@ -259,7 +255,7 @@ void BinaryExprNode::traverseExprBinary(std::string &ir, std::string &newType, L
 
     std::string r = std::to_string(llvmInfo.getCurrentTempVar());
     std::string l;
-    if (UnaryExprNode *leftIdentifier = dynamic_cast<UnaryExprNode *>(left))
+    if (std::unique_ptr<UnaryExprNode> leftIdentifier = dynamic_cast<std::unique_ptr<UnaryExprNode>>(left))
     {
         leftIdentifier->traverseUnary(ir, newType, llvmInfo, global);
 
@@ -268,7 +264,7 @@ void BinaryExprNode::traverseExprBinary(std::string &ir, std::string &newType, L
 
         l = "%" + std::to_string(llvmInfo.getCurrentTempVar());
     }
-    else if (CallExprNode *leftIdentifier = dynamic_cast<CallExprNode *>(left))
+    else if (std::unique_ptr<CallExprNode> leftIdentifier = dynamic_cast<std::unique_ptr<CallExprNode>>(left))
     {
         leftIdentifier->mapToIR(ir, llvmInfo, false);
 
@@ -277,7 +273,7 @@ void BinaryExprNode::traverseExprBinary(std::string &ir, std::string &newType, L
 
         l = "%" + std::to_string(llvmInfo.getCurrentTempVar());
     }
-    else if (IdentifierNode *leftIdentifier = dynamic_cast<IdentifierNode *>(left))
+    else if (std::unique_ptr<IdentifierNode> leftIdentifier = dynamic_cast<std::unique_ptr<IdentifierNode>>(left))
     {
         std::vector<std::string> loadedVars;
         leftIdentifier->loadVariables(ir, operandType, loadedVars, llvmInfo, global, prefix);
@@ -310,7 +306,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
 {
     std::string l, r;
 
-    if (UnaryExprNode *leftIdentifier = dynamic_cast<UnaryExprNode *>(left))
+    if (std::unique_ptr<UnaryExprNode> leftIdentifier = dynamic_cast<std::unique_ptr<UnaryExprNode>>(left))
     {
         leftIdentifier->traverseUnary(ir, newType, llvmInfo, global);
 
@@ -319,7 +315,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
 
         l = "%" + std::to_string(llvmInfo.getCurrentTempVar());
     }
-    else if (CallExprNode *leftIdentifier = dynamic_cast<CallExprNode *>(left))
+    else if (std::unique_ptr<CallExprNode> leftIdentifier = dynamic_cast<std::unique_ptr<CallExprNode>>(left))
     {
         leftIdentifier->mapToIR(ir, llvmInfo, false);
 
@@ -328,7 +324,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
 
         l = "%" + std::to_string(llvmInfo.getCurrentTempVar());
     }
-    else if (IdentifierNode *leftIdentifier = dynamic_cast<IdentifierNode *>(left))
+    else if (std::unique_ptr<IdentifierNode> leftIdentifier = dynamic_cast<std::unique_ptr<IdentifierNode>>(left))
     {
         std::vector<std::string> loadedVars;
         leftIdentifier->loadVariables(ir, operandType, loadedVars, llvmInfo, global, prefix);
@@ -343,7 +339,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
             l = std::to_string(std::stoi(l));
     }
 
-    if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(right))
+    if (std::unique_ptr<UnaryExprNode> rightIdentifier = dynamic_cast<std::unique_ptr<UnaryExprNode>>(right))
     {
         rightIdentifier->traverseUnary(ir, newType, llvmInfo, global);
 
@@ -352,7 +348,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
 
         r = "%" + std::to_string(llvmInfo.getCurrentTempVar());
     }
-    else if (CallExprNode *rightIdentifier = dynamic_cast<CallExprNode *>(right))
+    else if (std::unique_ptr<CallExprNode> rightIdentifier = dynamic_cast<std::unique_ptr<CallExprNode>>(right))
     {
         rightIdentifier->mapToIR(ir, llvmInfo, false);
 
@@ -361,7 +357,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
 
         r = "%" + std::to_string(llvmInfo.getCurrentTempVar());
     }
-    else if (IdentifierNode *rightIdentifier = dynamic_cast<IdentifierNode *>(right))
+    else if (std::unique_ptr<IdentifierNode> rightIdentifier = dynamic_cast<std::unique_ptr<IdentifierNode>>(right))
     {
         std::vector<std::string> loadedVars;
         rightIdentifier->loadVariables(ir, operandType, loadedVars, llvmInfo, global, prefix);
@@ -392,17 +388,17 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
 }
 void BinaryExprNode::traverseBinary(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
-    if (dynamic_cast<BinaryExprNode *>(left) != nullptr || dynamic_cast<BinaryExprNode *>(right) != nullptr)
+    if (dynamic_cast<std::unique_ptr<BinaryExprNode>>(left) != nullptr || dynamic_cast<std::unique_ptr<BinaryExprNode>>(right) != nullptr)
     {
-        if (dynamic_cast<BinaryExprNode *>(left) != nullptr && dynamic_cast<BinaryExprNode *>(right) != nullptr)
+        if (dynamic_cast<std::unique_ptr<BinaryExprNode>>(left) != nullptr && dynamic_cast<std::unique_ptr<BinaryExprNode>>(right) != nullptr)
         {
             traverseBinaryBinary(ir, newType, llvmInfo, global, prefix);
         }
-        else if (dynamic_cast<BinaryExprNode *>(left) != nullptr)
+        else if (dynamic_cast<std::unique_ptr<BinaryExprNode>>(left) != nullptr)
         {
             traverseBinaryExpr(ir, newType, llvmInfo, global, prefix);
         }
-        else if (dynamic_cast<BinaryExprNode *>(right) != nullptr)
+        else if (dynamic_cast<std::unique_ptr<BinaryExprNode>>(right) != nullptr)
         {
             traverseExprBinary(ir, newType, llvmInfo, global, prefix);
         }
@@ -477,15 +473,13 @@ void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std
     }
 }
 
-UnaryExprNode::UnaryExprNode(std::string op, Node *right)
+UnaryExprNode::UnaryExprNode(std::string op, std::unique_ptr<Node> right)
 {
     this->op = op;
-    this->right = right;
+    this->right = std::move(right);
 }
 UnaryExprNode::~UnaryExprNode()
 {
-    delete right;
-    right = nullptr;
 }
 std::string UnaryExprNode::getOperandType() const
 {
@@ -547,9 +541,9 @@ std::string UnaryExprNode::inferType(SemanticsInfo &semanticsInfo)
 }
 void UnaryExprNode::traverseBinaryOrUnary(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
-    if (UnaryExprNode *rightIdentifier = dynamic_cast<UnaryExprNode *>(right))
+    if (std::unique_ptr<UnaryExprNode> rightIdentifier = dynamic_cast<std::unique_ptr<UnaryExprNode>>(right))
         rightIdentifier->traverseUnary(ir, newType, llvmInfo, global, prefix);
-    if (BinaryExprNode *rightIdentifier = dynamic_cast<BinaryExprNode *>(right))
+    if (std::unique_ptr<BinaryExprNode> rightIdentifier = dynamic_cast<std::unique_ptr<BinaryExprNode>>(right))
         rightIdentifier->traverseBinary(ir, newType, llvmInfo, global, prefix);
 
     if (op == "-")
@@ -567,7 +561,7 @@ void UnaryExprNode::traverseBinaryOrUnary(std::string &ir, std::string &newType,
 }
 void UnaryExprNode::traverseCallExpr(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
-    CallExprNode *rightIdentifier = static_cast<CallExprNode *>(right);
+    std::unique_ptr<CallExprNode> rightIdentifier = static_cast<std::unique_ptr<CallExprNode>>(right);
     rightIdentifier->mapToIR(ir, llvmInfo, false);
 
     if (rightIdentifier->getReturnType() != operandType)
@@ -588,7 +582,7 @@ void UnaryExprNode::traverseCallExpr(std::string &ir, std::string &newType, LLVM
 }
 void UnaryExprNode::traverseIdentifier(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
-    IdentifierNode *rightIdentifier = static_cast<IdentifierNode *>(right);
+    std::unique_ptr<IdentifierNode> rightIdentifier = static_cast<std::unique_ptr<IdentifierNode>>(right);
     std::vector<std::string> loadedVars;
     rightIdentifier->loadVariables(ir, operandType, loadedVars, llvmInfo, global, prefix);
     std::string r = "%" + std::to_string(llvmInfo.getCurrentTempVar());
@@ -622,15 +616,15 @@ void UnaryExprNode::traverseLiteral(std::string &ir, std::string &newType, LLVMI
 }
 void UnaryExprNode::traverseUnary(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
-    if (dynamic_cast<BinaryExprNode *>(right) != nullptr || dynamic_cast<UnaryExprNode *>(right) != nullptr)
+    if (dynamic_cast<std::unique_ptr<BinaryExprNode>>(right) != nullptr || dynamic_cast<std::unique_ptr<UnaryExprNode>>(right) != nullptr)
     {
         traverseBinaryOrUnary(ir, newType, llvmInfo, global, prefix);
     }
-    else if (dynamic_cast<CallExprNode *>(right))
+    else if (dynamic_cast<std::unique_ptr<CallExprNode>>(right))
     {
         traverseCallExpr(ir, newType, llvmInfo, global, prefix);
     }
-    else if (dynamic_cast<IdentifierNode *>(right))
+    else if (dynamic_cast<std::unique_ptr<IdentifierNode>>(right))
     {
         traverseIdentifier(ir, newType, llvmInfo, global, prefix);
     }

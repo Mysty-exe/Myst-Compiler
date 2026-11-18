@@ -1,9 +1,32 @@
+# cmake_minimum_required(VERSION 3.15...3.31)
+# project(MystCompiler LANGUAGES CXX)
+
+# set(CMAKE_CXX_STANDARD 17)
+# set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# enable_testing()
+
 cmake_minimum_required(VERSION 3.15...3.31)
 project(MystCompiler LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_testing()
+
+# Optional toggle for Sanitizers (AddressSanitizer + UndefinedBehaviorSanitizer)
+# Enabled by default; pass -DENABLE_SANITIZERS=OFF during cmake generation to disable
+option(ENABLE_SANITIZERS "Enable ASan and UBSan sanitizers for debugging" ON)
+
+# Configure common debug and warning flags across GCC/Clang and MSVC
+if(MSVC)
+    add_compile_options(/W4)
+else()
+    add_compile_options(-Wall -Wextra -g)
+
+    if(ENABLE_SANITIZERS)
+        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+        add_link_options(-fsanitize=address,undefined)
+    endif()
+endif()
 
 # 1. Create a static library for all core compiler components (everything except main.cpp)
 add_library(myst_lib STATIC
@@ -48,14 +71,14 @@ set_target_properties(mystc PROPERTIES
 
 find_package(Python3 REQUIRED)
 
-file(GLOB TEST_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/*.ms)
+file(GLOB TEST_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/passes ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/passes/*.ms)
 file(GLOB TEST_ERROR_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/errors ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/errors/*.ms)
 
 foreach(TEST_FILE ${TEST_FILES})
     string(REPLACE ".ms" "" TEST_NAME ${TEST_FILE})
 
-    set(TEST_MS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/${TEST_FILE}")
-    set(TEST_OUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests/output/${TEST_NAME}.out")
+    set(TEST_MS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/passes/${TEST_FILE}")
+    set(TEST_OUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests/output/passes/${TEST_NAME}.out")
 
     add_test(
         NAME Golden_${TEST_NAME}

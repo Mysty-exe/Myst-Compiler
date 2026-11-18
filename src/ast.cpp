@@ -40,7 +40,7 @@ char extractChar(const std::string &str)
 AbstractSyntaxTree::AbstractSyntaxTree(const std::vector<std::vector<Token>> &tokens, std::string fileName)
 {
     imported = false;
-    root = new RootNode();
+    root = std::make_unique<RootNode>(RootNode());
     root->setFileName(fileName);
     RootNode::setCurrentFile(fileName);
     buildTree(tokens);
@@ -50,7 +50,7 @@ AbstractSyntaxTree::~AbstractSyntaxTree()
 {
 }
 
-RootNode *AbstractSyntaxTree::getRoot() const
+std::unique_ptr<RootNode> &AbstractSyntaxTree::getRoot()
 {
     return root;
 }
@@ -75,7 +75,7 @@ std::vector<std::string> AbstractSyntaxTree::getPrefixes() const
     return prefixes;
 }
 
-std::unordered_map<std::string, std::unordered_map<std::string, Scope>> AbstractSyntaxTree::getPrefixSymbols() const
+std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &AbstractSyntaxTree::getPrefixSymbols()
 {
     return prefixSymbols;
 }
@@ -100,25 +100,17 @@ void AbstractSyntaxTree::printTree() const
     root->print();
 }
 
-void AbstractSyntaxTree::freeMemory()
-{
-    delete root;
-    delete this;
-}
-
 void AbstractSyntaxTree::format()
 {
-    BlockNode *globalCode = new BlockNode();
+    std::unique_ptr<BlockNode> globalCode = std::make_unique<BlockNode>(BlockNode());
     for (auto it = root->getChildrenRef().begin(); it != root->getChildrenRef().end();)
     {
-        if (BlockNode *d = dynamic_cast<BlockNode *>(*it))
+        if (std::unique_ptr<BlockNode> d = dynamic_cast<std::unique_ptr<BlockNode>>(*it))
         {
-            for (Node *stmt : d->getStatements())
+            for (std::unique_ptr<Node> &stmt : d->getStatements())
                 globalCode->addStatement(stmt);
 
             d->clearStatments();
-
-            delete *it;
             it = root->getChildrenRef().erase(it);
         }
         else
@@ -128,7 +120,7 @@ void AbstractSyntaxTree::format()
     root->setGlobalCode(globalCode);
 }
 
-std::unordered_map<std::string, Scope> AbstractSyntaxTree::getSymbolTable() const
+std::unordered_map<std::string, Scope> &AbstractSyntaxTree::getSymbolTable()
 {
     return symbolTable;
 }
@@ -136,7 +128,7 @@ std::unordered_map<std::string, Scope> AbstractSyntaxTree::getSymbolTable() cons
 void AbstractSyntaxTree::setSymbolTable(std::unordered_map<std::string, Scope> symbolTable)
 {
     auto scope = symbolTable["1"];
-    for (Symbol *symbol : scope.getSymbols())
+    for (std::unique_ptr<Symbol> &symbol : scope.getSymbols())
     {
         if (std::find(exports.begin(), exports.end(), symbol->getName()) != exports.end())
         {
@@ -448,31 +440,31 @@ void AbstractSyntaxTree::buildExports(const std::vector<std::vector<Token>> &tok
         throwSyntaxError(startLine + 1, "Couldn't parse exports.");
 }
 
-Node *AbstractSyntaxTree::buildLiteral(const std::vector<Token> &line, int start)
+std::unique_ptr<Node> AbstractSyntaxTree::buildLiteral(const std::vector<Token> &line, int start)
 {
     std::string tokenType = line[start].getToken();
     if (tokenType == "CHAR")
     {
         char c = extractChar(line[start].getValue().substr(1, line[start].getValue().size() - 2));
-        LiteralNode<char> *literal = new LiteralNode(c, line[start].getToken());
+        std::unique_ptr<LiteralNode<char>> literal = std::make_unique<LiteralNode<char>>(c, line[start].getToken());
         literal->setLine(line[start].getLineNumber());
         return literal;
     }
     else if (tokenType == "STRING")
     {
-        LiteralNode<std::string> *literal = new LiteralNode(line[start].getValue(), line[start].getToken());
+        std::unique_ptr<LiteralNode<std::string>> literal = std::make_unique<LiteralNode<std::string>>(line[start].getValue(), line[start].getToken());
         literal->setLine(line[start].getLineNumber());
         return literal;
     }
     else if (tokenType == "INT")
     {
-        LiteralNode<int> *literal = new LiteralNode(std::stoi(line[start].getValue()), line[start].getToken());
+        std::unique_ptr<LiteralNode<int>> literal = std::make_unique<LiteralNode<int>>(std::stoi(line[start].getValue()), line[start].getToken());
         literal->setLine(line[start].getLineNumber());
         return literal;
     }
     else if (tokenType == "DECIMAL")
     {
-        LiteralNode<double> *literal = new LiteralNode(std::stod(line[start].getValue()), line[start].getToken());
+        std::unique_ptr<LiteralNode<double>> literal = std::make_unique<LiteralNode<double>>(std::stod(line[start].getValue()), line[start].getToken());
         literal->setLine(line[start].getLineNumber());
         return literal;
     }
@@ -480,13 +472,13 @@ Node *AbstractSyntaxTree::buildLiteral(const std::vector<Token> &line, int start
     {
         if (line[start].getValue() == "true")
         {
-            LiteralNode<bool> *literal = new LiteralNode(true, line[start].getToken());
+            std::unique_ptr<LiteralNode<bool>> literal = std::make_unique<LiteralNode<bool>>(true, line[start].getToken());
             literal->setLine(line[start].getLineNumber());
             return literal;
         }
         else if (line[start].getValue() == "false")
         {
-            LiteralNode<bool> *literal = new LiteralNode(false, line[start].getToken());
+            std::unique_ptr<LiteralNode<bool>> literal = std::make_unique<LiteralNode<bool>>(false, line[start].getToken());
             literal->setLine(line[start].getLineNumber());
             return literal;
         }
@@ -496,14 +488,14 @@ Node *AbstractSyntaxTree::buildLiteral(const std::vector<Token> &line, int start
     return nullptr;
 }
 
-CallExprNode *AbstractSyntaxTree::buildCallExpr(const std::vector<Token> &line, int start, int end)
+std::unique_ptr<CallExprNode> AbstractSyntaxTree::buildCallExpr(const std::vector<Token> &line, int start, int end)
 {
     bool callExpr = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
     bool importedCallExpr = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "DOUBLECOLON" && line[start + 2].getToken() == "IDENTIFIER" && line[start + 3].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
 
     if (callExpr || importedCallExpr)
     {
-        std::vector<Node *> arguments;
+        std::vector<std::unique_ptr<Node>> arguments;
         int startArg = 0, lparen = 0, rparen = 0;
         if (callExpr)
             startArg = start + 2;
@@ -530,7 +522,7 @@ CallExprNode *AbstractSyntaxTree::buildCallExpr(const std::vector<Token> &line, 
 
         std::string name = (callExpr) ? line[start].getValue() : line[start + 2].getValue();
         bool inContainer = std::find(containers.begin(), containers.end(), name) != containers.end();
-        CallExprNode *callExpression = new CallExprNode(name, arguments, inContainer);
+        std::unique_ptr<CallExprNode> callExpression = std::make_unique<CallExprNode>(name, arguments, inContainer);
         callExpression->setLine(line[start].getLineNumber());
 
         if (importedCallExpr)
@@ -543,7 +535,7 @@ CallExprNode *AbstractSyntaxTree::buildCallExpr(const std::vector<Token> &line, 
     return nullptr;
 }
 
-Node *AbstractSyntaxTree::buildExpression(const std::vector<Token> &line, int start, int end)
+std::unique_ptr<Node> AbstractSyntaxTree::buildExpression(const std::vector<Token> &line, int start, int end)
 {
     int lparen = 0, rparen = 0;
     int splitIndex = -1, currentLevel = -1;
@@ -581,7 +573,7 @@ Node *AbstractSyntaxTree::buildExpression(const std::vector<Token> &line, int st
 
     if (splitIndex != -1 && splitIndex != start)
     {
-        BinaryExprNode *binaryExpr = new BinaryExprNode(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
+        std::unique_ptr<BinaryExprNode> binaryExpr = std::make_unique<BinaryExprNode>(line[splitIndex].getValue(), buildIdentifier(line, start, splitIndex - 1), buildIdentifier(line, splitIndex + 1, end));
         binaryExpr->setLine(line[splitIndex].getLineNumber());
         return binaryExpr;
     }
@@ -600,7 +592,7 @@ Node *AbstractSyntaxTree::buildExpression(const std::vector<Token> &line, int st
                 endIdentifier = i - 1;
         }
 
-        UnaryExprNode *unaryExpr = new UnaryExprNode(line[start].getValue(), buildIdentifier(line, start + 1, endIdentifier));
+        std::unique_ptr<UnaryExprNode> unaryExpr = std::make_unique<UnaryExprNode>(line[start].getValue(), buildIdentifier(line, start + 1, endIdentifier));
         unaryExpr->setLine(line[start].getLineNumber());
         return unaryExpr;
     }
@@ -608,13 +600,13 @@ Node *AbstractSyntaxTree::buildExpression(const std::vector<Token> &line, int st
     return nullptr;
 }
 
-Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int start, int end)
+std::unique_ptr<Node> AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int start, int end)
 {
     if (end - start == 0)
     {
         if (line[start].getToken() == "IDENTIFIER")
         {
-            IdentifierNode *identifier = new IdentifierNode(line[start].getValue());
+            std::unique_ptr<IdentifierNode> identifier = std::make_unique<IdentifierNode>(line[start].getValue());
             identifier->setLine(line[start].getLineNumber());
             return identifier;
         }
@@ -634,7 +626,7 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
 
         if (importedIdentifier)
         {
-            IdentifierNode *identifier = new IdentifierNode(line[start + 2].getValue());
+            std::unique_ptr<IdentifierNode> identifier = std::make_unique<IdentifierNode>(line[start + 2].getValue());
             identifier->setLine(line[start].getLineNumber());
             identifier->setImported(line[start].getValue());
             return identifier;
@@ -644,7 +636,7 @@ Node *AbstractSyntaxTree::buildIdentifier(const std::vector<Token> &line, int st
     }
 }
 
-BranchBlockNode *AbstractSyntaxTree::getIfStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
+std::unique_ptr<BranchBlockNode> AbstractSyntaxTree::getIfStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
 {
     if (getNthToken(tokens[line], 1).getToken() != "IF")
         throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'if' statement found.");
@@ -653,53 +645,53 @@ BranchBlockNode *AbstractSyntaxTree::getIfStatement(int index, const std::vector
     if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
         throwSyntaxError(line - 1, "Expected ':' at the end of 'if' statement.");
 
-    Node *condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
+    std::unique_ptr<Node> condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
     condition->setLine(line);
 
-    BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
+    std::unique_ptr<BlockNode> block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
     if (block->getNumStatements() == 0)
         throwSyntaxError(line - 1, "Missing body in 'if' statement.");
 
-    BranchBlockNode *branchBlock = new BranchBlockNode();
-    IfStmtNode *ifStmt = new IfStmtNode(condition, block);
+    std::unique_ptr<BranchBlockNode> branchBlock = std::make_unique<BranchBlockNode>();
+    std::unique_ptr<IfStmtNode> ifStmt = std::make_unique<IfStmtNode>(condition, block);
     ifStmt->setLine(line);
 
     branchBlock->addBranch(ifStmt);
     return branchBlock;
 }
 
-void AbstractSyntaxTree::addElseIfStatement(int index, BlockNode *blockNode, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
+void AbstractSyntaxTree::addElseIfStatement(int index, std::unique_ptr<BlockNode> blockNode, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
 {
     if (getNthToken(tokens[line], 1).getToken() != "ELSEIF")
         throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'elseif' statement found.");
 
     line++;
 
-    if (blockNode->getNumStatements() == 0 || !dynamic_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
+    if (blockNode->getNumStatements() == 0 || !dynamic_cast<std::unique_ptr<BlockNode>>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
         throwSyntaxError(line, "'elseif' statement found without a preceding 'if' statement.");
     if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
         throwSyntaxError(line - 1, "Expected ':' at the end of elseif statement.");
-    Node *condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
+    std::unique_ptr<Node> condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
     condition->setLine(line);
 
-    BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
+    std::unique_ptr<BlockNode> block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
     if (block->getNumStatements() == 0)
         throwSyntaxError(line - 1, "Missing body in 'elseif' statement.");
 
-    ElseIfStmtNode *elseIfStmt = new ElseIfStmtNode(condition, block);
+    std::unique_ptr<ElseIfStmtNode> elseIfStmt = std::make_unique<ElseIfStmtNode>(condition, block);
     elseIfStmt->setLine(line);
 
-    BranchBlockNode *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
+    std::unique_ptr<BranchBlockNode> branchBlock = static_cast<std::unique_ptr<BranchBlockNode>>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
     branchBlock->addBranch(elseIfStmt);
 }
 
-void AbstractSyntaxTree::addElseStatement(int index, BlockNode *blockNode, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
+void AbstractSyntaxTree::addElseStatement(int index, std::unique_ptr<BlockNode> blockNode, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
 {
     if (getNthToken(tokens[line], 1).getToken() != "ELSE")
         throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'else' statement found.");
 
     line++;
-    if (blockNode->getNumStatements() == 0 || !dynamic_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
+    if (blockNode->getNumStatements() == 0 || !dynamic_cast<std::unique_ptr<BranchBlockNode>>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
         throwSyntaxError(line, "'else' statement found without a preceding 'if' statement.");
     int colonIndex = getTokenIndex(tokens[line - 1], "COLON");
     if (colonIndex == -1)
@@ -709,18 +701,18 @@ void AbstractSyntaxTree::addElseStatement(int index, BlockNode *blockNode, const
     if (numValidTokens != 2)
         throwSyntaxError(line - 1, "Line couldn't be parsed.");
 
-    BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
+    std::unique_ptr<BlockNode> block = buildBlock(tokens, line, currentIndent + 1, inFunction, inLoop);
     if (block->getNumStatements() == 0)
         throwSyntaxError(line, "Missing body in 'else' statement.");
 
-    ElseStmtNode *elseStmt = new ElseStmtNode(block);
+    std::unique_ptr<ElseStmtNode> elseStmt = std::make_unique<ElseStmtNode>(block);
     elseStmt->setLine(line);
 
-    BranchBlockNode *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
+    std::unique_ptr<BranchBlockNode> branchBlock = static_cast<std::unique_ptr<BranchBlockNode>>(blockNode->getStatements()[blockNode->getNumStatements() - 1]);
     branchBlock->addBranch(elseStmt);
 }
 
-WhileNode *AbstractSyntaxTree::getWhileStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
+std::unique_ptr<WhileNode> AbstractSyntaxTree::getWhileStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int currentIndent, bool inFunction, bool inLoop)
 {
     if (getNthToken(tokens[line], 1).getToken() != "WHILE")
         throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected 'while' statement found.");
@@ -728,20 +720,20 @@ WhileNode *AbstractSyntaxTree::getWhileStatement(int index, const std::vector<st
     line++;
     if (getNthToken(tokens[line - 1], -1).getToken() != "COLON")
         throwSyntaxError(line, "Expected ':' at the end of 'while' loop.");
-    Node *condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
+    std::unique_ptr<Node> condition = buildIdentifier(tokens[line - 1], index + 1, tokens[line - 1].size() - 3);
     condition->setLine(line - 1);
 
-    BlockNode *block = buildBlock(tokens, line, currentIndent + 1, inFunction, true);
+    std::unique_ptr<BlockNode> block = buildBlock(tokens, line, currentIndent + 1, inFunction, true);
     if (block->getNumStatements() == 0)
         throwSyntaxError(line, "Missing body in 'while' loop.");
 
-    WhileNode *whileStmt = new WhileNode(condition, block);
+    std::unique_ptr<WhileNode> whileStmt = std::make_unique<WhileNode>(condition, block);
     whileStmt->setLine(line - 1);
 
     return whileStmt;
 }
 
-AssignNode *AbstractSyntaxTree::getAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs)
+std::unique_ptr<AssignNode> AbstractSyntaxTree::getAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs)
 {
     if (getNumValidTokens(tokens[line]) > 2 && index > 0)
     {
@@ -760,13 +752,13 @@ AssignNode *AbstractSyntaxTree::getAssignStatement(int index, const std::vector<
     if (type != "" && !isDataType(typeName) && typeName != "VAR" && typeName != "IDENTIFIER")
         throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected type used for variable '" + tokens[line][index - 1].getValue() + "'.");
 
-    AssignNode *assignStmt = new AssignNode(tokens[line][index - 1].getValue(), splitLine(tokens[line], tabs, index - 2), buildIdentifier(tokens[line], index + 1, tokens[line].size() - 2));
+    std::unique_ptr<AssignNode> assignStmt = std::make_unique<AssignNode>(tokens[line][index - 1].getValue(), splitLine(tokens[line], tabs, index - 2), buildIdentifier(tokens[line], index + 1, tokens[line].size() - 2));
     assignStmt->setLine(line + 1);
 
     return assignStmt;
 }
 
-AssignNode *AbstractSyntaxTree::getOperatorAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs)
+std::unique_ptr<AssignNode> AbstractSyntaxTree::getOperatorAssignStatement(int index, const std::vector<std::vector<Token>> &tokens, int &line, int tabs)
 {
     if (getNumValidTokens(tokens[line]) > 2 && index > 0)
     {
@@ -801,17 +793,17 @@ AssignNode *AbstractSyntaxTree::getOperatorAssignStatement(int index, const std:
     for (int i = index + 1; i < tokens[line].size() - 1; i++)
         l.push_back(tokens[line][i]);
 
-    AssignNode *assignStmt = new AssignNode(tokens[line][index - 1].getValue(), "", buildIdentifier(l, 0, l.size() - 1));
+    std::unique_ptr<AssignNode> assignStmt = std::make_unique<AssignNode>(tokens[line][index - 1].getValue(), "", buildIdentifier(l, 0, l.size() - 1));
     assignStmt->setLine(line + 1);
 
     return assignStmt;
 }
 
-std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::string &name, const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent)
+std::vector<std::unique_ptr<Node>> AbstractSyntaxTree::buildContainer(const std::string &name, const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent)
 {
     containers.push_back(name);
 
-    std::vector<Node *> body;
+    std::vector<std::unique_ptr<Node>> body;
     for (int line = startLine; line < tokens.size(); line++)
     {
         if (!isValidLine(tokens[line]))
@@ -836,15 +828,15 @@ std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::string &name, 
 
             line++;
 
-            std::vector<ParamNode *> parameters;
+            std::vector<std::unique_ptr<ParamNode>> parameters;
 
             for (int i = 0; i < params.size(); i++)
             {
-                ParamNode *parameter = new ParamNode(params[i], line);
+                std::unique_ptr<ParamNode> parameter = std::make_unique<ParamNode>(params[i], line);
                 parameters.push_back(parameter);
             }
 
-            BlockNode *funcBody = buildBlock(tokens, line, 2, true);
+            std::unique_ptr<BlockNode> funcBody = buildBlock(tokens, line, 2, true);
             if (funcBody->getNumStatements() == 0)
             {
                 if (funcName == name && returnType != "" && returnType != name)
@@ -859,11 +851,11 @@ std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::string &name, 
             }
             line--;
 
-            FuncNode *func = new FuncNode(name, returnType, parameters, funcBody, line - 1);
+            std::unique_ptr<FuncNode> func = std::make_unique<FuncNode>(name, returnType, parameters, funcBody, line - 1);
             if (func->getName() == name)
                 func->setReturnType(name);
 
-            body.push_back(func);
+            body.push_back(std::move(func));
 
             startLine = line;
             continue;
@@ -891,7 +883,7 @@ std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::string &name, 
                         throwSyntaxError(line + 1, "Variables couldn't be parsed in container.");
                     else
                     {
-                        body.push_back(new IdentifierNode(tokens[line][token].getValue(), type));
+                        body.push_back(std::make_unique<IdentifierNode>(tokens[line][token].getValue(), type));
                         onComma = true;
                     }
                 }
@@ -907,9 +899,9 @@ std::vector<Node *> AbstractSyntaxTree::buildContainer(const std::string &name, 
     return body;
 }
 
-BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction, bool inLoop)
+std::unique_ptr<BlockNode> AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent, bool inFunction, bool inLoop)
 {
-    BlockNode *blockNode = new BlockNode();
+    std::unique_ptr<BlockNode> blockNode = std::make_unique<BlockNode>();
     blockNode->setLine(startLine + 1);
     int tabs = getNumTabs(tokens[startLine]);
 
@@ -992,15 +984,15 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'return' statement found outside of a function.");
             if (getNumValidTokens(tokens[line]) < 2)
             {
-                ReturnStmtNode *returnStmt = new ReturnStmtNode();
+                std::unique_ptr<ReturnStmtNode> returnStmt = std::make_unique<ReturnStmtNode>(ReturnStmtNode());
                 returnStmt->setLine(line + 1);
-                blockNode->addStatement(returnStmt);
+                blockNode->addStatement(std::move(returnStmt));
             }
             else
             {
-                ReturnStmtNode *returnStmt = new ReturnStmtNode(buildIdentifier(tokens[line], returnIndex + 1, tokens[line].size() - 2));
+                std::unique_ptr<ReturnStmtNode> returnStmt = std::make_unique<ReturnStmtNode>(buildIdentifier(tokens[line], returnIndex + 1, tokens[line].size() - 2));
                 returnStmt->setLine(line + 1);
-                blockNode->addStatement(returnStmt);
+                blockNode->addStatement(std::move(returnStmt));
             }
         }
         else if (breakIndex != -1)
@@ -1011,8 +1003,8 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'break' statement shouldn't have anything after it.");
             else
             {
-                BreakNode *breakStmt = new BreakNode(line + 1);
-                blockNode->addStatement(breakStmt);
+                std::unique_ptr<BreakNode> breakStmt = std::make_unique<BreakNode>(line + 1);
+                blockNode->addStatement(std::move(breakStmt));
             }
         }
         else if (skipIndex != -1)
@@ -1023,15 +1015,15 @@ BlockNode *AbstractSyntaxTree::buildBlock(const std::vector<std::vector<Token>> 
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'skip' statement shouldn't have anything after it.");
             else
             {
-                SkipNode *skipStmt = new SkipNode(line + 1);
-                blockNode->addStatement(skipStmt);
+                std::unique_ptr<SkipNode> skipStmt = std::make_unique<SkipNode>(line + 1);
+                blockNode->addStatement(std::move(skipStmt));
             }
         }
         else
         {
             blockNode->addStatement(buildIdentifier(tokens[line], tabs, tokens[line].size() - 2));
 
-            if (!dynamic_cast<CallExprNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
+            if (!dynamic_cast<std::unique_ptr<CallExprNode>>(blockNode->getStatements()[blockNode->getNumStatements() - 1]))
                 throwSyntaxError(line + 1, "Line couldn't be parsed.");
         }
 
@@ -1051,7 +1043,7 @@ void AbstractSyntaxTree::addImport(const std::vector<std::vector<Token>> &tokens
         throwSyntaxError(line + 1, "Import Statement couldn't be parsed");
 
     std::string file = getNthToken(tokens[line], 2).getValue(), prefix = getNthToken(tokens[line], 4).getValue();
-    ImportNode *i = new ImportNode(file, prefix);
+    std::unique_ptr<ImportNode> i = std::make_unique<ImportNode>(file, prefix);
 
     if (std::find(prefixes.begin(), prefixes.end(), prefix) != prefixes.end())
         throwSyntaxError(line, "Module alias '" + prefix + "' is already defined in this scope.");
@@ -1071,15 +1063,15 @@ void AbstractSyntaxTree::addFunction(const std::vector<std::vector<Token>> &toke
 
     line++;
 
-    std::vector<ParamNode *> parameters;
+    std::vector<std::unique_ptr<ParamNode>> parameters;
 
     for (int i = 0; i < params.size(); i++)
     {
-        ParamNode *parameter = new ParamNode(params[i], line);
+        std::unique_ptr<ParamNode> parameter = std::make_unique<ParamNode>(params[i], line);
         parameters.push_back(parameter);
     }
 
-    BlockNode *body = buildBlock(tokens, line, 1, true);
+    std::unique_ptr<BlockNode> body = buildBlock(tokens, line, 1, true);
     if (body->getNumStatements() == 0)
     {
         if (tokens[body->getLine() - 2][tokens[body->getLine() - 2].size() - 2].getToken() == "COLON")
@@ -1092,7 +1084,7 @@ void AbstractSyntaxTree::addFunction(const std::vector<std::vector<Token>> &toke
     }
     line--;
 
-    FuncNode *func = new FuncNode(funcName, returnType, parameters, body, line - 1);
+    std::unique_ptr<FuncNode> func = std::make_unique<FuncNode>(funcName, returnType, parameters, body, line - 1);
     root->addNode(func);
 }
 
@@ -1128,11 +1120,11 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
 
                 if (importNodes.size() > 0)
                 {
-                    BlockNode *imports = new BlockNode();
+                    std::unique_ptr<BlockNode> imports = std::make_unique<BlockNode>();
                     for (int i = 0; i < importNodes.size(); i++)
-                        imports->addStatement(importNodes[i]);
+                        imports->addStatement(std::move(importNodes[i]));
 
-                    root->addNode(imports);
+                    root->addNode(std::move(imports));
                 }
             }
         }
@@ -1151,11 +1143,11 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
             line++;
             checkForExports = false;
 
-            std::vector<Node *> body = buildContainer(name, tokens, line, 1);
+            std::vector<std::unique_ptr<Node>> body = buildContainer(name, tokens, line, 1);
 
             line--;
-            ContainerNode *container = new ContainerNode(name, body, origLine);
-            root->addNode(container);
+            std::unique_ptr<ContainerNode> container = std::make_unique<ContainerNode>(name, body, origLine);
+            root->addNode(std::move(container));
 
             continue;
         }

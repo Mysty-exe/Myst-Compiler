@@ -1,5 +1,6 @@
 #pragma once
 #include <unordered_map>
+#include <memory>
 #include "compiler/lexer.h"
 #include "compiler/error.h"
 #include "compiler/scope.h"
@@ -10,11 +11,17 @@ struct SemanticsInfo
     std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixSymbols;
     std::vector<std::string> visibleScope;
 
-    std::unordered_map<std::string, Scope> getSymbolTable()
+    SemanticsInfo(std::unordered_map<std::string, Scope> &symbolTable, std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols)
+    {
+        this->symbolTable = symbolTable;
+        this->prefixSymbols = prefixSymbols;
+    }
+
+    std::unordered_map<std::string, Scope> &getSymbolTable()
     {
         return symbolTable;
     }
-    std::unordered_map<std::string, std::unordered_map<std::string, Scope>> getPrefixSymbols()
+    std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &getPrefixSymbols()
     {
         return prefixSymbols;
     }
@@ -38,7 +45,7 @@ struct SemanticsInfo
     {
         return visibleScope;
     }
-    Scope getScope(std::string scope)
+    Scope &getScope(std::string scope)
     {
         return symbolTable[scope];
     }
@@ -50,7 +57,7 @@ struct SemanticsInfo
     {
         symbolTable[visibleScope[visibleScope.size() - 1]] = {};
     }
-    void addSymbol(std::string scope, Symbol *symbol)
+    void addSymbol(std::string scope, std::unique_ptr<Symbol> &symbol)
     {
         symbolTable[scope].addSymbol(symbol);
     }
@@ -142,7 +149,7 @@ public:
     virtual void loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "");
     virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "");
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "");
-    virtual void findReturnStmts(std::vector<Node *> &stmts);
+    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts);
     virtual void print(int depth = 0) const = 0;
     int getLine() const;
     void setLine(int line);
@@ -152,8 +159,8 @@ struct RootNode : Node
 {
 private:
     std::string fileName, fileNameWDots;
-    std::vector<Node *> children;
-    Node *globalCode;
+    std::vector<std::unique_ptr<Node>> children;
+    std::unique_ptr<Node> globalCode;
 
 protected:
     static std::string currentFile;
@@ -166,11 +173,11 @@ public:
     std::string getFileNameWDots();
     void setFileName(std::string name);
     static void setCurrentFile(std::string name);
-    void addNode(Node *node);
-    Node *getGlobalCode();
-    void setGlobalCode(Node *block);
-    std::vector<Node *> getChildren();
-    std::vector<Node *> &getChildrenRef();
+    void addNode(std::unique_ptr<Node> node);
+    std::unique_ptr<Node> &getGlobalCode();
+    void setGlobalCode(std::unique_ptr<Node> &block);
+    std::vector<std::unique_ptr<Node>> getChildren();
+    std::vector<std::unique_ptr<Node>> &getChildrenRef();
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void print(int depth = 0) const override;
     void sendWarnings(std::unordered_map<std::string, Scope> symbolTable);
@@ -185,7 +192,7 @@ private:
 
 public:
     LiteralNode(T value, std::string type);
-    ~LiteralNode();
+    ~LiteralNode() override;
     void print(int depth) const;
 
     virtual bool checkType(SemanticsInfo &semanticsInfo, const std::string &type) override;
@@ -234,7 +241,7 @@ struct BinaryExprNode : Node
 {
 private:
     std::string op;
-    Node *left, *right;
+    std::unique_ptr<Node> left, right;
     std::string resultType, operandType;
 
     void traverseBinaryBinary(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix);
@@ -243,7 +250,7 @@ private:
     void traverseExrpExpr(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix);
 
 public:
-    BinaryExprNode(std::string op, Node *left, Node *right);
+    BinaryExprNode(std::string op, std::unique_ptr<Node> left, std::unique_ptr<Node> right);
     ~BinaryExprNode() override;
     std::string getOperandType() const;
     std::string getResultType() const;
@@ -259,7 +266,7 @@ struct UnaryExprNode : Node
 {
 private:
     std::string op;
-    Node *right;
+    std::unique_ptr<Node> right;
     std::string resultType, operandType;
 
     void traverseBinaryOrUnary(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix = "");
@@ -268,7 +275,7 @@ private:
     void traverseLiteral(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix = "");
 
 public:
-    UnaryExprNode(std::string op, Node *right);
+    UnaryExprNode(std::string op, std::unique_ptr<Node> right);
     ~UnaryExprNode() override;
     std::string getOperandType() const;
     std::string getResultType() const;
@@ -285,17 +292,17 @@ struct CallExprNode : Node
 private:
     std::string name, returnType, modName;
     std::vector<std::string> argTypes;
-    std::vector<Node *> arguments;
+    std::vector<std::unique_ptr<Node>> arguments;
     bool imported, isConstructor;
 
-    std::vector<int> checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *funcSymbol);
-    void checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, FuncSymbol *&funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing);
+    std::vector<int> checkFuncArgs(SemanticsInfo &semanticsInfo, std::unique_ptr<FuncSymbol> funcSymbol);
+    void checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, std::unique_ptr<FuncSymbol> &funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing);
     bool validFunc(std::vector<int> current);
     bool betterFunc(std::vector<int> current, std::vector<int> next);
     bool isAmbiguousFunc(std::vector<int> current, std::vector<int> next);
 
 public:
-    CallExprNode(std::string name, std::vector<Node *> arguments, bool isConstructor = false);
+    CallExprNode(std::string name, std::vector<std::unique_ptr<Node>> arguments, bool isConstructor = false);
     ~CallExprNode() override;
     std::string getName() const;
     std::string getReturnType() const;
@@ -313,17 +320,17 @@ public:
 struct AssignNode : Node
 {
 private:
-    IdentifierNode *identifier;
-    Node *value;
+    std::unique_ptr<IdentifierNode> identifier;
+    std::unique_ptr<Node> value;
     bool declared;
 
 public:
-    AssignNode(std::string name, std::string type, Node *value);
+    AssignNode(std::string name, std::string type, std::unique_ptr<Node> value);
+    ~AssignNode() override;
     std::string getName() const;
     std::string getType() const;
-    Node *getValue() const;
+    std::unique_ptr<Node> &getValue();
     bool isDeclared() const;
-    ~AssignNode() override;
     virtual void print(int depth = 0) const override;
     virtual void lookForCallExprs(SemanticsInfo &semanticsInfo) override;
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
@@ -334,35 +341,35 @@ struct ReturnStmtNode : Node
 {
 private:
     std::string returnType;
-    Node *identifier;
+    std::unique_ptr<Node> identifier;
 
 public:
-    ReturnStmtNode(Node *identifier = nullptr);
+    ReturnStmtNode(std::unique_ptr<Node> identifier = nullptr);
     ~ReturnStmtNode() override;
     void setType(std::string type);
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
     virtual void print(int depth = 0) const override;
 };
 
 struct BlockNode : Node
 {
 private:
-    std::vector<Node *> statements;
+    std::vector<std::unique_ptr<Node>> statements;
 
 public:
     BlockNode();
     ~BlockNode() override;
-    void addStatement(Node *stmt);
+    void addStatement(std::unique_ptr<Node> stmt);
     void clearStatments();
     int getNumStatements() const;
-    std::vector<Node *> getStatements() const;
+    std::vector<std::unique_ptr<Node>> getStatements() const;
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     void mapToGlobalIR(std::string &ir, std::string prefix);
     void mapImportsToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::vector<std::string> imports);
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
     virtual void print(int depth = 0) const override;
 };
 
@@ -387,33 +394,33 @@ struct FuncNode : Node
 private:
     std::string name;
     std::string returnType;
-    std::vector<ParamNode *> parameters;
-    BlockNode *body;
+    std::vector<std::unique_ptr<ParamNode>> parameters;
+    std::unique_ptr<BlockNode> body;
     bool emptyFunction;
 
 public:
-    FuncNode(std::string name, std::string returnType, std::vector<ParamNode *> parameters, BlockNode *body, int line);
+    FuncNode(std::string name, std::string returnType, std::vector<std::unique_ptr<ParamNode>> parameters, std::unique_ptr<BlockNode> body, int line);
     ~FuncNode() override;
     std::string getName();
     std::string getReturnType();
     void setReturnType(std::string type);
-    std::vector<ParamNode *> getParameters();
+    std::vector<std::unique_ptr<ParamNode>> getParameters();
     virtual void print(int depth = 0) const override;
     void addSignatureToTable(SemanticsInfo &semanticsInfo, bool includeParams = true);
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
 };
 
 struct ContainerNode : Node
 {
 private:
     std::string name;
-    std::vector<IdentifierNode *> variables;
-    std::vector<FuncNode *> functions;
+    std::vector<std::unique_ptr<IdentifierNode>> variables;
+    std::vector<std::unique_ptr<FuncNode>> functions;
 
 public:
-    ContainerNode(std::string name, std::vector<Node *> body, int line);
+    ContainerNode(std::string name, std::vector<std::unique_ptr<Node>> body, int line);
     ~ContainerNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
@@ -422,11 +429,11 @@ public:
 struct IfStmtNode : Node
 {
 private:
-    Node *condition;
-    BlockNode *body;
+    std::unique_ptr<Node> condition;
+    std::unique_ptr<BlockNode> body;
 
 public:
-    IfStmtNode(Node *condition, BlockNode *body);
+    IfStmtNode(std::unique_ptr<Node> condition, std::unique_ptr<BlockNode> body);
     ~IfStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
@@ -434,17 +441,17 @@ public:
     void mapCondition(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix = "");
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
 };
 
 struct ElseIfStmtNode : Node
 {
 private:
-    Node *condition;
-    BlockNode *body;
+    std::unique_ptr<Node> condition;
+    std::unique_ptr<BlockNode> body;
 
 public:
-    ElseIfStmtNode(Node *condition, BlockNode *body);
+    ElseIfStmtNode(std::unique_ptr<Node> condition, std::unique_ptr<BlockNode> body);
     ~ElseIfStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
@@ -452,53 +459,53 @@ public:
     void mapCondition(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix = "");
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
 };
 
 struct ElseStmtNode : Node
 {
 private:
-    BlockNode *body;
+    std::unique_ptr<BlockNode> body;
 
 public:
-    ElseStmtNode(BlockNode *body);
+    ElseStmtNode(std::unique_ptr<BlockNode> body);
     ~ElseStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
     bool endsWithBranchStmt();
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
 };
 
 struct BranchBlockNode : Node
 {
 private:
     static int numIfStmt;
-    BlockNode *branches;
+    std::unique_ptr<BlockNode> branches;
 
 public:
     BranchBlockNode();
     ~BranchBlockNode() override;
     static int getNumberIf();
     void setCurrentWhile(int currentStmt);
-    void addBranch(Node *branch);
+    void addBranch(std::unique_ptr<Node> &branch);
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
 };
 
 struct WhileNode : Node
 {
 private:
     static int numWhileStmt;
-    Node *condition;
-    BlockNode *body;
+    std::unique_ptr<Node> condition;
+    std::unique_ptr<BlockNode> body;
     bool skip;
 
 public:
-    WhileNode(Node *condition, BlockNode *body);
+    WhileNode(std::unique_ptr<Node> condition, std::unique_ptr<BlockNode> body);
     ~WhileNode() override;
     bool getSkip();
     void setSkip(bool skip);
@@ -506,7 +513,7 @@ public:
     bool endsWithBranchStmt();
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
 };
 
 struct BreakNode : Node

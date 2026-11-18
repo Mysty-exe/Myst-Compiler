@@ -68,7 +68,7 @@ public:
     {
     }
 
-    ~VarSymbol()
+    ~VarSymbol() override
     {
     }
 
@@ -92,7 +92,7 @@ public:
         this->parameterTypes = parameterTypes;
     }
 
-    ~FuncSymbol()
+    ~FuncSymbol() override
     {
     }
 
@@ -130,14 +130,18 @@ public:
 struct ContainerSymbol : Symbol
 {
 private:
-    std::vector<VarSymbol *> variables;
-    std::vector<FuncSymbol *> functions;
+    std::vector<std::unique_ptr<VarSymbol>> variables;
+    std::vector<std::unique_ptr<FuncSymbol>> functions;
 
 public:
-    ContainerSymbol(int line, std::string name, std::vector<VarSymbol *> variables, std::vector<FuncSymbol *> funcs, bool used = true, std::string type = "") : Symbol(line, used, name, type)
+    ContainerSymbol(int line, std::string name, std::vector<std::unique_ptr<VarSymbol>> variables, std::vector<std::unique_ptr<FuncSymbol>> funcs, bool used = true, std::string type = "") : Symbol(line, used, name, type)
     {
         this->variables = variables;
         this->functions = funcs;
+    }
+
+    ~ContainerSymbol() override
+    {
     }
 
     virtual std::string getType() override
@@ -145,12 +149,12 @@ public:
         return "CONTAINER";
     }
 
-    std::vector<VarSymbol *> getVariables()
+    std::vector<std::unique_ptr<VarSymbol>> getVariables()
     {
         return variables;
     }
 
-    std::vector<FuncSymbol *> getFunctions()
+    std::vector<std::unique_ptr<FuncSymbol>> getFunctions()
     {
         return functions;
     }
@@ -159,20 +163,20 @@ public:
 struct Scope
 {
 private:
-    std::vector<Symbol *> symbols;
+    std::vector<std::unique_ptr<Symbol>> symbols;
 
 public:
-    std::vector<Symbol *> getSymbols() const
+    std::vector<std::unique_ptr<Symbol>> &getSymbols()
     {
         return symbols;
     }
 
-    void setSymbols(std::vector<Symbol *> symbols)
+    void setSymbols(std::vector<std::unique_ptr<Symbol>> symbols)
     {
         this->symbols = symbols;
     }
 
-    void addSymbol(Symbol *symbol)
+    void addSymbol(std::unique_ptr<Symbol> &symbol)
     {
         symbols.push_back(symbol);
     }
