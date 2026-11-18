@@ -54,29 +54,23 @@ void CallExprNode::lookForCallExprs(SemanticsInfo &semanticsInfo)
         return;
 
     argTypes = {};
+    FuncSymbol *funcSymbol = nullptr;
+    std::vector<int> funcArgs;
+    bool ambiguous = false;
 
     if (imported)
     {
         auto scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
-        for (Symbol *symbol : scope.getSymbols())
-        {
-            if (symbol->getType() == "FUNC" && symbol->getName() == name && symbol->isExported())
-            {
-                if (returnType == "" || symbol->getDataType() == returnType || canCoerce(symbol->getDataType(), returnType))
-                {
-                    FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
-                    if (arguments.size() != derivedSymbol->getNumParameters())
-                        continue;
+        checkCallExprInScope(scope, semanticsInfo, returnType, funcSymbol, funcArgs, ambiguous, true);
 
-                    for (int k = 0; k < derivedSymbol->getParameters().size(); k++)
-                    {
-                        this->argTypes.push_back(derivedSymbol->getParameters()[k]);
-                        if (!arguments[k]->checkType(semanticsInfo, derivedSymbol->getParameters()[k]))
-                            break;
-                    }
-                }
-            }
-        }
+        if (ambiguous)
+            throwSemanticError(line, "Couldn't decide on the correct function signature to use, functions are ambiguous.");
+
+        if (funcSymbol == nullptr)
+            throwSemanticError(line, "Couldn't find proper function signature for '" + name + "' call expression in Module '" + modName + "'.");
+
+        for (int i = 0; i < funcSymbol->getNumParameters(); i++)
+            this->argTypes.push_back(funcSymbol->getParameters()[i]);
 
         return;
     }
@@ -84,33 +78,17 @@ void CallExprNode::lookForCallExprs(SemanticsInfo &semanticsInfo)
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
         auto scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
-        for (Symbol *symbol : scope.getSymbols())
-        {
-            if (symbol->getType() == "FUNC" && symbol->getName() == name)
-            {
-                if (returnType == "" || symbol->getDataType() == returnType || canCoerce(symbol->getDataType(), returnType))
-                {
-                    FuncSymbol *derivedSymbol = static_cast<FuncSymbol *>(symbol);
-                    if (arguments.size() != derivedSymbol->getNumParameters())
-                        continue;
-
-                    bool wrongType = false;
-                    for (int k = 0; k < derivedSymbol->getParameters().size(); k++)
-                    {
-                        this->argTypes.push_back(derivedSymbol->getParameters()[k]);
-                        if (!arguments[k]->checkType(semanticsInfo, derivedSymbol->getParameters()[k]))
-                        {
-                            wrongType = true;
-                            break;
-                        }
-                    }
-
-                    if (!wrongType)
-                        symbol->setUsed(true);
-                }
-            }
-        }
+        checkCallExprInScope(scope, semanticsInfo, returnType, funcSymbol, funcArgs, ambiguous, false);
     }
+
+    if (ambiguous)
+        throwSemanticError(line, "Couldn't decide on the correct function signature to use, functions are ambiguous.");
+
+    if (funcSymbol == nullptr)
+        throwSemanticError(line, "Couldn't find proper function signature for '" + name + "' call expression.");
+
+    for (int i = 0; i < funcSymbol->getNumParameters(); i++)
+        this->argTypes.push_back(funcSymbol->getParameters()[i]);
 }
 std::vector<int> CallExprNode::checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *funcSymbol)
 {
@@ -127,23 +105,23 @@ std::vector<int> CallExprNode::checkFuncArgs(SemanticsInfo &semanticsInfo, FuncS
 
             if (arguments[k]->inferType(semanticsInfo) == p)
                 result.push_back(0);
-            else if (canCoerceLossless(p, arguments[k]->inferType(semanticsInfo)))
+            else if (canCoerceLossless(arguments[k]->inferType(semanticsInfo), p))
                 result.push_back(1);
-            else if (canCoerceLossy(p, arguments[k]->inferType(semanticsInfo)))
+            else if (canCoerceLossy(arguments[k]->inferType(semanticsInfo), p))
                 result.push_back(2);
         }
 
         arguments[k]->checkType(semanticsInfo, funcSymbol->getParameters()[k]);
-        if (!canCoerce(p, arguments[k]->inferType(semanticsInfo)))
+        if (!canCoerce(arguments[k]->inferType(semanticsInfo), p))
         {
             if (!arguments[k]->checkType(semanticsInfo, p))
                 result.push_back(3);
 
             if (arguments[k]->inferType(semanticsInfo) == p)
                 result.push_back(0);
-            else if (canCoerceLossless(p, arguments[k]->inferType(semanticsInfo)))
+            else if (canCoerceLossless(arguments[k]->inferType(semanticsInfo), p))
                 result.push_back(1);
-            else if (canCoerceLossy(p, arguments[k]->inferType(semanticsInfo)))
+            else if (canCoerceLossy(arguments[k]->inferType(semanticsInfo), p))
                 result.push_back(2);
         }
     }
@@ -180,7 +158,24 @@ bool CallExprNode::betterFunc(std::vector<int> current, std::vector<int> next)
 
     return betterThan;
 }
-void CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, FuncSymbol *&funcSymbol, std::vector<int> &funcArgs, bool importing)
+bool CallExprNode::isAmbiguousFunc(std::vector<int> current, std::vector<int> next)
+{
+    if (current.size() != next.size())
+        return false;
+
+    bool betterThanA = false, betterThanB = false;
+    for (int i = 0; i < current.size(); i++)
+    {
+        if (next[i] > current[i])
+            betterThanA = true;
+
+        if (next[i] < current[i])
+            betterThanB = true;
+    }
+
+    return (!betterThanA && !betterThanB) || (betterThanA && betterThanB);
+}
+void CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, FuncSymbol *&funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing)
 {
     for (Symbol *symbol : scope.getSymbols())
     {
@@ -213,8 +208,14 @@ void CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo
             if ((type == "" || symbol->getDataType() == type || canCoerce(symbol->getDataType(), type)) && arguments.size() == derivedSymbol->getNumParameters())
             {
                 std::vector<int> next = checkFuncArgs(semanticsInfo, derivedSymbol);
+                if (next.size() > 0 && isAmbiguousFunc(funcArgs, next))
+                {
+                    ambiguous = true;
+                    continue;
+                }
                 if (validFunc(next) && (betterFunc(funcArgs, next) || funcArgs.size() == 0))
                 {
+                    ambiguous = false;
                     funcSymbol = derivedSymbol;
                     funcArgs = next;
                 }
@@ -301,10 +302,14 @@ bool CallExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &ty
 
     FuncSymbol *funcSymbol = nullptr;
     std::vector<int> funcArgs;
+    bool ambiguous = false;
     if (imported)
     {
         auto scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
-        checkCallExprInScope(scope, semanticsInfo, type, funcSymbol, funcArgs, true);
+        checkCallExprInScope(scope, semanticsInfo, type, funcSymbol, funcArgs, ambiguous, true);
+
+        if (ambiguous)
+            throwSemanticError(line, "Couldn't decide on the correct function signature to use, functions are ambiguous.");
 
         if (funcSymbol == nullptr)
             throwSemanticError(line, "Couldn't find proper function signature for '" + name + "' call expression in Module '" + modName + "'.");
@@ -318,8 +323,11 @@ bool CallExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &ty
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
         auto scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
-        checkCallExprInScope(scope, semanticsInfo, type, funcSymbol, funcArgs, false);
+        checkCallExprInScope(scope, semanticsInfo, type, funcSymbol, funcArgs, ambiguous, false);
     }
+
+    if (ambiguous)
+        throwSemanticError(line, "Couldn't decide on the correct function signature to use, functions are ambiguous.");
 
     if (funcSymbol == nullptr)
         throwSemanticError(line, "Couldn't find proper function signature for '" + name + "' call expression.");
@@ -328,9 +336,6 @@ bool CallExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &ty
         this->argTypes.push_back(funcSymbol->getParameters()[i]);
 
     return true;
-
-    // throwSemanticError(line, "function '" + name + "' hasn't been declared.");
-    // return false;
 }
 void CallExprNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {

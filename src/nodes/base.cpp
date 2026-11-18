@@ -95,7 +95,7 @@ bool canCoerce(std::string origType, std::string newType)
     return false;
 }
 
-bool canCoerceLossless(std::string origType, std::string newType)
+bool canCoerceLossy(std::string origType, std::string newType)
 {
     if (origType == "DECIMALTYPE" && newType == "INTTYPE")
         return true;
@@ -103,7 +103,7 @@ bool canCoerceLossless(std::string origType, std::string newType)
     return false;
 }
 
-bool canCoerceLossy(std::string origType, std::string newType)
+bool canCoerceLossless(std::string origType, std::string newType)
 {
     if (origType == "INTTYPE" && newType == "DECIMALTYPE")
         return true;

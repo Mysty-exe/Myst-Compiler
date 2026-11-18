@@ -1,0 +1,1 @@
+ambiguous_function.ms - Semantic Error on line 10: Couldn't decide on the correct function signature to use, functions are ambiguous.

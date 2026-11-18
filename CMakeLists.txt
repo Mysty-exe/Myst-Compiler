@@ -49,6 +49,7 @@ set_target_properties(mystc PROPERTIES
 find_package(Python3 REQUIRED)
 
 file(GLOB TEST_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/*.ms)
+file(GLOB TEST_ERROR_FILES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/errors ${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/errors/*.ms)
 
 foreach(TEST_FILE ${TEST_FILES})
     string(REPLACE ".ms" "" TEST_NAME ${TEST_FILE})
@@ -62,6 +63,21 @@ foreach(TEST_FILE ${TEST_FILES})
         $<TARGET_FILE:mystc>
         ${TEST_MS_PATH}
         ${TEST_OUT_PATH}
+    )
+endforeach()
+
+foreach(TEST_FILE ${TEST_ERROR_FILES})
+    string(REPLACE ".ms" "" TEST_NAME ${TEST_FILE})
+
+    set(TEST_MS_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests/integrations/errors/${TEST_FILE}")
+    set(TEST_OUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/tests/output/errors/${TEST_NAME}.out")
+
+    add_test(
+        NAME Golden_${TEST_NAME}
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/tests/runTest.py
+        $<TARGET_FILE:mystc>
+        ${TEST_MS_PATH}
+        ${TEST_OUT_PATH} --expect-error
     )
 endforeach()
 

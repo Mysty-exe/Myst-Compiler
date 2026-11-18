@@ -289,9 +289,10 @@ private:
     bool imported, isConstructor;
 
     std::vector<int> checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *funcSymbol);
-    void checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, FuncSymbol *&funcSymbol, std::vector<int> &funcArgs, bool importing);
+    void checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, FuncSymbol *&funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing);
     bool validFunc(std::vector<int> current);
     bool betterFunc(std::vector<int> current, std::vector<int> next);
+    bool isAmbiguousFunc(std::vector<int> current, std::vector<int> next);
 
 public:
     CallExprNode(std::string name, std::vector<Node *> arguments, bool isConstructor = false);

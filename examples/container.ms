@@ -1,7 +1,7 @@
-func testSum(bool x):
-    print(453)
+func compute(int x):
+    print(x)
 
-func testSum(decimal x):
-    print(23)
+func compute(decimal x):
+    print(x)
 
-testSum(34)
+compute(42.4)
