@@ -134,10 +134,10 @@ private:
     std::vector<std::unique_ptr<FuncSymbol>> functions;
 
 public:
-    ContainerSymbol(int line, std::string name, std::vector<std::unique_ptr<VarSymbol>> variables, std::vector<std::unique_ptr<FuncSymbol>> funcs, bool used = true, std::string type = "") : Symbol(line, used, name, type)
+    ContainerSymbol(int line, std::string name, std::vector<std::unique_ptr<VarSymbol>> &variables, std::vector<std::unique_ptr<FuncSymbol>> &funcs, bool used = true, std::string type = "") : Symbol(line, used, name, type)
     {
-        this->variables = variables;
-        this->functions = funcs;
+        this->variables = std::move(variables);
+        this->functions = std::move(funcs);
     }
 
     ~ContainerSymbol() override
@@ -151,12 +151,12 @@ public:
 
     std::vector<std::unique_ptr<VarSymbol>> getVariables()
     {
-        return variables;
+        return std::move(variables);
     }
 
     std::vector<std::unique_ptr<FuncSymbol>> getFunctions()
     {
-        return functions;
+        return std::move(functions);
     }
 };
 
@@ -173,11 +173,11 @@ public:
 
     void setSymbols(std::vector<std::unique_ptr<Symbol>> symbols)
     {
-        this->symbols = symbols;
+        this->symbols = std::move(symbols);
     }
 
-    void addSymbol(std::unique_ptr<Symbol> &symbol)
+    void addSymbol(std::unique_ptr<Symbol> symbol)
     {
-        symbols.push_back(symbol);
+        symbols.push_back(std::move(symbol));
     }
 };

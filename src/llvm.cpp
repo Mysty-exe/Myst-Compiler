@@ -169,7 +169,7 @@ std::pair<std::string, int> execCommand(const std::string &cmd)
     return {result, status};
 }
 
-void LLVM::mapToIR(std::vector<std::unique_ptr<AbstractSyntaxTree>> asts, const std::string &outputFile)
+void LLVM::mapToIR(std::vector<std::unique_ptr<AbstractSyntaxTree>> &asts, const std::string &outputFile)
 {
     LLVMInfo tempVars = LLVMInfo();
 
@@ -198,7 +198,7 @@ void LLVM::mapToIR(std::vector<std::unique_ptr<AbstractSyntaxTree>> asts, const 
         if (ast->isImported())
             prefix = "." + ast->getRoot()->getFileNameWDots() + ".";
 
-        std::unique_ptr<BlockNode> global = static_cast<std::unique_ptr<BlockNode>>(ast->getRoot()->getGlobalCode());
+        auto *global = static_cast<BlockNode *>(ast->getRoot()->getGlobalCode().get());
         global->mapToGlobalIR(ir, prefix);
 
         for (int i = 0; i < ast->getImports().size(); i++)
@@ -218,7 +218,7 @@ void LLVM::mapToIR(std::vector<std::unique_ptr<AbstractSyntaxTree>> asts, const 
 
         for (std::unique_ptr<Node> &node : ast->getRoot()->getChildren())
         {
-            std::unique_ptr<FuncNode> function = static_cast<std::unique_ptr<FuncNode>>(node);
+            auto *function = static_cast<FuncNode *>(node.get());
             function->mapToIR(ir, tempVars, false, prefix);
         }
 

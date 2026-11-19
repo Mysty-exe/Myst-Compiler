@@ -13,8 +13,8 @@ struct SemanticsInfo
 
     SemanticsInfo(std::unordered_map<std::string, Scope> &symbolTable, std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixSymbols)
     {
-        this->symbolTable = symbolTable;
-        this->prefixSymbols = prefixSymbols;
+        this->symbolTable = std::move(symbolTable);
+        this->prefixSymbols = std::move(prefixSymbols);
     }
 
     std::unordered_map<std::string, Scope> &getSymbolTable()
@@ -25,9 +25,9 @@ struct SemanticsInfo
     {
         return prefixSymbols;
     }
-    void setPrefixSymbols(std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixes)
+    void setPrefixSymbols(std::unordered_map<std::string, std::unordered_map<std::string, Scope>> &prefixes)
     {
-        this->prefixSymbols = prefixes;
+        this->prefixSymbols = std::move(prefixes);
     }
     void addVisibleScope()
     {
@@ -35,7 +35,7 @@ struct SemanticsInfo
     }
     std::string getLatestVisibleScope()
     {
-        return getVisibleScope()[getVisibleScope().size() - 1];
+        return visibleScope.back();
     }
     void removeVisibleScope()
     {
@@ -51,15 +51,15 @@ struct SemanticsInfo
     }
     void setScope(std::string visibleScope, Scope scope)
     {
-        symbolTable[visibleScope] = scope;
+        symbolTable[visibleScope] = std::move(scope);
     }
     void removeScope()
     {
         symbolTable[visibleScope[visibleScope.size() - 1]] = {};
     }
-    void addSymbol(std::string scope, std::unique_ptr<Symbol> &symbol)
+    void addSymbol(std::string scope, std::unique_ptr<Symbol> symbol)
     {
-        symbolTable[scope].addSymbol(symbol);
+        symbolTable[scope].addSymbol(std::move(symbol));
     }
 };
 
@@ -175,12 +175,11 @@ public:
     static void setCurrentFile(std::string name);
     void addNode(std::unique_ptr<Node> node);
     std::unique_ptr<Node> &getGlobalCode();
-    void setGlobalCode(std::unique_ptr<Node> &block);
-    std::vector<std::unique_ptr<Node>> getChildren();
-    std::vector<std::unique_ptr<Node>> &getChildrenRef();
+    void setGlobalCode(std::unique_ptr<Node> block);
+    std::vector<std::unique_ptr<Node>> &getChildren();
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void print(int depth = 0) const override;
-    void sendWarnings(std::unordered_map<std::string, Scope> symbolTable);
+    void sendWarnings(std::unordered_map<std::string, Scope> &symbolTable);
 };
 
 template <typename T>
@@ -295,14 +294,14 @@ private:
     std::vector<std::unique_ptr<Node>> arguments;
     bool imported, isConstructor;
 
-    std::vector<int> checkFuncArgs(SemanticsInfo &semanticsInfo, std::unique_ptr<FuncSymbol> funcSymbol);
-    void checkCallExprInScope(Scope scope, SemanticsInfo semanticsInfo, std::string type, std::unique_ptr<FuncSymbol> &funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing);
+    std::vector<int> checkFuncArgs(SemanticsInfo &semanticsInfo, std::unique_ptr<FuncSymbol> &funcSymbol);
+    void checkCallExprInScope(Scope scope, SemanticsInfo &semanticsInfo, std::string type, std::unique_ptr<FuncSymbol> &funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing);
     bool validFunc(std::vector<int> current);
     bool betterFunc(std::vector<int> current, std::vector<int> next);
     bool isAmbiguousFunc(std::vector<int> current, std::vector<int> next);
 
 public:
-    CallExprNode(std::string name, std::vector<std::unique_ptr<Node>> arguments, bool isConstructor = false);
+    CallExprNode(std::string name, std::vector<std::unique_ptr<Node>> &arguments, bool isConstructor = false);
     ~CallExprNode() override;
     std::string getName() const;
     std::string getReturnType() const;
@@ -325,7 +324,7 @@ private:
     bool declared;
 
 public:
-    AssignNode(std::string name, std::string type, std::unique_ptr<Node> value);
+    AssignNode(std::string name, std::string type, std::unique_ptr<Node> &value);
     ~AssignNode() override;
     std::string getName() const;
     std::string getType() const;
@@ -364,7 +363,7 @@ public:
     void addStatement(std::unique_ptr<Node> stmt);
     void clearStatments();
     int getNumStatements() const;
-    std::vector<std::unique_ptr<Node>> getStatements() const;
+    std::vector<std::unique_ptr<Node>> &getStatements();
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     void mapToGlobalIR(std::string &ir, std::string prefix);
     void mapImportsToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::vector<std::string> imports);
@@ -399,12 +398,12 @@ private:
     bool emptyFunction;
 
 public:
-    FuncNode(std::string name, std::string returnType, std::vector<std::unique_ptr<ParamNode>> parameters, std::unique_ptr<BlockNode> body, int line);
+    FuncNode(std::string name, std::string returnType, std::vector<std::unique_ptr<ParamNode>> &parameters, std::unique_ptr<BlockNode> &body, int line);
     ~FuncNode() override;
     std::string getName();
     std::string getReturnType();
     void setReturnType(std::string type);
-    std::vector<std::unique_ptr<ParamNode>> getParameters();
+    std::vector<std::unique_ptr<ParamNode>> &getParameters();
     virtual void print(int depth = 0) const override;
     void addSignatureToTable(SemanticsInfo &semanticsInfo, bool includeParams = true);
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
@@ -420,7 +419,7 @@ private:
     std::vector<std::unique_ptr<FuncNode>> functions;
 
 public:
-    ContainerNode(std::string name, std::vector<std::unique_ptr<Node>> body, int line);
+    ContainerNode(std::string name, std::vector<std::unique_ptr<Node>> &body, int line);
     ~ContainerNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
@@ -433,7 +432,7 @@ private:
     std::unique_ptr<BlockNode> body;
 
 public:
-    IfStmtNode(std::unique_ptr<Node> condition, std::unique_ptr<BlockNode> body);
+    IfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body);
     ~IfStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
@@ -451,7 +450,7 @@ private:
     std::unique_ptr<BlockNode> body;
 
 public:
-    ElseIfStmtNode(std::unique_ptr<Node> condition, std::unique_ptr<BlockNode> body);
+    ElseIfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body);
     ~ElseIfStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
@@ -468,7 +467,7 @@ private:
     std::unique_ptr<BlockNode> body;
 
 public:
-    ElseStmtNode(std::unique_ptr<BlockNode> body);
+    ElseStmtNode(std::unique_ptr<BlockNode> &body);
     ~ElseStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
@@ -489,7 +488,7 @@ public:
     ~BranchBlockNode() override;
     static int getNumberIf();
     void setCurrentWhile(int currentStmt);
-    void addBranch(std::unique_ptr<Node> &branch);
+    void addBranch(std::unique_ptr<Node> branch);
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
@@ -505,7 +504,7 @@ private:
     bool skip;
 
 public:
-    WhileNode(std::unique_ptr<Node> condition, std::unique_ptr<BlockNode> body);
+    WhileNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body);
     ~WhileNode() override;
     bool getSkip();
     void setSkip(bool skip);

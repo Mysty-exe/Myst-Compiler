@@ -88,7 +88,7 @@ void analyzeFiles(std::vector<std::unique_ptr<AbstractSyntaxTree>> &asts)
             }
         }
 
-        SemanticsInfo semanticsInfo = SemanticsInfo(ast->getSymbolTable(), ast->getPrefixSymbols());
+        SemanticsInfo semanticsInfo(ast->getSymbolTable(), ast->getPrefixSymbols());
 
         RootNode::setCurrentFile(ast->getRoot()->getFileName());
 
@@ -142,7 +142,7 @@ std::unique_ptr<AbstractSyntaxTree> parseFile(const std::string &name, std::ifst
     if (parameters.seeTokens)
         lexer.readTokens();
 
-    std::unique_ptr<AbstractSyntaxTree> ast = std::make_unique<AbstractSyntaxTree>(AbstractSyntaxTree(lexer.getTokens(), name));
+    std::unique_ptr<AbstractSyntaxTree> ast(new AbstractSyntaxTree(lexer.getTokens(), name));
 
     return ast;
 }
@@ -169,7 +169,7 @@ int runFiles(std::string file, std::vector<std::unique_ptr<AbstractSyntaxTree>> 
         ast->setImported(true);
     }
 
-    asts.insert(asts.begin(), ast);
+    asts.insert(asts.begin(), std::move(ast));
 
     // Checks for ciruclar imports
     if (asts.size() > 1)

@@ -334,21 +334,17 @@ void RootNode::setCurrentFile(std::string name)
 }
 void RootNode::addNode(std::unique_ptr<Node> node)
 {
-    children.push_back(node);
+    children.push_back(std::move(node));
 }
 std::unique_ptr<Node> &RootNode::getGlobalCode()
 {
     return globalCode;
 }
-void RootNode::setGlobalCode(std::unique_ptr<Node> &block)
+void RootNode::setGlobalCode(std::unique_ptr<Node> block)
 {
     globalCode = std::move(block);
 }
-std::vector<std::unique_ptr<Node>> RootNode::getChildren()
-{
-    return children;
-}
-std::vector<std::unique_ptr<Node>> &RootNode::getChildrenRef()
+std::vector<std::unique_ptr<Node>> &RootNode::getChildren()
 {
     return children;
 }
@@ -368,20 +364,21 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
     std::vector<std::unique_ptr<AssignNode>> assignments;
     for (std::unique_ptr<Node> &child : children)
     {
-        if (std::unique_ptr<FuncNode> func = dynamic_casttd::unique_ptr < FuncNode >> (child))
+        if (auto *func = dynamic_cast<FuncNode *>(child.get()))
             func->addSignatureToTable(semanticsInfo, false);
 
-        if (std::unique_ptr<ContainerNode> container = dynamic_cast<std::unique_ptr<ContainerNode>>(child))
+        if (auto *container = dynamic_cast<ContainerNode *>(child.get()))
             container->checkSemantics(semanticsInfo);
 
-        if (std::unique_ptr<BlockNode> block = dynamic_cast<std::unique_ptr<BlockNode>>(child))
+        if (auto *block = dynamic_cast<BlockNode *>(child.get()))
         {
             for (std::unique_ptr<Node> &stmt : block->getStatements())
             {
-                if (std::unique_ptr<AssignNode> assignment = dynamic_cast<std::unique_ptr<AssignNode>>(stmt))
+                if (auto *assignment = dynamic_cast<AssignNode *>(stmt.get()))
                 {
+                    std::unique_ptr<AssignNode> assign(assignment);
                     assignment->checkSemantics(semanticsInfo);
-                    assignments.push_back(assignment);
+                    assignments.push_back(std::move(assign));
                 }
             }
         }
@@ -395,7 +392,8 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
 
         while (it != symbols.end())
         {
-            if (dynamic_cast<std::unique_ptr<FuncSymbol>>(*it) || dynamic_cast<std::unique_ptr<ContainerSymbol>>(*it))
+
+            if (dynamic_cast<FuncSymbol *>((*it).get()) || dynamic_cast<ContainerSymbol *>((*it).get()))
             {
                 it = symbols.erase(it);
             }
@@ -406,19 +404,19 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
 
     for (std::unique_ptr<Node> &child : children)
     {
-        if (std::unique_ptr<BlockNode> block = dynamic_cast<std::unique_ptr<BlockNode>>(child))
+        if (auto *block = dynamic_cast<BlockNode *>(child.get()))
         {
             for (std::unique_ptr<Node> &stmt : block->getStatements())
             {
-                if (dynamic_cast<std::unique_ptr<AssignNode>>(stmt) == nullptr)
+                if (dynamic_cast<AssignNode *>(stmt.get()) == nullptr)
                     stmt->checkSemantics(semanticsInfo);
             }
         }
 
-        if (std::unique_ptr<ContainerNode> container = dynamic_cast<std::unique_ptr<ContainerNode>>(child))
+        if (auto *container = dynamic_cast<ContainerNode *>(child.get()))
             container->checkSemantics(semanticsInfo);
 
-        if (std::unique_ptr<FuncNode> func = dynamic_cast<std::unique_ptr<FuncNode>>(child))
+        if (auto *func = dynamic_cast<FuncNode *>(child.get()))
             func->checkSemantics(semanticsInfo);
     }
 
@@ -426,7 +424,7 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
         assign->lookForCallExprs(semanticsInfo);
 }
 
-void RootNode::sendWarnings(std::unordered_map<std::string, Scope> symbolTable)
+void RootNode::sendWarnings(std::unordered_map<std::string, Scope> &symbolTable)
 {
     for (auto &[_, scope] : symbolTable)
     {
@@ -437,7 +435,7 @@ void RootNode::sendWarnings(std::unordered_map<std::string, Scope> symbolTable)
                     throwSemanticWarning(symbol->getLine(), "Unused variable '" + symbol->getName() + "' found.");
                 else if (symbol->getType() == "FUNC")
                 {
-                    std::unique_ptr<FuncSymbol> derivedSymbol = static_cast<std::unique_ptr<FuncSymbol>>(symbol);
+                    auto *derivedSymbol = static_cast<FuncSymbol *>(symbol.get());
                     std::string errorMsg = "Unused function " + symbol->getName() + "(";
                     for (int i = 0; i < derivedSymbol->getNumParameters(); i++)
                         if (i == derivedSymbol->getNumParameters() - 1)
@@ -448,7 +446,7 @@ void RootNode::sendWarnings(std::unordered_map<std::string, Scope> symbolTable)
                 }
             if (symbol->getType() == "FUNC")
             {
-                std::unique_ptr<FuncSymbol> derivedSymbol = static_cast<std::unique_ptr<FuncSymbol>>(symbol);
+                auto *derivedSymbol = static_cast<FuncSymbol *>(symbol.get());
                 if (!derivedSymbol->hasReturn() && getDataTypeStr(derivedSymbol->getDataType()) != "")
                     throwSemanticWarning(derivedSymbol->getLine(), "Function '" + symbol->getName() + "' returns '" + getDataTypeStr(derivedSymbol->getDataType()) + "' but return statement not found.");
             }
@@ -687,7 +685,7 @@ bool IdentifierNode::checkType(SemanticsInfo &semanticsInfo, const std::string &
         if (semanticsInfo.getPrefixSymbols().count(modName) == 0)
             throwSemanticError(line, "Module '" + modName + "' was not found.");
 
-        auto scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
+        auto &scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
         for (std::unique_ptr<Symbol> &symbol : scope.getSymbols())
         {
             if (symbol->getType() == "VAR" && symbol->getName() == name && symbol->isExported())
@@ -705,7 +703,7 @@ bool IdentifierNode::checkType(SemanticsInfo &semanticsInfo, const std::string &
 
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
-        auto scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
+        auto &scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
         for (std::unique_ptr<Symbol> &symbol : scope.getSymbols())
         {
             if (symbol->getType() == "VAR" && symbol->getName() == name)
@@ -729,7 +727,7 @@ std::string IdentifierNode::inferType(SemanticsInfo &semanticsInfo)
         if (semanticsInfo.getPrefixSymbols().count(modName) == 0)
             throwSemanticError(line, "Module '" + modName + "' was not found.");
 
-        auto scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
+        auto &scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
         for (std::unique_ptr<Symbol> &symbol : scope.getSymbols())
         {
             if (symbol->getType() == "VAR" && symbol->getName() == name && symbol->isExported())
@@ -745,7 +743,7 @@ std::string IdentifierNode::inferType(SemanticsInfo &semanticsInfo)
 
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
-        auto scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
+        auto &scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
         for (std::unique_ptr<Symbol> &symbol : scope.getSymbols())
         {
             if (symbol->getType() == "VAR" && symbol->getName() == name)

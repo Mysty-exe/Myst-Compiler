@@ -50,11 +50,11 @@ void ParamNode::print(int depth) const
     std::cout << depthTabs << "ParameterNode: " << getDataTypeStr(type) << " " << name << (reference ? ", Reference" : "") << std::endl;
 }
 
-FuncNode::FuncNode(std::string name, std::string returnType, std::vector<std::unique_ptr<ParamNode>> parameters, std::unique_ptr<BlockNode> body, int line)
+FuncNode::FuncNode(std::string name, std::string returnType, std::vector<std::unique_ptr<ParamNode>> &parameters, std::unique_ptr<BlockNode> &body, int line)
 {
     this->name = name;
-    this->parameters = parameters;
-    this->body = body;
+    this->parameters = std::move(parameters);
+    this->body = std::move(body);
     this->line = line;
 
     emptyFunction = false;
@@ -81,7 +81,7 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<std::un
         {
             for (int i = 0; i < returnStmts.size(); i++)
             {
-                std::unique_ptr<ReturnStmtNode> returnStmt = static_cast<std::unique_ptr<ReturnStmtNode>>(returnStmts[i]);
+                auto *returnStmt = static_cast<ReturnStmtNode *>(returnStmts[i].get());
                 returnStmt->setType(this->returnType);
             }
         }
@@ -107,7 +107,7 @@ void FuncNode::setReturnType(std::string type)
 {
     returnType = type;
 }
-std::vector<std::unique_ptr<ParamNode>> FuncNode::getParameters()
+std::vector<std::unique_ptr<ParamNode>> &FuncNode::getParameters()
 {
     return parameters;
 }
@@ -146,12 +146,12 @@ void FuncNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
-        auto scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
+        auto &scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
         for (std::unique_ptr<Symbol> &symbol : scope.getSymbols())
         {
             if (symbol->getType() == "FUNC" && symbol->getName() == name)
             {
-                std::unique_ptr<FuncSymbol> derivedSymbol = static_cast<std::unique_ptr<FuncSymbol>>(symbol);
+                auto *derivedSymbol = static_cast<FuncSymbol *>(symbol.get());
                 if (derivedSymbol->getNumParameters() == parameters.size())
                 {
                     bool sameFuncFlag = true;
@@ -216,7 +216,7 @@ void FuncNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::st
 
     if (!emptyFunction)
     {
-        for (std::unique_ptr<Node> node : body->getStatements())
+        for (std::unique_ptr<Node> &node : body->getStatements())
             node->mapToIR(ir, llvmInfo, false, prefix);
     }
 
@@ -231,7 +231,7 @@ void FuncNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::st
     if (ir[ir.size() - 2] == ':')
         throwSemanticError(line, "Code Path without a Return Value Detected.");
 
-    if (returnType != "" && !dynamic_cast<std::unique_ptr<ReturnStmtNode>>(body->getStatements()[body->getNumStatements() - 1]))
+    if (returnType != "" && !dynamic_cast<ReturnStmtNode *>(body->getStatements()[body->getNumStatements() - 1].get()))
         throwSemanticError(line, "Code Path without a Return Value Detected.");
 
     ir += "}\n\n";
@@ -242,7 +242,7 @@ void FuncNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
 {
     for (int i = 0; i < body->getStatements().size(); i++)
     {
-        if (std::unique_ptr<ReturnStmtNode> returnStmt = dynamic_cast<std::unique_ptr<ReturnStmtNode>>(body->getStatements()[i]))
+        if (auto *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[body->getNumStatements() - 1].get()))
         {
             if (i != body->getStatements().size() - 1)
                 throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
@@ -263,7 +263,7 @@ BlockNode::~BlockNode()
 }
 void BlockNode::addStatement(std::unique_ptr<Node> stmt)
 {
-    statements.push_back(stmt);
+    statements.push_back(std::move(stmt));
 }
 void BlockNode::clearStatments()
 {
@@ -273,7 +273,7 @@ int BlockNode::getNumStatements() const
 {
     return statements.size();
 }
-std::vector<std::unique_ptr<Node>> BlockNode::getStatements() const
+std::vector<std::unique_ptr<Node>> &BlockNode::getStatements()
 {
     return statements;
 }
@@ -293,7 +293,7 @@ void BlockNode::mapToGlobalIR(std::string &ir, std::string prefix)
 {
     for (std::unique_ptr<Node> &node : statements)
     {
-        if (std::unique_ptr<AssignNode> assignment = dynamic_cast<std::unique_ptr<AssignNode>>(node))
+        if (auto *assignment = dynamic_cast<AssignNode *>(node.get()))
         {
             if (!assignment->isDeclared())
                 continue;
@@ -338,7 +338,7 @@ void BlockNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
 {
     for (int i = 0; i < statements.size(); i++)
     {
-        if (std::unique_ptr<ReturnStmtNode> returnStmt = dynamic_cast<std::unique_ptr<ReturnStmtNode>>(statements[i]))
+        if (auto *returnStmt = dynamic_cast<ReturnStmtNode *>(statements[i].get()))
         {
             if (i != statements.size() - 1)
                 throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
@@ -349,18 +349,24 @@ void BlockNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
         statements[i]->findReturnStmts(stmts);
 }
 
-ContainerNode::ContainerNode(std::string name, std::vector<std::unique_ptr<Node>> body, int line)
+ContainerNode::ContainerNode(std::string name, std::vector<std::unique_ptr<Node>> &body, int line)
 {
     this->name = name;
     this->line = line;
 
     for (std::unique_ptr<Node> &node : body)
     {
-        if (std::unique_ptr<IdentifierNode> variable = dynamic_cast<std::unique_ptr<IdentifierNode>>(node))
-            variables.push_back(variable);
+        if (auto *variable = dynamic_cast<IdentifierNode *>(node.get()))
+        {
+            std::unique_ptr<IdentifierNode> varPtr(variable);
+            variables.push_back(std::move(varPtr));
+        }
 
-        if (std::unique_ptr<FuncNode> function = dynamic_cast<std::unique_ptr<FuncNode>>(node))
-            functions.push_back(function);
+        if (auto *function = dynamic_cast<FuncNode *>(node.get()))
+        {
+            std::unique_ptr<FuncNode> functionPtr(function);
+            functions.push_back(std::move(functionPtr));
+        }
     }
 }
 
@@ -384,7 +390,7 @@ void ContainerNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
-        auto scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
+        auto &scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
         for (const std::unique_ptr<Symbol> &symbol : scope.getSymbols())
         {
             if (symbol->getType() == "CONTAINER" && symbol->getName() == name)
@@ -395,7 +401,7 @@ void ContainerNode::checkSemantics(SemanticsInfo &semanticsInfo)
     std::vector<std::unique_ptr<VarSymbol>> varSymbols;
     for (std::unique_ptr<IdentifierNode> &identifier : variables)
     {
-        for (std::unique_ptr<Symbol> &symbol : varSymbols)
+        for (std::unique_ptr<VarSymbol> &symbol : varSymbols)
         {
             if (symbol->getName() == identifier->getName() && symbol->getType() == "VAR")
                 throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a variable in container '" + name + "'.");
@@ -411,19 +417,19 @@ void ContainerNode::checkSemantics(SemanticsInfo &semanticsInfo)
         if (func->getName() == name)
             foundConstructor = true;
 
-        for (std::unique_ptr<Symbol> &symbol : varSymbols)
+        for (std::unique_ptr<VarSymbol> &symbol : varSymbols)
         {
             if (symbol->getName() == func->getName() && symbol->getType() == "VAR")
                 throwSemanticError(func->getLine(), "'" + func->getName() + "' has already been declared as a variable in container '" + name + "'.");
         }
 
-        for (std::unique_ptr<Symbol> &symbol : funcSymbols)
+        for (std::unique_ptr<FuncSymbol> &symbol : funcSymbols)
         {
             if (symbol->getName() == func->getName() && symbol->getType() == "FUNC")
             {
                 if (symbol->getType() == "FUNC" && symbol->getName() == name)
                 {
-                    std::unique_ptr<FuncSymbol> derivedSymbol = static_cast<std::unique_ptr<FuncSymbol>>(symbol);
+                    auto *derivedSymbol = static_cast<FuncSymbol *>(symbol.get());
                     if (derivedSymbol->getNumParameters() == func->getParameters().size())
                     {
                         bool sameFuncFlag = true;
@@ -462,13 +468,13 @@ void ContainerNode::checkSemantics(SemanticsInfo &semanticsInfo)
         throwSemanticError(line, "No constructor was found in container '" + name + "'.");
 
     std::unique_ptr<ContainerSymbol> container = std::make_unique<ContainerSymbol>(line, name, varSymbols, funcSymbols);
-    semanticsInfo.addSymbol(semanticsInfo.getVisibleScope()[0], container);
+    semanticsInfo.addSymbol(semanticsInfo.getVisibleScope()[0], std::move(container));
 }
 
-IfStmtNode::IfStmtNode(std::unique_ptr<Node> condition, std::unique_ptr<BlockNode> body)
+IfStmtNode::IfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body)
 {
-    this->condition = condition;
-    this->body = body;
+    this->condition = std::move(condition);
+    this->body = std::move(body);
 }
 IfStmtNode::~IfStmtNode()
 {
@@ -486,7 +492,7 @@ void IfStmtNode::setCurrentWhile(int currentStmt)
 {
     for (std::unique_ptr<Node> &stmt : body->getStatements())
     {
-        if (std::unique_ptr<BreakNode> breakStmt = dynamic_cast<std::unique_ptr<BreakNode>>(stmt))
+        if (auto *breakStmt = dynamic_cast<BreakNode *>(stmt.get()))
         {
             breakStmt->setCurrentWhile(currentStmt);
 
@@ -494,7 +500,7 @@ void IfStmtNode::setCurrentWhile(int currentStmt)
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'break' statement.");
         }
 
-        if (std::unique_ptr<SkipNode> skipStmt = dynamic_cast<std::unique_ptr<SkipNode>>(stmt))
+        if (auto *skipStmt = dynamic_cast<SkipNode *>(stmt.get()))
         {
             skipStmt->setCurrentWhile(currentStmt);
 
@@ -502,7 +508,7 @@ void IfStmtNode::setCurrentWhile(int currentStmt)
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'skip' statement.");
         }
 
-        if (std::unique_ptr<BranchBlockNode> branchBlock = dynamic_cast<std::unique_ptr<BranchBlockNode>>(stmt))
+        if (auto *branchBlock = dynamic_cast<BranchBlockNode *>(stmt.get()))
             branchBlock->setCurrentWhile(currentStmt);
     }
 }
@@ -521,7 +527,7 @@ void IfStmtNode::checkSemantics(SemanticsInfo &semanticsInfo)
 }
 bool IfStmtNode::endsWithBranchStmt()
 {
-    return (dynamic_cast<std::unique_ptr<ReturnStmtNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr) || (dynamic_cast<std::unique_ptr<BreakNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr) || (dynamic_cast<std::unique_ptr<SkipNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr);
+    return (dynamic_cast<ReturnStmtNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr) || (dynamic_cast<BreakNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr) || (dynamic_cast<SkipNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr);
 }
 void IfStmtNode::mapCondition(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
@@ -548,7 +554,7 @@ void IfStmtNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
 {
     for (int i = 0; i < body->getStatements().size(); i++)
     {
-        if (std::unique_ptr<ReturnStmtNode> returnStmt = dynamic_cast<std::unique_ptr<ReturnStmtNode>>(body->getStatements()[i]))
+        if (auto *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[i].get()))
         {
             if (i != body->getStatements().size() - 1)
                 throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
@@ -561,10 +567,10 @@ void IfStmtNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
     }
 }
 
-ElseIfStmtNode::ElseIfStmtNode(std::unique_ptr<Node> condition, std::unique_ptr<BlockNode> body)
+ElseIfStmtNode::ElseIfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body)
 {
-    this->condition = condition;
-    this->body = body;
+    this->condition = std::move(condition);
+    this->body = std::move(body);
 }
 ElseIfStmtNode::~ElseIfStmtNode()
 {
@@ -582,7 +588,7 @@ void ElseIfStmtNode::setCurrentWhile(int currentStmt)
 {
     for (std::unique_ptr<Node> &stmt : body->getStatements())
     {
-        if (std::unique_ptr<BreakNode> breakStmt = dynamic_cast<std::unique_ptr<BreakNode>>(stmt))
+        if (auto *breakStmt = dynamic_cast<BreakNode *>(stmt.get()))
         {
             breakStmt->setCurrentWhile(currentStmt);
 
@@ -590,7 +596,7 @@ void ElseIfStmtNode::setCurrentWhile(int currentStmt)
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'break' statement.");
         }
 
-        if (std::unique_ptr<SkipNode> skipStmt = dynamic_cast<std::unique_ptr<SkipNode>>(stmt))
+        if (auto *skipStmt = dynamic_cast<SkipNode *>(stmt.get()))
         {
             skipStmt->setCurrentWhile(currentStmt);
 
@@ -598,13 +604,13 @@ void ElseIfStmtNode::setCurrentWhile(int currentStmt)
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'skip' statement.");
         }
 
-        if (std::unique_ptr<BranchBlockNode> branchBlock = dynamic_cast<std::unique_ptr<BranchBlockNode>>(stmt))
+        if (auto *branchBlock = dynamic_cast<BranchBlockNode *>(stmt.get()))
             branchBlock->setCurrentWhile(currentStmt);
     }
 }
 bool ElseIfStmtNode::endsWithBranchStmt()
 {
-    return (dynamic_cast<std::unique_ptr<ReturnStmtNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr) || (dynamic_cast<std::unique_ptr<BreakNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr) || (dynamic_cast<std::unique_ptr<SkipNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr);
+    return (dynamic_cast<ReturnStmtNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr) || (dynamic_cast<BreakNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr) || (dynamic_cast<SkipNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr);
 }
 void ElseIfStmtNode::mapCondition(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
@@ -622,7 +628,7 @@ void ElseIfStmtNode::mapCondition(std::string &ir, LLVMInfo &llvmInfo, bool glob
 }
 void ElseIfStmtNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
-    for (std::unique_ptr<Node> stmt : body->getStatements())
+    for (std::unique_ptr<Node> &stmt : body->getStatements())
         stmt->mapToIR(ir, llvmInfo, global, prefix);
 }
 void ElseIfStmtNode::checkSemantics(SemanticsInfo &semanticsInfo)
@@ -631,7 +637,7 @@ void ElseIfStmtNode::checkSemantics(SemanticsInfo &semanticsInfo)
         throwSemanticError(line, "Else If Statement condition doesn't evaluate to a boolean.");
 
     semanticsInfo.addVisibleScope();
-    for (std::unique_ptr<Node> stmtNode : body->getStatements())
+    for (std::unique_ptr<Node> &stmtNode : body->getStatements())
         stmtNode->checkSemantics(semanticsInfo);
 
     semanticsInfo.removeVisibleScope();
@@ -641,7 +647,7 @@ void ElseIfStmtNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
 {
     for (int i = 0; i < body->getStatements().size(); i++)
     {
-        if (std::unique_ptr<ReturnStmtNode> returnStmt = dynamic_cast<std::unique_ptr<ReturnStmtNode>>(body->getStatements()[i]))
+        if (auto *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[i].get()))
         {
             if (i != body->getStatements().size() - 1)
                 throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
@@ -654,9 +660,9 @@ void ElseIfStmtNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
     }
 }
 
-ElseStmtNode::ElseStmtNode(std::unique_ptr<BlockNode> body)
+ElseStmtNode::ElseStmtNode(std::unique_ptr<BlockNode> &body)
 {
-    this->body = body;
+    this->body = std::move(body);
 }
 ElseStmtNode::~ElseStmtNode()
 {
@@ -672,7 +678,7 @@ void ElseStmtNode::setCurrentWhile(int currentStmt)
 {
     for (std::unique_ptr<Node> &stmt : body->getStatements())
     {
-        if (std::unique_ptr<BreakNode> breakStmt = dynamic_cast<std::unique_ptr<BreakNode>>(stmt))
+        if (auto *breakStmt = dynamic_cast<BreakNode *>(stmt.get()))
         {
             breakStmt->setCurrentWhile(currentStmt);
 
@@ -680,7 +686,7 @@ void ElseStmtNode::setCurrentWhile(int currentStmt)
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'break' statement.");
         }
 
-        if (std::unique_ptr<SkipNode> skipStmt = dynamic_cast<std::unique_ptr<SkipNode>>(stmt))
+        if (auto *skipStmt = dynamic_cast<SkipNode *>(stmt.get()))
         {
             skipStmt->setCurrentWhile(currentStmt);
 
@@ -688,13 +694,13 @@ void ElseStmtNode::setCurrentWhile(int currentStmt)
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'skip' statement.");
         }
 
-        if (std::unique_ptr<BranchBlockNode> branchBlock = dynamic_cast<std::unique_ptr<BranchBlockNode>>(stmt))
+        if (auto *branchBlock = dynamic_cast<BranchBlockNode *>(stmt.get()))
             branchBlock->setCurrentWhile(currentStmt);
     }
 }
 bool ElseStmtNode::endsWithBranchStmt()
 {
-    return (dynamic_cast<std::unique_ptr<ReturnStmtNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr) || (dynamic_cast<std::unique_ptr<BreakNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr) || (dynamic_cast<std::unique_ptr<SkipNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr);
+    return (dynamic_cast<ReturnStmtNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr) || (dynamic_cast<BreakNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr) || (dynamic_cast<SkipNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr);
 }
 void ElseStmtNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {
@@ -717,7 +723,7 @@ void ElseStmtNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
 {
     for (int i = 0; i < body->getStatements().size(); i++)
     {
-        if (std::unique_ptr<ReturnStmtNode> returnStmt = dynamic_cast<std::unique_ptr<ReturnStmtNode>>(body->getStatements()[i]))
+        if (auto *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[i].get()))
         {
             if (i != body->getStatements().size() - 1)
                 throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
@@ -750,29 +756,29 @@ int BranchBlockNode::getNumberIf()
 {
     return numIfStmt;
 }
-void BranchBlockNode::addBranch(std::unique_ptr<Node> &branch)
+void BranchBlockNode::addBranch(std::unique_ptr<Node> branch)
 {
-    branches->addStatement(branch);
+    branches->addStatement(std::move(branch));
 }
 void BranchBlockNode::setCurrentWhile(int currentWhile)
 {
     for (std::unique_ptr<Node> &stmt : branches->getStatements())
     {
-        if (dynamic_cast<std::unique_ptr<IfStmtNode>>(stmt) != nullptr)
+        if (dynamic_cast<IfStmtNode *>(stmt.get()) != nullptr)
         {
-            std::unique_ptr<IfStmtNode> ifStmt = static_cast<std::unique_ptr<IfStmtNode>>(stmt);
+            auto *ifStmt = static_cast<IfStmtNode *>(stmt.get());
             ifStmt->setCurrentWhile(currentWhile);
         }
 
-        if (dynamic_cast < std::unique_ptr<ElseIfStmtNode>(stmt) != nullptr)
+        if (dynamic_cast<ElseIfStmtNode *>(stmt.get()) != nullptr)
         {
-            Elsestd::unique_ptr<IfStmtNode> elseifStmt = static_cast < std::unique_ptr<ElseIfStmtNode>(stmt);
+            auto *elseifStmt = static_cast<ElseIfStmtNode *>(stmt.get());
             elseifStmt->setCurrentWhile(currentWhile);
         }
 
-        if (dynamic_cast<std::unique_ptr<IfStmtNode>>(stmt) != nullptr)
+        if (dynamic_cast<ElseStmtNode *>(stmt.get()) != nullptr)
         {
-            std::unique_ptr<IfStmtNode> elseStmt = static_cast<std::unique_ptr<IfStmtNode>>(stmt);
+            auto *elseStmt = static_cast<ElseStmtNode *>(stmt.get());
             elseStmt->setCurrentWhile(currentWhile);
         }
     }
@@ -791,16 +797,14 @@ void BranchBlockNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, 
     std::string nextElseIf = std::to_string(numElseIfStmt + 1);
     for (int i = 0; i < branches->getNumStatements(); i++)
     {
-        std::unique_ptr<Node> node = branches->getStatements()[i];
-
-        if (dynamic_cast<std::unique_ptr<IfStmtNode>>(node) != nullptr)
+        if (dynamic_cast<IfStmtNode *>(branches->getStatements()[i].get()) != nullptr)
         {
-            std::unique_ptr<IfStmtNode> ifStmt = static_cast<std::unique_ptr<IfStmtNode>>(node);
+            auto *ifStmt = static_cast<IfStmtNode *>(branches->getStatements()[i].get());
             ifStmt->mapCondition(ir, llvmInfo, global, prefix);
 
             if (branches->getNumStatements() == 1)
                 ir += "br i1 %" + std::to_string(llvmInfo.getCurrentTempVar()) + ", label %if_true_" + currentIf + ", label %if_end_" + currentIf + "\n";
-            else if (branches->getNumStatements() == 2 && dynamic_cast<std::unique_ptr<IfStmtNode>>(branches->getStatements()[i + 1]) != nullptr)
+            else if (branches->getNumStatements() == 2 && dynamic_cast<IfStmtNode *>(branches->getStatements()[i + 1].get()) != nullptr)
                 ir += "br i1 %" + std::to_string(llvmInfo.getCurrentTempVar()) + ", label %if_true_" + currentIf + ", label %else_" + currentIf + "\n";
             else
                 ir += "br i1 %" + std::to_string(llvmInfo.getCurrentTempVar()) + ", label %if_true_" + currentIf + ", label %if_next_" + currentIf + "_" + currentElseIf + "\n";
@@ -812,15 +816,15 @@ void BranchBlockNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, 
                 ir += "br label %if_end_" + currentIf + "\n";
         }
 
-        if (dynamic_cast<std::unique_ptr<ElseIfStmtNode>>(node) != nullptr)
+        if (dynamic_cast<ElseIfStmtNode *>(branches->getStatements()[i].get()) != nullptr)
         {
             ir += "if_next_" + currentIf + "_" + currentElseIf + ":\n";
-            std::unique_ptr<ElseIfStmtNode> elseifStmt = static_cast<std::unique_ptr<ElseIfStmtNode>>(node);
+            auto *elseifStmt = static_cast<ElseIfStmtNode *>(branches->getStatements()[i].get());
             elseifStmt->mapCondition(ir, llvmInfo, false, prefix);
 
             if (i == branches->getNumStatements() - 1)
                 ir += "br i1 %" + std::to_string(llvmInfo.getCurrentTempVar()) + ", label %elseif_true_" + currentIf + "_" + currentElseIf + ", label %if_end_" + currentIf + "\n";
-            else if (branches->getNumStatements() >= 3 && dynamic_cast<std::unique_ptr<IfStmtNode>>(branches->getStatements()[i + 1]) != nullptr)
+            else if (branches->getNumStatements() >= 3 && dynamic_cast<IfStmtNode *>(branches->getStatements()[i + 1].get()) != nullptr)
                 ir += "br i1 %" + std::to_string(llvmInfo.getCurrentTempVar()) + ", label %elseif_true_" + currentIf + "_" + currentElseIf + ", label %else_" + currentIf + "\n";
             else
                 ir += "br i1 %" + std::to_string(llvmInfo.getCurrentTempVar()) + ", label %elseif_true_" + currentIf + "_" + currentElseIf + ", label %if_next_" + currentIf + "_" + nextElseIf + "\n";
@@ -835,9 +839,9 @@ void BranchBlockNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, 
             nextElseIf = std::to_string(numElseIfStmt + 1);
         }
 
-        if (dynamic_cast<std::unique_ptr<IfStmtNode>>(node) != nullptr)
+        if (dynamic_cast<ElseStmtNode *>(branches->getStatements()[i].get()) != nullptr)
         {
-            std::unique_ptr<IfStmtNode> elseStmt = static_cast<std::unique_ptr<IfStmtNode>>(node);
+            auto *elseStmt = static_cast<ElseStmtNode *>(branches->getStatements()[i].get());
             ir += "else_" + currentIf + ":\n";
             elseStmt->mapToIR(ir, llvmInfo, false, prefix);
             if (!elseStmt->endsWithBranchStmt())
@@ -851,7 +855,7 @@ void BranchBlockNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
 {
     for (int i = 0; i < branches->getStatements().size(); i++)
     {
-        if (std::unique_ptr<ReturnStmtNode> returnStmt = dynamic_cast<std::unique_ptr<ReturnStmtNode>>(branches->getStatements()[i]))
+        if (auto *returnStmt = dynamic_cast<ReturnStmtNode *>(branches->getStatements()[i].get()))
         {
             if (i != branches->getStatements().size() - 1)
                 throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
@@ -865,10 +869,10 @@ void BranchBlockNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
 }
 
 int WhileNode::numWhileStmt = 0;
-WhileNode::WhileNode(std::unique_ptr<Node> condition, std::unique_ptr<BlockNode> body)
+WhileNode::WhileNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body)
 {
-    this->condition = condition;
-    this->body = body;
+    this->condition = std::move(condition);
+    this->body = std::move(body);
 }
 WhileNode::~WhileNode()
 {
@@ -894,7 +898,7 @@ void WhileNode::print(int depth) const
 
 bool WhileNode::endsWithBranchStmt()
 {
-    return (dynamic_cast<std::unique_ptr<ReturnStmtNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr) || (dynamic_cast<std::unique_ptr<BreakNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr) || (dynamic_cast<std::unique_ptr<SkipNode>>(body->getStatements()[body->getNumStatements() - 1]) != nullptr);
+    return (dynamic_cast<ReturnStmtNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr) || (dynamic_cast<BreakNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr) || (dynamic_cast<SkipNode *>(body->getStatements()[body->getNumStatements() - 1].get()) != nullptr);
 }
 void WhileNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {
@@ -902,7 +906,7 @@ void WhileNode::checkSemantics(SemanticsInfo &semanticsInfo)
         throwSemanticError(line, "While loop condition doesn't evaluate to a boolean.");
 
     semanticsInfo.addVisibleScope();
-    for (std::unique_ptr<Node> stmtNode : body->getStatements())
+    for (std::unique_ptr<Node> &stmtNode : body->getStatements())
         stmtNode->checkSemantics(semanticsInfo);
 
     semanticsInfo.removeScope();
@@ -932,10 +936,10 @@ void WhileNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::s
 
     for (std::unique_ptr<Node> &stmt : body->getStatements())
     {
-        if (std::unique_ptr<BranchBlockNode> branchBlock = dynamic_cast<std::unique_ptr<BranchBlockNode>>(stmt))
+        if (auto *branchBlock = dynamic_cast<BranchBlockNode *>(stmt.get()))
             branchBlock->setCurrentWhile(numWhileStmt);
 
-        if (std::unique_ptr<BreakNode> breakStmt = dynamic_cast<std::unique_ptr<BreakNode>>(stmt))
+        if (auto *breakStmt = dynamic_cast<BreakNode *>(stmt.get()))
         {
             breakStmt->setCurrentWhile(numWhileStmt);
 
@@ -943,7 +947,7 @@ void WhileNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::s
                 throwSemanticError(stmt->getLine(), "Unreachable code detected after 'break' statement.");
         }
 
-        if (std::unique_ptr<SkipNode> skipStmt = dynamic_cast<std::unique_ptr<SkipNode>>(stmt))
+        if (auto *skipStmt = dynamic_cast<SkipNode *>(stmt.get()))
         {
             skipStmt->setCurrentWhile(numWhileStmt);
 
@@ -964,7 +968,7 @@ void WhileNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
 {
     for (int i = 0; i < body->getStatements().size(); i++)
     {
-        if (std::unique_ptr<ReturnStmtNode> returnStmt = dynamic_cast<std::unique_ptr<ReturnStmtNode>>(body->getStatements()[i]))
+        if (auto *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[i].get()))
         {
             if (i != body->getStatements().size() - 1)
                 throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
