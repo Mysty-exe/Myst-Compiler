@@ -49,14 +49,14 @@ void CallExprNode::lookForCallExprs(SemanticsInfo &semanticsInfo)
         return;
 
     argTypes = {};
-    std::unique_ptr<FuncSymbol> funcSymbol = nullptr;
+    FuncSymbol *funcSymbol = nullptr;
     std::vector<int> funcArgs;
     bool ambiguous = false;
 
     if (imported)
     {
         auto &scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
-        checkCallExprInScope(std::move(scope), semanticsInfo, returnType, funcSymbol, funcArgs, ambiguous, true);
+        checkCallExprInScope(scope, semanticsInfo, returnType, funcSymbol, funcArgs, ambiguous, true);
 
         if (ambiguous)
             throwSemanticError(line, "Couldn't decide on the correct function signature to use, functions are ambiguous.");
@@ -73,7 +73,7 @@ void CallExprNode::lookForCallExprs(SemanticsInfo &semanticsInfo)
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
         auto &scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
-        checkCallExprInScope(std::move(scope), semanticsInfo, returnType, funcSymbol, funcArgs, ambiguous, false);
+        checkCallExprInScope(scope, semanticsInfo, returnType, funcSymbol, funcArgs, ambiguous, false);
     }
 
     if (ambiguous)
@@ -85,7 +85,7 @@ void CallExprNode::lookForCallExprs(SemanticsInfo &semanticsInfo)
     for (int i = 0; i < funcSymbol->getNumParameters(); i++)
         this->argTypes.push_back(funcSymbol->getParameters()[i]);
 }
-std::vector<int> CallExprNode::checkFuncArgs(SemanticsInfo &semanticsInfo, std::unique_ptr<FuncSymbol> &funcSymbol)
+std::vector<int> CallExprNode::checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *&funcSymbol)
 {
     std::vector<int> result;
     for (int k = 0; k < funcSymbol->getParameters().size(); k++)
@@ -170,7 +170,7 @@ bool CallExprNode::isAmbiguousFunc(std::vector<int> current, std::vector<int> ne
 
     return (!betterThanA && !betterThanB) || (betterThanA && betterThanB);
 }
-void CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo &semanticsInfo, std::string type, std::unique_ptr<FuncSymbol> &funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing)
+void CallExprNode::checkCallExprInScope(Scope &scope, SemanticsInfo &semanticsInfo, std::string type, FuncSymbol *&funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing)
 {
     for (std::unique_ptr<Symbol> &symbol : scope.getSymbols())
     {
@@ -185,12 +185,13 @@ void CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo &semanticsInf
             auto *derivedSymbol = static_cast<ContainerSymbol *>(symbol.get());
             for (std::unique_ptr<FuncSymbol> &func : derivedSymbol->getFunctions())
             {
+                auto *derivedFuncSymbol = static_cast<FuncSymbol *>(func.get());
                 if ((type == "" || func->getDataType() == type || canCoerce(func->getDataType(), type)) && arguments.size() == func->getNumParameters())
                 {
-                    std::vector<int> next = checkFuncArgs(semanticsInfo, func);
+                    std::vector<int> next = checkFuncArgs(semanticsInfo, derivedFuncSymbol);
                     if (validFunc(next) && (betterFunc(funcArgs, next) || funcArgs.size() == 0))
                     {
-                        funcSymbol = std::move(func);
+                        funcSymbol = derivedFuncSymbol;
                         funcArgs = next;
                     }
                 }
@@ -202,8 +203,7 @@ void CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo &semanticsInf
             auto *derivedSymbol = static_cast<FuncSymbol *>(symbol.get());
             if ((type == "" || symbol->getDataType() == type || canCoerce(symbol->getDataType(), type)) && arguments.size() == derivedSymbol->getNumParameters())
             {
-                std::unique_ptr<FuncSymbol> derivedSymbolPtr(derivedSymbol);
-                std::vector<int> next = checkFuncArgs(semanticsInfo, derivedSymbolPtr);
+                std::vector<int> next = checkFuncArgs(semanticsInfo, derivedSymbol);
                 if (next.size() > 0 && isAmbiguousFunc(funcArgs, next))
                 {
                     ambiguous = true;
@@ -212,7 +212,7 @@ void CallExprNode::checkCallExprInScope(Scope scope, SemanticsInfo &semanticsInf
                 if (validFunc(next) && (betterFunc(funcArgs, next) || funcArgs.size() == 0))
                 {
                     ambiguous = false;
-                    funcSymbol = std::move(derivedSymbolPtr);
+                    funcSymbol = derivedSymbol;
                     funcArgs = next;
                 }
             }
@@ -296,13 +296,13 @@ bool CallExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &ty
     if (name == "print" || name == "input" || name == "exit")
         throwSemanticError(line, "function '" + name + "' has the wrong arguments passed in.");
 
-    std::unique_ptr<FuncSymbol> funcSymbol = nullptr;
+    FuncSymbol *funcSymbol = nullptr;
     std::vector<int> funcArgs;
     bool ambiguous = false;
     if (imported)
     {
         auto &scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
-        checkCallExprInScope(std::move(scope), semanticsInfo, type, funcSymbol, funcArgs, ambiguous, true);
+        checkCallExprInScope(scope, semanticsInfo, type, funcSymbol, funcArgs, ambiguous, true);
 
         if (ambiguous)
             throwSemanticError(line, "Couldn't decide on the correct function signature to use, functions are ambiguous.");
@@ -319,7 +319,7 @@ bool CallExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &ty
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
         auto &scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
-        checkCallExprInScope(std::move(scope), semanticsInfo, type, funcSymbol, funcArgs, ambiguous, false);
+        checkCallExprInScope(scope, semanticsInfo, type, funcSymbol, funcArgs, ambiguous, false);
     }
 
     if (ambiguous)
@@ -620,8 +620,9 @@ void AssignNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {
     if (identifier->getType() != "")
     {
-        auto &scope = semanticsInfo.getScope(semanticsInfo.getLatestVisibleScope());
-        for (std::unique_ptr<Symbol> &symbol : scope.getSymbols())
+        std::string visibleScope = semanticsInfo.getLatestVisibleScope();
+        auto &scope = semanticsInfo.getScope(visibleScope);
+        for (const std::unique_ptr<Symbol> &symbol : scope.getSymbols())
         {
             if (symbol->getType() == "VAR" && symbol->getName() == identifier->getName() && !(semanticsInfo.getVisibleScope().size() > 1))
                 throwSemanticError(line, "'" + identifier->getName() + "' has already been declared.");
@@ -753,10 +754,9 @@ void ReturnStmtNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, s
         llvmInfo.addTempVar({".return_" + std::to_string(llvmInfo.getNextTempVar()), "ptr"});
     }
 }
-void ReturnStmtNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
+void ReturnStmtNode::findReturnStmts(std::vector<Node *> &stmts)
 {
-    std::unique_ptr<Node> ptr(this);
-    stmts.push_back(std::move(ptr));
+    stmts.push_back(this);
 }
 
 BreakNode::BreakNode(int line)

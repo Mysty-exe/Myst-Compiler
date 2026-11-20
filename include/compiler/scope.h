@@ -1,6 +1,7 @@
 #pragma once
 #include <iostream>
 #include <vector>
+#include <memory>
 
 struct Symbol
 {
@@ -19,9 +20,7 @@ public:
         this->exported = false;
     }
 
-    virtual ~Symbol()
-    {
-    }
+    virtual ~Symbol() = default;
 
     int getLine() const
     {
@@ -149,14 +148,14 @@ public:
         return "CONTAINER";
     }
 
-    std::vector<std::unique_ptr<VarSymbol>> getVariables()
+    std::vector<std::unique_ptr<VarSymbol>> &getVariables()
     {
-        return std::move(variables);
+        return variables;
     }
 
-    std::vector<std::unique_ptr<FuncSymbol>> getFunctions()
+    std::vector<std::unique_ptr<FuncSymbol>> &getFunctions()
     {
-        return std::move(functions);
+        return functions;
     }
 };
 

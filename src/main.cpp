@@ -143,7 +143,6 @@ std::unique_ptr<AbstractSyntaxTree> parseFile(const std::string &name, std::ifst
         lexer.readTokens();
 
     std::unique_ptr<AbstractSyntaxTree> ast(new AbstractSyntaxTree(lexer.getTokens(), name));
-
     return ast;
 }
 
@@ -187,12 +186,12 @@ int runFiles(std::string file, std::vector<std::unique_ptr<AbstractSyntaxTree>> 
     }
 
     // Looks for imports in the file and loads them up
-    if (ast->hasImports())
+    if (asts[0]->hasImports())
     {
         std::vector<std::string> imports;
-        for (int x = 0; x < ast->getImports().size(); x++)
+        for (int x = 0; x < asts[0]->getImports().size(); x++)
         {
-            std::string import = ast->getImports()[x];
+            std::string import = asts[0]->getImports()[x];
             if (import.substr(import.size() - 3, 3) != ".ms")
                 import += ".ms";
 
@@ -233,7 +232,7 @@ int runFiles(std::string file, std::vector<std::unique_ptr<AbstractSyntaxTree>> 
             runFiles(folder + newImport, asts, true);
         }
 
-        ast->setImports(imports);
+        asts[0]->setImports(imports);
     }
 
     return 0;

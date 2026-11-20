@@ -41,11 +41,11 @@ struct SemanticsInfo
     {
         visibleScope.pop_back();
     }
-    std::vector<std::string> getVisibleScope()
+    std::vector<std::string> &getVisibleScope()
     {
         return visibleScope;
     }
-    Scope &getScope(std::string scope)
+    Scope &getScope(std::string &scope)
     {
         return symbolTable[scope];
     }
@@ -55,7 +55,10 @@ struct SemanticsInfo
     }
     void removeScope()
     {
-        symbolTable[visibleScope[visibleScope.size() - 1]] = {};
+        if (!visibleScope.empty())
+        {
+            symbolTable[visibleScope.back()].getSymbols().clear();
+        }
     }
     void addSymbol(std::string scope, std::unique_ptr<Symbol> symbol)
     {
@@ -149,7 +152,7 @@ public:
     virtual void loadVariables(std::string &ir, std::string &newType, std::vector<std::string> &loadedVars, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "");
     virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "");
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "");
-    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts);
+    virtual void findReturnStmts(std::vector<Node *> &stmts);
     virtual void print(int depth = 0) const = 0;
     int getLine() const;
     void setLine(int line);
@@ -294,8 +297,8 @@ private:
     std::vector<std::unique_ptr<Node>> arguments;
     bool imported, isConstructor;
 
-    std::vector<int> checkFuncArgs(SemanticsInfo &semanticsInfo, std::unique_ptr<FuncSymbol> &funcSymbol);
-    void checkCallExprInScope(Scope scope, SemanticsInfo &semanticsInfo, std::string type, std::unique_ptr<FuncSymbol> &funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing);
+    std::vector<int> checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *&funcSymbol);
+    void checkCallExprInScope(Scope &scope, SemanticsInfo &semanticsInfo, std::string type, FuncSymbol *&funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing);
     bool validFunc(std::vector<int> current);
     bool betterFunc(std::vector<int> current, std::vector<int> next);
     bool isAmbiguousFunc(std::vector<int> current, std::vector<int> next);
@@ -348,7 +351,7 @@ public:
     void setType(std::string type);
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
     virtual void print(int depth = 0) const override;
 };
 
@@ -368,7 +371,7 @@ public:
     void mapToGlobalIR(std::string &ir, std::string prefix);
     void mapImportsToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::vector<std::string> imports);
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
     virtual void print(int depth = 0) const override;
 };
 
@@ -408,7 +411,7 @@ public:
     void addSignatureToTable(SemanticsInfo &semanticsInfo, bool includeParams = true);
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct ContainerNode : Node
@@ -440,7 +443,7 @@ public:
     void mapCondition(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix = "");
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct ElseIfStmtNode : Node
@@ -458,7 +461,7 @@ public:
     void mapCondition(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix = "");
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct ElseStmtNode : Node
@@ -474,7 +477,7 @@ public:
     bool endsWithBranchStmt();
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct BranchBlockNode : Node
@@ -492,7 +495,7 @@ public:
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct WhileNode : Node
@@ -512,7 +515,7 @@ public:
     bool endsWithBranchStmt();
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
-    virtual void findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts) override;
+    virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
 struct BreakNode : Node

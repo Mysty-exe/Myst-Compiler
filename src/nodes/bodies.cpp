@@ -58,7 +58,7 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<std::un
     this->line = line;
 
     emptyFunction = false;
-    if (body->getNumStatements() == 0)
+    if (this->body->getNumStatements() == 0)
         emptyFunction = true;
 
     if (returnType == "char")
@@ -74,15 +74,15 @@ FuncNode::FuncNode(std::string name, std::string returnType, std::vector<std::un
 
     if (!emptyFunction)
     {
-        std::vector<std::unique_ptr<Node>> returnStmts;
+        std::vector<Node *> returnStmts;
         findReturnStmts(returnStmts);
 
-        if (returnStmts.size() != 0)
+        if (!returnStmts.empty())
         {
-            for (int i = 0; i < returnStmts.size(); i++)
+            for (Node *returnStmt : returnStmts)
             {
-                auto *returnStmt = static_cast<ReturnStmtNode *>(returnStmts[i].get());
-                returnStmt->setType(this->returnType);
+                if (ReturnStmtNode *r = dynamic_cast<ReturnStmtNode *>(returnStmt))
+                    r->setType(this->returnType);
             }
         }
         else
@@ -238,11 +238,11 @@ void FuncNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::st
 
     llvmInfo.removeScope();
 }
-void FuncNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
+void FuncNode::findReturnStmts(std::vector<Node *> &stmts)
 {
     for (int i = 0; i < body->getStatements().size(); i++)
     {
-        if (auto *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[body->getNumStatements() - 1].get()))
+        if (auto *returnStmt = dynamic_cast<ReturnStmtNode *>(body->getStatements()[i].get()))
         {
             if (i != body->getStatements().size() - 1)
                 throwSemanticError(returnStmt->getLine(), "Unreachable code detected after return statement.");
@@ -334,7 +334,7 @@ void BlockNode::mapImportsToIR(std::string &ir, LLVMInfo &llvmInfo, bool global,
     ir += "ret i32 0\n";
     ir += "}\n\n";
 }
-void BlockNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
+void BlockNode::findReturnStmts(std::vector<Node *> &stmts)
 {
     for (int i = 0; i < statements.size(); i++)
     {
@@ -550,7 +550,7 @@ void IfStmtNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::
 
     llvmInfo.addTempVar({".endScope", "ptr"});
 }
-void IfStmtNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
+void IfStmtNode::findReturnStmts(std::vector<Node *> &stmts)
 {
     for (int i = 0; i < body->getStatements().size(); i++)
     {
@@ -643,7 +643,7 @@ void ElseIfStmtNode::checkSemantics(SemanticsInfo &semanticsInfo)
     semanticsInfo.removeVisibleScope();
     semanticsInfo.removeScope();
 }
-void ElseIfStmtNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
+void ElseIfStmtNode::findReturnStmts(std::vector<Node *> &stmts)
 {
     for (int i = 0; i < body->getStatements().size(); i++)
     {
@@ -719,7 +719,7 @@ void ElseStmtNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std
     for (std::unique_ptr<Node> &stmt : body->getStatements())
         stmt->mapToIR(ir, llvmInfo, global, prefix);
 }
-void ElseStmtNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
+void ElseStmtNode::findReturnStmts(std::vector<Node *> &stmts)
 {
     for (int i = 0; i < body->getStatements().size(); i++)
     {
@@ -851,7 +851,7 @@ void BranchBlockNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, 
 
     ir += "if_end_" + currentIf + ":\n";
 }
-void BranchBlockNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
+void BranchBlockNode::findReturnStmts(std::vector<Node *> &stmts)
 {
     for (int i = 0; i < branches->getStatements().size(); i++)
     {
@@ -964,7 +964,7 @@ void WhileNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::s
 
     ir += "while_end_" + currentCount + ":\n";
 }
-void WhileNode::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
+void WhileNode::findReturnStmts(std::vector<Node *> &stmts)
 {
     for (int i = 0; i < body->getStatements().size(); i++)
     {

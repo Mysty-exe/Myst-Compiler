@@ -291,7 +291,7 @@ void Node::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string
 {
 }
 
-void Node::findReturnStmts(std::vector<std::unique_ptr<Node>> &stmts)
+void Node::findReturnStmts(std::vector<Node *> &stmts)
 {
 }
 
@@ -361,7 +361,7 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {
     semanticsInfo.addVisibleScope();
 
-    std::vector<std::unique_ptr<AssignNode>> assignments;
+    std::vector<AssignNode *> assignments;
     for (std::unique_ptr<Node> &child : children)
     {
         if (auto *func = dynamic_cast<FuncNode *>(child.get()))
@@ -376,9 +376,8 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
             {
                 if (auto *assignment = dynamic_cast<AssignNode *>(stmt.get()))
                 {
-                    std::unique_ptr<AssignNode> assign(assignment);
                     assignment->checkSemantics(semanticsInfo);
-                    assignments.push_back(std::move(assign));
+                    assignments.push_back(assignment);
                 }
             }
         }
@@ -386,17 +385,20 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
 
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
-        auto &scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
-        auto &symbols = scope.getSymbols();
+        auto &symbols = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]).getSymbols();
         auto it = symbols.begin();
 
         while (it != symbols.end())
         {
-
-            if (dynamic_cast<FuncSymbol *>((*it).get()) || dynamic_cast<ContainerSymbol *>((*it).get()))
+            Symbol *raw = it->get();
+            if (raw == nullptr)
             {
-                it = symbols.erase(it);
+                ++it;
+                continue;
             }
+
+            if (dynamic_cast<FuncSymbol *>(raw))
+                it = symbols.erase(it);
             else
                 ++it;
         }
@@ -420,7 +422,7 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
             func->checkSemantics(semanticsInfo);
     }
 
-    for (std::unique_ptr<AssignNode> &assign : assignments)
+    for (AssignNode *assign : assignments)
         assign->lookForCallExprs(semanticsInfo);
 }
 
