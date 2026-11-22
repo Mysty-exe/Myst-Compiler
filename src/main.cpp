@@ -79,12 +79,12 @@ void analyzeFiles(std::vector<std::unique_ptr<AbstractSyntaxTree>> &asts)
         if (std::find(loadedAsts.begin(), loadedAsts.end(), ast->getRoot()->getFileName()) != loadedAsts.end())
             continue;
 
-        for (const std::string import : ast->getImports())
+        for (const std::string &import : ast->getImports())
         {
             if (std::find(loadedAsts.begin(), loadedAsts.end(), import) == loadedAsts.end())
             {
                 skip = true;
-                continue;
+                break;
             }
         }
 
@@ -102,10 +102,12 @@ void analyzeFiles(std::vector<std::unique_ptr<AbstractSyntaxTree>> &asts)
                 continue;
 
             // Sets the import symbols for any other file that needs the ast symbols
-            for (int i = 0; i < a->getImports().size(); i++)
+            for (int j = 0; j < a->getImports().size(); j++)
             {
-                if (a->getImports()[i] == ast->getRoot()->getFileName())
-                    a->setSymbols(a->getPrefixes()[i], semanticsInfo.getSymbolTable());
+                if (a->getImports()[j] == ast->getRoot()->getFileName())
+                {
+                    a->setSymbols(a->getPrefixes()[j], ast->getSymbolTable());
+                }
             }
         }
 
@@ -115,7 +117,7 @@ void analyzeFiles(std::vector<std::unique_ptr<AbstractSyntaxTree>> &asts)
         if (i == asts.size() - 1)
         {
             if (skip)
-                i = 0;
+                i = -1;
             skip = false;
         }
     }
@@ -169,6 +171,7 @@ int runFiles(std::string file, std::vector<std::unique_ptr<AbstractSyntaxTree>> 
     }
 
     asts.insert(asts.begin(), std::move(ast));
+    AbstractSyntaxTree *currentAst = asts[0].get();
 
     // Checks for ciruclar imports
     if (asts.size() > 1)
@@ -177,8 +180,8 @@ int runFiles(std::string file, std::vector<std::unique_ptr<AbstractSyntaxTree>> 
         {
             for (int k = 0; k < asts[1]->getImports().size(); k++)
             {
-                std::string f1 = ast->getRoot()->getFileName(), f2 = asts[1]->getRoot()->getFileName();
-                std::string f1name = ast->getImports()[i], f2name = asts[1]->getImports()[k];
+                std::string f1 = currentAst->getRoot()->getFileName(), f2 = asts[1]->getRoot()->getFileName();
+                std::string f1name = currentAst->getImports()[i], f2name = asts[1]->getImports()[k];
                 if (f2.substr(f2.size() - f1name.size() - 3, f1name.size()) == f1name || f1.substr(f1.size() - f2name.size() - 3, f2name.size()) == f2name)
                     throwImportError("Module A depends on Module B which depends back on Module A.");
             }
@@ -186,12 +189,12 @@ int runFiles(std::string file, std::vector<std::unique_ptr<AbstractSyntaxTree>> 
     }
 
     // Looks for imports in the file and loads them up
-    if (asts[0]->hasImports())
+    if (currentAst->hasImports())
     {
         std::vector<std::string> imports;
-        for (int x = 0; x < asts[0]->getImports().size(); x++)
+        for (int x = 0; x < currentAst->getImports().size(); x++)
         {
-            std::string import = asts[0]->getImports()[x];
+            std::string import = currentAst->getImports()[x];
             if (import.substr(import.size() - 3, 3) != ".ms")
                 import += ".ms";
 
@@ -231,8 +234,7 @@ int runFiles(std::string file, std::vector<std::unique_ptr<AbstractSyntaxTree>> 
             imports.push_back(folder + newImport);
             runFiles(folder + newImport, asts, true);
         }
-
-        asts[0]->setImports(imports);
+        currentAst->setImports(imports);
     }
 
     return 0;

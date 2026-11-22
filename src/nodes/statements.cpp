@@ -55,6 +55,9 @@ void CallExprNode::lookForCallExprs(SemanticsInfo &semanticsInfo)
 
     if (imported)
     {
+        if (semanticsInfo.getPrefixSymbols().count(modName) == 0)
+            throwSemanticError(line, "Module '" + modName + "' was not found.");
+
         auto &scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
         checkCallExprInScope(scope, semanticsInfo, returnType, funcSymbol, funcArgs, ambiguous, true);
 
@@ -301,6 +304,9 @@ bool CallExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &ty
     bool ambiguous = false;
     if (imported)
     {
+        if (semanticsInfo.getPrefixSymbols().count(modName) == 0)
+            throwSemanticError(line, "Module '" + modName + "' was not found.");
+
         auto &scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
         checkCallExprInScope(scope, semanticsInfo, type, funcSymbol, funcArgs, ambiguous, true);
 
@@ -354,6 +360,9 @@ std::string CallExprNode::inferType(SemanticsInfo &semanticsInfo)
 
     if (imported)
     {
+        if (semanticsInfo.getPrefixSymbols().count(modName) == 0)
+            throwSemanticError(line, "Module '" + modName + "' was not found.");
+
         auto &scope = semanticsInfo.getPrefixSymbols().at(modName).at("1");
         for (std::unique_ptr<Symbol> &symbol : scope.getSymbols())
         {

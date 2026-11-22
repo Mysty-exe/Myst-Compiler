@@ -20,6 +20,30 @@ void checkForDivisionByZero(std::string tempVar, std::string type, std::string &
     DIVBYZERO++;
 }
 
+void coerceLiteral(std::string &ir, const std::string &operandType)
+{
+    if (operandType == "DECIMALTYPE")
+    {
+        try
+        {
+            ir = std::to_string(std::stod(ir));
+        }
+        catch (std::exception e)
+        {
+        }
+    }
+    if (operandType == "INTTYPE")
+    {
+        try
+        {
+            ir = std::to_string(std::stoi(ir));
+        }
+        catch (std::exception e)
+        {
+        }
+    }
+}
+
 BinaryExprNode::BinaryExprNode(std::string op, std::unique_ptr<Node> left, std::unique_ptr<Node> right)
 {
     this->op = op;
@@ -222,10 +246,7 @@ void BinaryExprNode::traverseBinaryExpr(std::string &ir, std::string &newType, L
     else
     {
         right->mapToIR(r, llvmInfo);
-        if (operandType == "DECIMALTYPE")
-            r = std::to_string(std::stod(r));
-        if (operandType == "INTTYPE")
-            r = std::to_string(std::stoi(r));
+        coerceLiteral(r, operandType);
     }
 
     if (op == "/")
@@ -281,10 +302,7 @@ void BinaryExprNode::traverseExprBinary(std::string &ir, std::string &newType, L
     else
     {
         left->mapToIR(l, llvmInfo);
-        if (operandType == "DECIMALTYPE")
-            l = std::to_string(std::stod(l));
-        if (operandType == "INTTYPE")
-            l = std::to_string(std::stoi(l));
+        coerceLiteral(l, operandType);
     }
 
     if (op == "/")
@@ -305,7 +323,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
 {
     std::string l, r;
 
-    if (auto *leftIdentifier = dynamic_cast<UnaryExprNode *>(right.get()))
+    if (auto *leftIdentifier = dynamic_cast<UnaryExprNode *>(left.get()))
     {
         leftIdentifier->traverseUnary(ir, newType, llvmInfo, global);
 
@@ -314,7 +332,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
 
         l = "%" + std::to_string(llvmInfo.getCurrentTempVar());
     }
-    else if (auto *leftIdentifier = dynamic_cast<CallExprNode *>(right.get()))
+    else if (auto *leftIdentifier = dynamic_cast<CallExprNode *>(left.get()))
     {
         leftIdentifier->mapToIR(ir, llvmInfo, false);
 
@@ -323,7 +341,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
 
         l = "%" + std::to_string(llvmInfo.getCurrentTempVar());
     }
-    else if (auto *leftIdentifier = dynamic_cast<IdentifierNode *>(right.get()))
+    else if (auto *leftIdentifier = dynamic_cast<IdentifierNode *>(left.get()))
     {
         std::vector<std::string> loadedVars;
         leftIdentifier->loadVariables(ir, operandType, loadedVars, llvmInfo, global, prefix);
@@ -332,10 +350,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
     else
     {
         left->mapToIR(l, llvmInfo);
-        if (operandType == "DECIMALTYPE")
-            l = std::to_string(std::stod(l));
-        if (operandType == "INTTYPE")
-            l = std::to_string(std::stoi(l));
+        coerceLiteral(l, operandType);
     }
 
     if (auto *rightIdentifier = dynamic_cast<UnaryExprNode *>(right.get()))
@@ -366,10 +381,7 @@ void BinaryExprNode::traverseExrpExpr(std::string &ir, std::string &newType, LLV
     else
     {
         right->mapToIR(r, llvmInfo);
-        if (operandType == "DECIMALTYPE")
-            r = std::to_string(std::stod(r));
-        if (operandType == "INTTYPE")
-            r = std::to_string(std::stoi(r));
+        coerceLiteral(r, operandType);
     }
 
     if (op == "/")
