@@ -1,0 +1,1 @@
+container_duplicate_var.ms - Semantic Error on line 1: 'width' has already been declared as a variable in container 'Box'.

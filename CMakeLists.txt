@@ -1,10 +1,3 @@
-# cmake_minimum_required(VERSION 3.15...3.31)
-# project(MystCompiler LANGUAGES CXX)
-
-# set(CMAKE_CXX_STANDARD 17)
-# set(CMAKE_CXX_STANDARD_REQUIRED ON)
-# enable_testing()
-
 cmake_minimum_required(VERSION 3.15...3.31)
 project(MystCompiler LANGUAGES CXX)
 
@@ -12,21 +5,29 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_testing()
 
-# Optional toggle for Sanitizers (AddressSanitizer + UndefinedBehaviorSanitizer)
-# Enabled by default; pass -DENABLE_SANITIZERS=OFF during cmake generation to disable
-option(ENABLE_SANITIZERS "Enable ASan and UBSan sanitizers for debugging" ON)
+# cmake_minimum_required(VERSION 3.15...3.31)
+# project(MystCompiler LANGUAGES CXX)
 
-# Configure common debug and warning flags across GCC/Clang and MSVC
-if(MSVC)
-    add_compile_options(/W4)
-else()
-    add_compile_options(-Wall -Wextra -g)
+# set(CMAKE_CXX_STANDARD 17)
+# set(CMAKE_CXX_STANDARD_REQUIRED ON)
+# enable_testing()
 
-    if(ENABLE_SANITIZERS)
-        add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
-        add_link_options(-fsanitize=address,undefined)
-    endif()
-endif()
+# # Optional toggle for Sanitizers (AddressSanitizer + UndefinedBehaviorSanitizer)
+# # Enabled by default; pass -DENABLE_SANITIZERS=OFF during cmake generation to disable
+# option(ENABLE_SANITIZERS "Enable ASan and UBSan sanitizers for debugging" ON)
+
+# # Configure common debug and warning flags across GCC/Clang and MSVC
+# if(MSVC)
+# add_compile_options(/W4)
+# add_link_options(/DEBUG)
+# else()
+# add_compile_options(-Wall -Wextra -g)
+
+# if(ENABLE_SANITIZERS)
+# add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+# add_link_options(-fsanitize=address,undefined)
+# endif()
+# endif()
 
 # 1. Create a static library for all core compiler components (everything except main.cpp)
 add_library(myst_lib STATIC

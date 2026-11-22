@@ -1,0 +1,351 @@
+Here are the unique, deduplicated .ms test files and their corresponding .out golden files covering your semantic errors.
+
+(Note: In your actual test files, place the .ms code inside tests/errors/ and the .out output inside tests/output/errors/ with matching base filenames).
+
+1. Module Not Found
+tests/errors/error_module_not_found.ms
+
+Code snippet
+import non_existent_mod
+tests/output/errors/error_module_not_found.out
+
+Plaintext
+error_module_not_found.ms - Semantic Error on line 1: Module 'non_existent_mod' was not found.
+2. Symbol Not Found in Module
+tests/errors/error_symbol_not_found_in_mod.ms
+
+Code snippet
+import math
+int x = math.sqrt
+tests/output/errors/error_symbol_not_found_in_mod.out
+
+Plaintext
+error_symbol_not_found_in_mod.ms - Semantic Error on line 2: 'sqrt' was not found in Module 'math'.
+3. Identifier Hasn't Been Declared
+tests/errors/error_undeclared_var.ms
+
+Code snippet
+int x = undeclared_variable + 5
+tests/output/errors/error_undeclared_var.out
+
+Plaintext
+error_undeclared_var.ms - Semantic Error on line 1: 'undeclared_variable' hasn't been declared.
+4. Return Statement Not Found in Function
+tests/errors/error_missing_return_stmt.ms
+
+Code snippet
+int compute():
+    int x = 10
+tests/output/errors/error_missing_return_stmt.out
+
+Plaintext
+error_missing_return_stmt.ms - Semantic Error on line 1: Return Statement not found in function.
+5. Already Declared as a Function
+tests/errors/error_already_declared_func.ms
+
+Code snippet
+func foo():
+    pass
+
+int foo = 5
+tests/output/errors/error_already_declared_func.out
+
+Plaintext
+error_already_declared_func.ms - Semantic Error on line 4: 'foo' has already been declared as a function.
+6. Empty Function Declared with Return Type
+tests/errors/error_empty_func_with_return.ms
+
+Code snippet
+int foo()
+tests/output/errors/error_empty_func_with_return.out
+
+Plaintext
+error_empty_func_with_return.ms - Semantic Error on line 1: An Empty Function can't be declared with a return type.
+7. Code Path Without a Return Value Detected
+tests/errors/error_code_path_no_return.ms
+
+Code snippet
+int check(bool cond):
+    if cond:
+        return 1
+tests/output/errors/error_code_path_no_return.out
+
+Plaintext
+error_code_path_no_return.ms - Semantic Error on line 1: Code Path without a Return Value Detected.
+8. Unreachable Code After Return Statement
+tests/errors/error_unreachable_after_return.ms
+
+Code snippet
+int foo():
+    return 1
+    int x = 2
+tests/output/errors/error_unreachable_after_return.out
+
+Plaintext
+error_unreachable_after_return.ms - Semantic Error on line 3: Unreachable code detected after return statement.
+9. Already Declared as a Container (Class/Struct)
+tests/errors/error_already_declared_container.ms
+
+Code snippet
+container Point:
+    int x
+
+int Point = 10
+tests/output/errors/error_already_declared_container.out
+
+Plaintext
+error_already_declared_container.ms - Semantic Error on line 4: 'Point' has already been declared as a container.
+10. Already Declared as Variable in Container
+tests/errors/error_container_duplicate_var.ms
+
+Code snippet
+container Box:
+    int width
+    int width
+tests/output/errors/error_container_duplicate_var.out
+
+Plaintext
+error_container_duplicate_var.ms - Semantic Error on line 3: 'width' has already been declared as a variable in container 'Box'.
+11. Duplicate Function in Container with Same Parameters
+tests/errors/error_container_duplicate_func.ms
+
+Code snippet
+container MathOps:
+    func calc(x: int):
+        return
+    func calc(x: int):
+        return
+tests/output/errors/error_container_duplicate_func.out
+
+Plaintext
+error_container_duplicate_func.ms - Semantic Error on line 4: 'calc' has already been declared as a function in container 'MathOps' with the same parameters.
+12. Must Return a Class Object
+tests/errors/error_must_return_class.ms
+
+Code snippet
+container NotAClass:
+    int x
+
+NotAClass factory():
+    return 5
+tests/output/errors/error_must_return_class.out
+
+Plaintext
+error_must_return_class.ms - Semantic Error on line 4: 'factory' must return a class object.
+13. No Constructor Found in Container
+tests/errors/error_no_constructor.ms
+
+Code snippet
+container Empty:
+    int x
+
+Empty obj = Empty()
+tests/output/errors/error_no_constructor.out
+
+Plaintext
+error_no_constructor.ms - Semantic Error on line 4: No constructor was found in container 'Empty'.
+14. Unreachable Code After Break Statement
+tests/errors/error_unreachable_after_break.ms
+
+Code snippet
+while true:
+    break
+    int x = 5
+tests/output/errors/error_unreachable_after_break.out
+
+Plaintext
+error_unreachable_after_break.ms - Semantic Error on line 3: Unreachable code detected after 'break' statement.
+15. Unreachable Code After Skip Statement
+tests/errors/error_unreachable_after_skip.ms
+
+Code snippet
+while true:
+    skip
+    int x = 5
+tests/output/errors/error_unreachable_after_skip.out
+
+Plaintext
+error_unreachable_after_skip.ms - Semantic Error on line 3: Unreachable code detected after 'skip' statement.
+16. If Statement Condition Not Boolean
+tests/errors/error_if_cond_non_bool.ms
+
+Code snippet
+if 123:
+    print("yes")
+tests/output/errors/error_if_cond_non_bool.out
+
+Plaintext
+error_if_cond_non_bool.ms - Semantic Error on line 1: If Statement condition doesn't evaluate to a boolean.
+17. Else If Statement Condition Not Boolean
+tests/errors/error_elif_cond_non_bool.ms
+
+Code snippet
+if false:
+    pass
+elif "hello":
+    pass
+tests/output/errors/error_elif_cond_non_bool.out
+
+Plaintext
+error_elif_cond_non_bool.ms - Semantic Error on line 3: Else If Statement condition doesn't evaluate to a boolean.
+18. While Loop Condition Not Boolean
+tests/errors/error_while_cond_non_bool.ms
+
+Code snippet
+while 42:
+    pass
+tests/output/errors/error_while_cond_non_bool.out
+
+Plaintext
+error_while_cond_non_bool.ms - Semantic Error on line 1: While loop condition doesn't evaluate to a boolean.
+19. Unexpected Type/s Used With Operator
+tests/errors/error_unexpected_operator_type.ms
+
+Code snippet
+char c = 'a'
+decimal d = c + 3.14
+tests/output/errors/error_unexpected_operator_type.out
+
+Plaintext
+error_unexpected_operator_type.ms - Semantic Error on line 2: Unexpected type/s used with operator '+'.
+20. Can't Compare These Two Types With Operator
+tests/errors/error_invalid_comparison.ms
+
+Code snippet
+bool res = "hello" == 42
+tests/output/errors/error_invalid_comparison.out
+
+Plaintext
+error_invalid_comparison.ms - Semantic Error on line 1: Can't compare these two types with operator '=='.
+21. Mismatched Types Found With Operator
+tests/errors/error_mismatched_types_operator.ms
+
+Code snippet
+int x = 10
+decimal y = 3.5
+decimal z = x % y
+tests/output/errors/error_mismatched_types_operator.out
+
+Plaintext
+error_mismatched_types_operator.ms - Semantic Error on line 3: Mismatched types found with operator '%'.
+22. Couldn't Find Proper Function Signature in Module Call
+tests/errors/error_mod_func_sig_not_found.ms
+
+Code snippet
+import math
+math.abs("string_arg")
+tests/output/errors/error_mod_func_sig_not_found.out
+
+Plaintext
+error_mod_func_sig_not_found.ms - Semantic Error on line 2: Couldn't find proper function signature for 'abs' call expression in Module 'math'.
+23. Couldn't Find Proper Function Signature (Global)
+tests/errors/error_func_sig_not_found.ms
+
+Code snippet
+func foo(x: int):
+    pass
+
+foo(true)
+tests/output/errors/error_func_sig_not_found.out
+
+Plaintext
+error_func_sig_not_found.ms - Semantic Error on line 4: Couldn't find proper function signature for 'foo' call expression.
+24. Can't Be Used With the Type (Unary/Special Operator)
+tests/errors/error_invalid_type_with_op.ms
+
+Code snippet
+int x = -("hello")
+tests/output/errors/error_invalid_type_with_op.out
+
+Plaintext
+error_invalid_type_with_op.ms - Semantic Error on line 1: '-' can't be used with the type string.
+25. Wrong Arguments Passed In
+tests/errors/error_wrong_arguments.ms
+
+Code snippet
+func add(a: int, b: int):
+    return a + b
+
+add(1)
+tests/output/errors/error_wrong_arguments.out
+
+Plaintext
+error_wrong_arguments.ms - Semantic Error on line 4: 'add' has the wrong arguments passed in.
+26. Function Not Found in Module
+tests/errors/error_mod_func_not_found.ms
+
+Code snippet
+import io
+io.nonexistent()
+tests/output/errors/error_mod_func_not_found.out
+
+Plaintext
+error_mod_func_not_found.ms - Semantic Error on line 2: function 'nonexistent' was not found in Module 'io'.
+27. Function Hasn't Been Declared (Global)
+tests/errors/error_undeclared_func.ms
+
+Code snippet
+unknown_func()
+tests/output/errors/error_undeclared_func.out
+
+Plaintext
+error_undeclared_func.ms - Semantic Error on line 1: function 'unknown_func' hasn't been declared.
+28. Already Declared (General/Variable)
+tests/errors/error_already_declared_var.ms
+
+Code snippet
+int count = 5
+int count = 10
+tests/output/errors/error_already_declared_var.out
+
+Plaintext
+error_already_declared_var.ms - Semantic Error on line 2: 'count' has already been declared.
+29. Value Must Have Specific Type
+tests/errors/error_value_must_have_type.ms
+
+Code snippet
+int x: decimal = 5.5
+tests/output/errors/error_value_must_have_type.out
+
+Plaintext
+error_value_must_have_type.ms - Semantic Error on line 1: Value in 'x' must have type 'int'.
+30. Already Declared With Specific Type
+tests/errors/error_already_declared_with_type.ms
+
+Code snippet
+int val = 10
+int val = 20
+tests/output/errors/error_already_declared_with_type.out
+
+Plaintext
+error_already_declared_with_type.ms - Semantic Error on line 2: 'val' has already been declared with type 'int'.
+31. Return Statement Found Without an Identifier (Value)
+tests/errors/error_return_missing_identifier.ms
+
+Code snippet
+int get_val():
+    return
+tests/output/errors/error_return_missing_identifier.out
+
+Plaintext
+error_return_missing_identifier.ms - Semantic Error on line 2: Return statement found without an identifier.
+32. Return Statement Found in a Void Function (No Return Type)
+tests/errors/error_return_in_void_func.ms
+
+Code snippet
+func log_msg():
+    return 42
+tests/output/errors/error_return_in_void_func.out
+
+Plaintext
+error_return_in_void_func.ms - Semantic Error on line 2: Return statement found in a function that doesn't have a return type.
+33. Return Statement Doesn't Return Required Return Type
+tests/errors/error_return_mismatched_type.ms
+
+Code snippet
+int get_score():
+    return "high"
+tests/output/errors/error_return_mismatched_type.out
+
+Plaintext
+error_return_mismatched_type.ms - Semantic Error on line 2: Return statement doesn't return the required return type.

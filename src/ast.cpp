@@ -653,7 +653,7 @@ std::unique_ptr<BranchBlockNode> AbstractSyntaxTree::getIfStatement(int index, c
 
     std::unique_ptr<BranchBlockNode> branchBlock = std::make_unique<BranchBlockNode>();
     std::unique_ptr<IfStmtNode> ifStmt(new IfStmtNode(condition, block));
-    ifStmt->setLine(line);
+    ifStmt->setLine(line - 1);
 
     branchBlock->addBranch(std::move(ifStmt));
     return branchBlock;
@@ -678,7 +678,7 @@ void AbstractSyntaxTree::addElseIfStatement(int index, std::unique_ptr<BlockNode
         throwSyntaxError(line - 1, "Missing body in 'elseif' statement.");
 
     std::unique_ptr<ElseIfStmtNode> elseIfStmt(new ElseIfStmtNode(condition, block));
-    elseIfStmt->setLine(line);
+    elseIfStmt->setLine(line - 1);
 
     auto *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1].get());
     branchBlock->addBranch(std::move(elseIfStmt));
@@ -705,7 +705,7 @@ void AbstractSyntaxTree::addElseStatement(int index, std::unique_ptr<BlockNode> 
         throwSyntaxError(line, "Missing body in 'else' statement.");
 
     std::unique_ptr<ElseStmtNode> elseStmt(new ElseStmtNode(block));
-    elseStmt->setLine(line);
+    elseStmt->setLine(line - 1);
 
     auto *branchBlock = static_cast<BranchBlockNode *>(blockNode->getStatements()[blockNode->getNumStatements() - 1].get());
     branchBlock->addBranch(std::move(elseStmt));
@@ -852,8 +852,8 @@ std::vector<std::unique_ptr<Node>> AbstractSyntaxTree::buildContainer(const std:
             }
             line--;
 
-            std::unique_ptr<FuncNode> func = std::make_unique<FuncNode>(name, returnType, parameters, funcBody, line - 1);
-            if (func->getName() == name)
+            std::unique_ptr<FuncNode> func = std::make_unique<FuncNode>(funcName, returnType, parameters, funcBody, line);
+            if (func->getName() == name && func->getReturnType() == "")
                 func->setReturnType(name);
 
             body.push_back(std::move(func));
@@ -1063,6 +1063,7 @@ void AbstractSyntaxTree::addFunction(const std::vector<std::vector<Token>> &toke
         throwSyntaxError(line + 1, "Reserved function name used: '" + funcName + "'.");
 
     line++;
+    int startLine = line;
 
     std::vector<std::unique_ptr<ParamNode>> parameters;
 
@@ -1085,7 +1086,7 @@ void AbstractSyntaxTree::addFunction(const std::vector<std::vector<Token>> &toke
     }
     line--;
 
-    std::unique_ptr<FuncNode> func(new FuncNode(funcName, returnType, parameters, body, line - 1));
+    std::unique_ptr<FuncNode> func(new FuncNode(funcName, returnType, parameters, body, startLine));
     root->addNode(std::move(func));
 }
 
@@ -1147,7 +1148,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
             std::vector<std::unique_ptr<Node>> body = buildContainer(name, tokens, line, 1);
 
             line--;
-            std::unique_ptr<ContainerNode> container(new ContainerNode(name, body, origLine));
+            auto container = std::make_unique<ContainerNode>(name, std::move(body), origLine);
             root->addNode(std::move(container));
 
             continue;

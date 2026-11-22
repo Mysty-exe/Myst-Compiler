@@ -1,0 +1,1 @@
+return_mismatched_type.ms - Semantic Error on line 2: Return statement doesn't return the required return type.

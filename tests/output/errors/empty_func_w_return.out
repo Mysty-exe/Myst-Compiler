@@ -1,0 +1,1 @@
+empty_func_w_return.ms - Semantic Error on line 1: An Empty Function can't be declared with a return type.

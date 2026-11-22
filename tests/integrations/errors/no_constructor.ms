@@ -1,0 +1,2 @@
+container Empty:
+    int x

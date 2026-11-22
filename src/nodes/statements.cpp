@@ -98,29 +98,27 @@ std::vector<int> CallExprNode::checkFuncArgs(SemanticsInfo &semanticsInfo, FuncS
         {
             p = p.substr(4);
 
-            if (!arguments[k]->checkType(semanticsInfo, p))
-                result.push_back(3);
-
             if (arguments[k]->inferType(semanticsInfo) == p)
                 result.push_back(0);
             else if (canCoerceLossless(arguments[k]->inferType(semanticsInfo), p))
                 result.push_back(1);
             else if (canCoerceLossy(arguments[k]->inferType(semanticsInfo), p))
                 result.push_back(2);
+            else
+                result.push_back(-1);
         }
 
         arguments[k]->checkType(semanticsInfo, funcSymbol->getParameters()[k]);
         if (!canCoerce(arguments[k]->inferType(semanticsInfo), p))
         {
-            if (!arguments[k]->checkType(semanticsInfo, p))
-                result.push_back(3);
-
             if (arguments[k]->inferType(semanticsInfo) == p)
                 result.push_back(0);
             else if (canCoerceLossless(arguments[k]->inferType(semanticsInfo), p))
                 result.push_back(1);
             else if (canCoerceLossy(arguments[k]->inferType(semanticsInfo), p))
                 result.push_back(2);
+            else
+                result.push_back(-1);
         }
     }
 
@@ -235,22 +233,22 @@ bool CallExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &ty
                 if (argType == "INTTYPE")
                     returnType = "CHARTYPE";
                 else
-                    throwSemanticError(line, "'" + name + "' can't be used with the type " + getDataTypeStr(argType) + ".");
+                    throwSemanticError(line, "'" + name + "' can't be used with type '" + getDataTypeStr(argType) + "'.");
             if (name == "toBool")
                 if (argType == "INTTYPE")
                     returnType = "BOOLTYPE";
                 else
-                    throwSemanticError(line, "'" + name + "' can't be used with the type " + getDataTypeStr(argType) + ".");
+                    throwSemanticError(line, "'" + name + "' can't be used with type '" + getDataTypeStr(argType) + "'.");
             if (name == "toInt")
                 if (argType == "DECIMALTYPE" || argType == "CHARTYPE" || argType == "BOOLTYPE")
                     returnType = "INTTYPE";
                 else
-                    throwSemanticError(line, "'" + name + "' can't be used with the type " + getDataTypeStr(argType) + ".");
+                    throwSemanticError(line, "'" + name + "' can't be used with type '" + getDataTypeStr(argType) + "'.");
             if (name == "toDecimal")
                 if (argType == "INTTYPE")
                     returnType = "DECIMALTYPE";
                 else
-                    throwSemanticError(line, "'" + name + "' can't be used with the type " + getDataTypeStr(argType) + ".");
+                    throwSemanticError(line, "'" + name + "' can't be used with type '" + getDataTypeStr(argType) + "'.");
 
             argTypes.push_back(argType);
             arguments[0]->checkType(semanticsInfo, argType);
@@ -633,6 +631,9 @@ void AssignNode::checkSemantics(SemanticsInfo &semanticsInfo)
         auto &scope = semanticsInfo.getScope(visibleScope);
         for (const std::unique_ptr<Symbol> &symbol : scope.getSymbols())
         {
+            if (symbol->getType() == "CONTAINER" && symbol->getName() == identifier->getName())
+                throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a container.");
+
             if (symbol->getType() == "VAR" && symbol->getName() == identifier->getName() && !(semanticsInfo.getVisibleScope().size() > 1))
                 throwSemanticError(line, "'" + identifier->getName() + "' has already been declared.");
 

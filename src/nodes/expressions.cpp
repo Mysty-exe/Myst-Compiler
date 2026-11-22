@@ -81,7 +81,7 @@ bool BinaryExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &
 {
     if ((op == "and" || op == "or" || op == "&&" || op == "||" || op == ">" || op == "<" || op == ">=" || op == "<=") && type != "BOOLTYPE")
     {
-        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
         return false;
     }
 
@@ -90,7 +90,7 @@ bool BinaryExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &
         std::string leftSide = left->inferType(semanticsInfo), rightSide = right->inferType(semanticsInfo);
         if (!((leftSide == "INTTYPE" || leftSide == "DECIMALTYPE") && (rightSide == "INTTYPE" || rightSide == "DECIMALTYPE")))
         {
-            throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+            throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
             return false;
         }
     }
@@ -122,6 +122,9 @@ bool BinaryExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &
     }
     else
     {
+        if ((leftType != "INTTYPE" && leftType != "DECIMALTYPE") || (rightType != "INTTYPE" && rightType != "DECIMALTYPE"))
+            throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
+
         if (leftType == "DECIMALTYPE" || rightType == "DECIMALTYPE")
             this->operandType = "DECIMALTYPE";
         else
@@ -142,12 +145,12 @@ std::string BinaryExprNode::inferType(SemanticsInfo &semanticsInfo)
 
     if ((op == "and" || op == "or" || op == "&&" || op == "||" || op == ">" || op == "<" || op == ">=" || op == "<=") && (leftType != "BOOLTYPE" || rightType != "BOOLTYPE"))
     {
-        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
         return "";
     }
     if ((op == "+" || op == "-" || op == "*" || op == "/" || op == "%" || op == "^") && ((leftType != "INTTYPE" && leftType != "DECIMALTYPE") || (rightType != "INTTYPE" && rightType != "DECIMALTYPE")))
     {
-        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
         return "";
     }
 
@@ -515,14 +518,26 @@ void UnaryExprNode::lookForCallExprs(SemanticsInfo &semanticsInfo)
 }
 bool UnaryExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &type)
 {
-    if ((op == "!" || op == "not") && type != "BOOLTYPE")
+    std::string rightType = right->inferType(semanticsInfo);
+    if (((op == "!" || op == "not") && type != "BOOLTYPE"))
     {
-        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
         return false;
     }
     if ((op == "+" || op == "-") && (type != "INTTYPE" && type != "DECIMALTYPE"))
     {
-        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
+        return false;
+    }
+
+    if (((op == "!" || op == "not") && rightType != "BOOLTYPE"))
+    {
+        throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
+        return false;
+    }
+    if ((op == "+" || op == "-") && (rightType != "INTTYPE" && rightType != "DECIMALTYPE"))
+    {
+        throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
         return false;
     }
 
@@ -537,12 +552,12 @@ std::string UnaryExprNode::inferType(SemanticsInfo &semanticsInfo)
     std::string rightType = right->inferType(semanticsInfo);
     if ((op == "!" || op == "not") && rightType != "BOOLTYPE")
     {
-        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
         return "";
     }
     if ((op == "+" || op == "-") && (rightType != "INTTYPE" && rightType != "DECIMALTYPE"))
     {
-        throwSemanticError(line, "Unexpected type/s used with operator '" + op + "'.");
+        throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
         return "";
     }
 

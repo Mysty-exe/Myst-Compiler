@@ -397,7 +397,7 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
                 continue;
             }
 
-            if (dynamic_cast<FuncSymbol *>(raw))
+            if (dynamic_cast<FuncSymbol *>(raw) || dynamic_cast<ContainerSymbol *>(raw))
                 it = symbols.erase(it);
             else
                 ++it;

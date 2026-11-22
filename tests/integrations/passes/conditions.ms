@@ -3,5 +3,4 @@ func max(int a, int b) -> int:
         return a
     return b
 
-max(34, 99)
-// Expected output: 99
+print(max(34, 99))

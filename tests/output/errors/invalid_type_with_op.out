@@ -1,0 +1,1 @@
+invalid_type_with_op.ms - Semantic Error on line 2: 'toChar' can't be used with type 'decimal'.

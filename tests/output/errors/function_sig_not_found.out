@@ -1,0 +1,1 @@
+function_sig_not_found.ms - Semantic Error on line 4: Couldn't find proper function signature for 'foo' call expression.

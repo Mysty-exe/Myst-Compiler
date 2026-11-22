@@ -5,4 +5,3 @@ while i <= 10:
 	i = i + 1
 
 print(sum)
-// Expected Result: 55

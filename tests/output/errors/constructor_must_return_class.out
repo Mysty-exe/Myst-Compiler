@@ -1,0 +1,1 @@
+constructor_must_return_class.ms - Semantic Error on line 4: 'NotAClass' must return a class object.

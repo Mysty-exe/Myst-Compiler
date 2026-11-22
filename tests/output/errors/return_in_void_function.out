@@ -1,0 +1,1 @@
+return_in_void_function.ms - Semantic Error on line 2: Return statement found in a function that doesn't have a return type.

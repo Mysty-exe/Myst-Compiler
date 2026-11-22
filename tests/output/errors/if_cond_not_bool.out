@@ -1,0 +1,1 @@
+if_cond_not_bool.ms - Semantic Error on line 1: If Statement condition doesn't evaluate to a boolean.

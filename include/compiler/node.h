@@ -418,11 +418,12 @@ struct ContainerNode : Node
 {
 private:
     std::string name;
-    std::vector<std::unique_ptr<IdentifierNode>> variables;
-    std::vector<std::unique_ptr<FuncNode>> functions;
+    std::vector<IdentifierNode *> variables;
+    std::vector<FuncNode *> functions;
+    std::vector<std::unique_ptr<Node>> body;
 
 public:
-    ContainerNode(std::string name, std::vector<std::unique_ptr<Node>> &body, int line);
+    ContainerNode(std::string name, std::vector<std::unique_ptr<Node>> body, int line);
     ~ContainerNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
