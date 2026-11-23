@@ -193,7 +193,7 @@ private:
     T value;
 
 public:
-    LiteralNode(T value, std::string type);
+    LiteralNode(T value, std::string type, int line);
     ~LiteralNode() override;
     void print(int depth) const;
 
@@ -221,8 +221,8 @@ private:
     bool imported;
 
 public:
-    IdentifierNode(std::string name);
-    IdentifierNode(std::string name, std::string returnType);
+    IdentifierNode(std::string name, int line);
+    IdentifierNode(std::string name, std::string returnType, int line);
     ~IdentifierNode() override;
     std::string getName() const;
     std::string getType() const;
@@ -252,7 +252,7 @@ private:
     void traverseExrpExpr(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix);
 
 public:
-    BinaryExprNode(std::string op, std::unique_ptr<Node> left, std::unique_ptr<Node> right);
+    BinaryExprNode(std::string op, std::unique_ptr<Node> left, std::unique_ptr<Node> right, int line);
     ~BinaryExprNode() override;
     std::string getOperandType() const;
     std::string getResultType() const;
@@ -277,7 +277,7 @@ private:
     void traverseLiteral(std::string &ir, std::string &newType, LLVMInfo &llvmInfo, bool global, std::string prefix = "");
 
 public:
-    UnaryExprNode(std::string op, std::unique_ptr<Node> right);
+    UnaryExprNode(std::string op, std::unique_ptr<Node> right, int line);
     ~UnaryExprNode() override;
     std::string getOperandType() const;
     std::string getResultType() const;
@@ -295,7 +295,7 @@ private:
     std::string name, returnType, modName;
     std::vector<std::string> argTypes;
     std::vector<std::unique_ptr<Node>> arguments;
-    bool imported, isConstructor;
+    bool imported;
 
     std::vector<int> checkFuncArgs(SemanticsInfo &semanticsInfo, FuncSymbol *&funcSymbol);
     void checkCallExprInScope(Scope &scope, SemanticsInfo &semanticsInfo, std::string type, FuncSymbol *&funcSymbol, std::vector<int> &funcArgs, bool &ambiguous, bool importing);
@@ -304,7 +304,7 @@ private:
     bool isAmbiguousFunc(std::vector<int> current, std::vector<int> next);
 
 public:
-    CallExprNode(std::string name, std::vector<std::unique_ptr<Node>> &arguments, bool isConstructor = false);
+    CallExprNode(std::string name, std::vector<std::unique_ptr<Node>> &arguments, int line);
     ~CallExprNode() override;
     std::string getName() const;
     std::string getReturnType() const;
@@ -327,7 +327,7 @@ private:
     bool declared;
 
 public:
-    AssignNode(std::string name, std::string type, std::unique_ptr<Node> &value);
+    AssignNode(std::string name, std::string type, std::unique_ptr<Node> &value, int line);
     ~AssignNode() override;
     std::string getName() const;
     std::string getType() const;
@@ -346,7 +346,7 @@ private:
     std::unique_ptr<Node> identifier;
 
 public:
-    ReturnStmtNode(std::unique_ptr<Node> identifier = nullptr);
+    ReturnStmtNode(int line, std::unique_ptr<Node> identifier = nullptr);
     ~ReturnStmtNode() override;
     void setType(std::string type);
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
@@ -361,7 +361,7 @@ private:
     std::vector<std::unique_ptr<Node>> statements;
 
 public:
-    BlockNode();
+    BlockNode(int line);
     ~BlockNode() override;
     void addStatement(std::unique_ptr<Node> stmt);
     void clearStatments();
@@ -436,7 +436,7 @@ private:
     std::unique_ptr<BlockNode> body;
 
 public:
-    IfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body);
+    IfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body, int line);
     ~IfStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
@@ -454,7 +454,7 @@ private:
     std::unique_ptr<BlockNode> body;
 
 public:
-    ElseIfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body);
+    ElseIfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body, int line);
     ~ElseIfStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
@@ -471,7 +471,7 @@ private:
     std::unique_ptr<BlockNode> body;
 
 public:
-    ElseStmtNode(std::unique_ptr<BlockNode> &body);
+    ElseStmtNode(std::unique_ptr<BlockNode> &body, int line);
     ~ElseStmtNode() override;
     virtual void print(int depth = 0) const override;
     void setCurrentWhile(int currentStmt);
@@ -488,7 +488,7 @@ private:
     std::unique_ptr<BlockNode> branches;
 
 public:
-    BranchBlockNode();
+    BranchBlockNode(int line);
     ~BranchBlockNode() override;
     static int getNumberIf();
     void setCurrentWhile(int currentStmt);
@@ -508,7 +508,7 @@ private:
     bool skip;
 
 public:
-    WhileNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body);
+    WhileNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body, int line);
     ~WhileNode() override;
     bool getSkip();
     void setSkip(bool skip);

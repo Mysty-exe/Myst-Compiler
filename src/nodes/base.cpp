@@ -457,7 +457,7 @@ void RootNode::sendWarnings(std::unordered_map<std::string, Scope> &symbolTable)
 }
 
 template <typename T>
-LiteralNode<T>::LiteralNode(T value, std::string type)
+LiteralNode<T>::LiteralNode(T value, std::string type, int line)
 {
     this->value = value;
     this->type = type;
@@ -611,16 +611,18 @@ void ImportNode::print(int depth) const
     std::cout << depthTabs << "\tModule Name: " << moduleName << std::endl;
 }
 
-IdentifierNode::IdentifierNode(std::string name)
+IdentifierNode::IdentifierNode(std::string name, int line)
 {
     this->name = name;
+    this->line = line;
     this->type = "";
     imported = false;
     modName = "";
 }
-IdentifierNode::IdentifierNode(std::string name, std::string type)
+IdentifierNode::IdentifierNode(std::string name, std::string type, int line)
 {
     this->name = name;
+    this->line = line;
     imported = false;
     modName = "";
 
@@ -757,6 +759,7 @@ std::string IdentifierNode::inferType(SemanticsInfo &semanticsInfo)
         }
     }
 
+    std::cout << name << std::endl;
     throwSemanticError(line, "'" + name + "' hasn't been declared.");
     return "";
 }

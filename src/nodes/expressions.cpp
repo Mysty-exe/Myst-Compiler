@@ -44,11 +44,12 @@ void coerceLiteral(std::string &ir, const std::string &operandType)
     }
 }
 
-BinaryExprNode::BinaryExprNode(std::string op, std::unique_ptr<Node> left, std::unique_ptr<Node> right)
+BinaryExprNode::BinaryExprNode(std::string op, std::unique_ptr<Node> left, std::unique_ptr<Node> right, int line)
 {
     this->op = op;
     this->left = std::move(left);
     this->right = std::move(right);
+    this->line = line;
 }
 BinaryExprNode::~BinaryExprNode()
 {
@@ -487,10 +488,11 @@ void BinaryExprNode::storeValue(std::string &ir, std::string &newType, const std
     }
 }
 
-UnaryExprNode::UnaryExprNode(std::string op, std::unique_ptr<Node> right)
+UnaryExprNode::UnaryExprNode(std::string op, std::unique_ptr<Node> right, int line)
 {
     this->op = op;
     this->right = std::move(right);
+    this->line = line;
 }
 UnaryExprNode::~UnaryExprNode()
 {

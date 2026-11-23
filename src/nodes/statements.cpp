@@ -1,10 +1,10 @@
 #include "compiler/node.h"
 
-CallExprNode::CallExprNode(std::string name, std::vector<std::unique_ptr<Node>> &arguments, bool isConstructor)
+CallExprNode::CallExprNode(std::string name, std::vector<std::unique_ptr<Node>> &arguments, int line)
 {
     this->name = name;
     this->arguments = std::move(arguments);
-    this->isConstructor = isConstructor;
+    this->line = line;
     imported = false;
     modName = "";
 }
@@ -584,13 +584,14 @@ void CallExprNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std
     }
 }
 
-AssignNode::AssignNode(std::string name, std::string type, std::unique_ptr<Node> &value)
+AssignNode::AssignNode(std::string name, std::string type, std::unique_ptr<Node> &value, int line)
 {
     declared = true;
     if (type == "")
         declared = false;
-    this->identifier = std::make_unique<IdentifierNode>(IdentifierNode(name, type));
+    this->identifier = std::make_unique<IdentifierNode>(IdentifierNode(name, type, line));
     this->value = std::move(value);
+    this->line = line;
 }
 AssignNode::~AssignNode()
 {
@@ -698,9 +699,10 @@ void AssignNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::
     value->storeValue(ir, newType, prefix + identifier->getName(), llvmInfo, global, prefix);
 }
 
-ReturnStmtNode::ReturnStmtNode(std::unique_ptr<Node> identifier)
+ReturnStmtNode::ReturnStmtNode(int line, std::unique_ptr<Node> identifier)
 {
     this->identifier = std::move(identifier);
+    this->line = line;
 }
 ReturnStmtNode::~ReturnStmtNode()
 {

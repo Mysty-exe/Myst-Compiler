@@ -3,7 +3,6 @@
 ParamNode::ParamNode(std::vector<std::string> identifier, int line)
 {
     reference = false;
-    this->line = line;
     if (identifier.size() == 2)
     {
         type = identifier[0];
@@ -28,6 +27,7 @@ ParamNode::ParamNode(std::vector<std::string> identifier, int line)
         this->type = "BOOLTYPE";
     else
         this->type = type;
+    this->line = line;
 }
 ParamNode::~ParamNode()
 {
@@ -255,8 +255,9 @@ void FuncNode::findReturnStmts(std::vector<Node *> &stmts)
     }
 }
 
-BlockNode::BlockNode()
+BlockNode::BlockNode(int line)
 {
+    this->line = line;
 }
 BlockNode::~BlockNode()
 {
@@ -352,8 +353,8 @@ void BlockNode::findReturnStmts(std::vector<Node *> &stmts)
 ContainerNode::ContainerNode(std::string name, std::vector<std::unique_ptr<Node>> body, int line)
 {
     this->name = name;
-    this->line = line;
     this->body = std::move(body);
+    this->line = line;
 
     for (const std::unique_ptr<Node> &node : this->body)
     {
@@ -469,10 +470,11 @@ void ContainerNode::checkSemantics(SemanticsInfo &semanticsInfo)
     semanticsInfo.addSymbol(semanticsInfo.getVisibleScope()[0], std::move(container));
 }
 
-IfStmtNode::IfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body)
+IfStmtNode::IfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body, int line)
 {
     this->condition = std::move(condition);
     this->body = std::move(body);
+    this->line = line;
 }
 IfStmtNode::~IfStmtNode()
 {
@@ -565,10 +567,11 @@ void IfStmtNode::findReturnStmts(std::vector<Node *> &stmts)
     }
 }
 
-ElseIfStmtNode::ElseIfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body)
+ElseIfStmtNode::ElseIfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body, int line)
 {
     this->condition = std::move(condition);
     this->body = std::move(body);
+    this->line = line;
 }
 ElseIfStmtNode::~ElseIfStmtNode()
 {
@@ -638,8 +641,8 @@ void ElseIfStmtNode::checkSemantics(SemanticsInfo &semanticsInfo)
     for (std::unique_ptr<Node> &stmtNode : body->getStatements())
         stmtNode->checkSemantics(semanticsInfo);
 
-    semanticsInfo.removeVisibleScope();
     semanticsInfo.removeScope();
+    semanticsInfo.removeVisibleScope();
 }
 void ElseIfStmtNode::findReturnStmts(std::vector<Node *> &stmts)
 {
@@ -658,9 +661,10 @@ void ElseIfStmtNode::findReturnStmts(std::vector<Node *> &stmts)
     }
 }
 
-ElseStmtNode::ElseStmtNode(std::unique_ptr<BlockNode> &body)
+ElseStmtNode::ElseStmtNode(std::unique_ptr<BlockNode> &body, int line)
 {
     this->body = std::move(body);
+    this->line = line;
 }
 ElseStmtNode::~ElseStmtNode()
 {
@@ -735,9 +739,10 @@ void ElseStmtNode::findReturnStmts(std::vector<Node *> &stmts)
 }
 
 int BranchBlockNode::numIfStmt = 0;
-BranchBlockNode::BranchBlockNode()
+BranchBlockNode::BranchBlockNode(int line)
 {
-    branches = std::make_unique<BlockNode>();
+    this->line = line;
+    branches = std::make_unique<BlockNode>(line);
 }
 
 BranchBlockNode::~BranchBlockNode()
@@ -867,10 +872,11 @@ void BranchBlockNode::findReturnStmts(std::vector<Node *> &stmts)
 }
 
 int WhileNode::numWhileStmt = 0;
-WhileNode::WhileNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body)
+WhileNode::WhileNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body, int line)
 {
     this->condition = std::move(condition);
     this->body = std::move(body);
+    this->line = line;
 }
 WhileNode::~WhileNode()
 {
