@@ -1,4 +1,4 @@
-container Point:
+bundle Point:
     int x
 
     Point()

@@ -47,8 +47,8 @@ std::string getDataTypeStr(const std::string &str)
         return "decimal";
     if (str == "BOOLTYPE")
         return "bool";
-    if (str == "VAR")
-        return "var";
+    if (str == "INFER")
+        return "infer";
 
     return str;
 }
@@ -371,8 +371,8 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
         if (auto *func = dynamic_cast<FuncNode *>(child.get()))
             func->addSignatureToTable(semanticsInfo, false);
 
-        if (auto *container = dynamic_cast<ContainerNode *>(child.get()))
-            container->checkSemantics(semanticsInfo);
+        if (auto *bundle = dynamic_cast<BundleNode *>(child.get()))
+            bundle->checkSemantics(semanticsInfo);
 
         if (auto *block = dynamic_cast<BlockNode *>(child.get()))
         {
@@ -401,7 +401,7 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
                 continue;
             }
 
-            if (dynamic_cast<FuncSymbol *>(raw) || dynamic_cast<ContainerSymbol *>(raw))
+            if (dynamic_cast<FuncSymbol *>(raw) || dynamic_cast<BundleSymbol *>(raw))
                 it = symbols.erase(it);
             else
                 ++it;
@@ -419,8 +419,8 @@ void RootNode::checkSemantics(SemanticsInfo &semanticsInfo)
             }
         }
 
-        if (auto *container = dynamic_cast<ContainerNode *>(child.get()))
-            container->checkSemantics(semanticsInfo);
+        if (auto *bundle = dynamic_cast<BundleNode *>(child.get()))
+            bundle->checkSemantics(semanticsInfo);
 
         if (auto *func = dynamic_cast<FuncNode *>(child.get()))
             func->checkSemantics(semanticsInfo);
@@ -638,8 +638,8 @@ IdentifierNode::IdentifierNode(std::string name, std::string type, int line)
         this->type = "DECIMALTYPE";
     else if (type == "bool")
         this->type = "BOOLTYPE";
-    else if (type == "var")
-        this->type = "VAR";
+    else if (type == "infer")
+        this->type = "INFER";
     else
         this->type = type;
 }

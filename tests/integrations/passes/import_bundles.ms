@@ -1,4 +1,4 @@
-// import modules.math_lib as Math
+// bring modules.math_lib as Math
 
 // func main() -> int:
 //     Math::Vector v1 = Math::Vector(3, 4)

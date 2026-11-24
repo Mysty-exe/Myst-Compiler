@@ -13,7 +13,7 @@ class AbstractSyntaxTree
 {
 private:
     std::vector<std::unique_ptr<ImportNode>> importNodes;
-    std::vector<std::string> containers;
+    std::vector<std::string> bundles;
     std::unordered_map<std::string, Scope> symbolTable;
     std::unordered_map<std::string, std::unordered_map<std::string, Scope>> prefixSymbols;
     std::vector<std::string> prefixes, imports, exports;

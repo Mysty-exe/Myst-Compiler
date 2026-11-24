@@ -94,9 +94,9 @@ std::vector<int> CallExprNode::checkFuncArgs(SemanticsInfo &semanticsInfo, FuncS
     for (int k = 0; k < funcSymbol->getParameters().size(); k++)
     {
         std::string p = funcSymbol->getParameters()[k];
-        if (p.substr(0, 4) == "REF.")
+        if (p.substr(0, 7) == "BORROW.")
         {
-            p = p.substr(4);
+            p = p.substr(7);
 
             if (arguments[k]->inferType(semanticsInfo) == p)
                 result.push_back(0);
@@ -181,9 +181,9 @@ void CallExprNode::checkCallExprInScope(Scope &scope, SemanticsInfo &semanticsIn
                 continue;
         }
 
-        if (symbol->getType() == "CONTAINER" && symbol->getName() == name)
+        if (symbol->getType() == "BUNDLE" && symbol->getName() == name)
         {
-            auto *derivedSymbol = static_cast<ContainerSymbol *>(symbol.get());
+            auto *derivedSymbol = static_cast<BundleSymbol *>(symbol.get());
             for (std::unique_ptr<FuncSymbol> &func : derivedSymbol->getFunctions())
             {
                 auto *derivedFuncSymbol = static_cast<FuncSymbol *>(func.get());
@@ -276,7 +276,7 @@ bool CallExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &ty
                 for (int j = 1; j < Token::builtInFunctions[i].size(); j++)
                 {
                     std::string currentType = arguments[j - 1]->inferType(semanticsInfo);
-                    if ((Token::builtInFunctions[i][j] == "var" || Token::builtInFunctions[i][j] == currentType))
+                    if ((Token::builtInFunctions[i][j] == "infer" || Token::builtInFunctions[i][j] == currentType))
                     {
                         argTypes.push_back(currentType);
                         continue;
@@ -369,7 +369,7 @@ std::string CallExprNode::inferType(SemanticsInfo &semanticsInfo)
                 returnType = symbol->getDataType();
                 return symbol->getDataType();
             }
-            if (symbol->getType() == "CONTAINER" && symbol->getName() == name && symbol->isExported())
+            if (symbol->getType() == "BUNDLE" && symbol->getName() == name && symbol->isExported())
             {
                 returnType = symbol->getName();
                 return symbol->getName();
@@ -390,7 +390,7 @@ std::string CallExprNode::inferType(SemanticsInfo &semanticsInfo)
                 returnType = symbol->getDataType();
                 return symbol->getDataType();
             }
-            if (symbol->getType() == "CONTAINER" && symbol->getName() == name)
+            if (symbol->getType() == "BUNDLE" && symbol->getName() == name)
             {
                 returnType = symbol->getName();
                 return symbol->getName();
@@ -492,7 +492,7 @@ void CallExprNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std
     std::vector<std::string> args;
     for (int i = 0; i < arguments.size(); i++)
     {
-        bool isRef = argTypes[i].substr(0, 4) == "REF.";
+        bool isRef = argTypes[i].substr(0, 7) == "BORROW.";
         if (!isRef)
         {
             std::string callArg = ".callarg_" + std::to_string(llvmInfo.getNextTempVar());
@@ -565,7 +565,7 @@ void CallExprNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std
 
         for (int i = 0; i < args.size(); i++)
         {
-            if (argTypes[i].substr(0, 4) == "REF.")
+            if (argTypes[i].substr(0, 7) == "BORROW.")
             {
                 if (i == args.size() - 1)
                     ir += "ptr " + args[i];
@@ -632,8 +632,8 @@ void AssignNode::checkSemantics(SemanticsInfo &semanticsInfo)
         auto &scope = semanticsInfo.getScope(visibleScope);
         for (const std::unique_ptr<Symbol> &symbol : scope.getSymbols())
         {
-            if (symbol->getType() == "CONTAINER" && symbol->getName() == identifier->getName())
-                throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a container.");
+            if (symbol->getType() == "BUNDLE" && symbol->getName() == identifier->getName())
+                throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a bundle.");
 
             if (symbol->getType() == "VAR" && symbol->getName() == identifier->getName() && !(semanticsInfo.getVisibleScope().size() > 1))
                 throwSemanticError(line, "'" + identifier->getName() + "' has already been declared.");
@@ -642,7 +642,7 @@ void AssignNode::checkSemantics(SemanticsInfo &semanticsInfo)
                 throwSemanticError(line, "'" + identifier->getName() + "' has already been declared as a function.");
         }
 
-        if (identifier->getType() == "VAR")
+        if (identifier->getType() == "INFER")
         {
             std::string t = value->inferType(semanticsInfo);
             identifier->setType(t);
@@ -775,24 +775,24 @@ bool ReturnStmtNode::returnValueInPath()
     return true;
 }
 
-BreakNode::BreakNode(int line)
+StopNode::StopNode(int line)
 {
     this->line = line;
     currentWhileStmt = 0;
 }
-BreakNode::~BreakNode()
+StopNode::~StopNode()
 {
 }
-void BreakNode::setCurrentWhile(int currentStmt)
+void StopNode::setCurrentWhile(int currentStmt)
 {
     currentWhileStmt = currentStmt;
 }
-void BreakNode::print(int depth) const
+void StopNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
     std::cout << depthTabs << "Break Statement\n";
 }
-void BreakNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix)
+void StopNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
     ir += "br label %while_end_" + std::to_string(currentWhileStmt) + "\n";
 }

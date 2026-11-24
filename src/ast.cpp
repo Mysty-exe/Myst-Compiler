@@ -366,7 +366,7 @@ std::vector<std::vector<std::string>> AbstractSyntaxTree::getFunctionInformation
         }
         else
         {
-            if (tokenLine[i].getToken() == "IDENTIFIER" || tokenLine[i].getToken() == "REF" || isDataType(tokenLine[i].getToken()))
+            if (tokenLine[i].getToken() == "IDENTIFIER" || tokenLine[i].getToken() == "BORROW" || isDataType(tokenLine[i].getToken()))
                 currentParam.push_back(tokenLine[i].getValue());
             else
                 throwSyntaxError(tokenLine[arrowIndex + 1].getLineNumber(), "Unexpected idenifier '" + tokenLine[i].getValue() + "' used in the function parameters.");
@@ -519,7 +519,7 @@ std::unique_ptr<CallExprNode> AbstractSyntaxTree::buildCallExpr(const std::vecto
             arguments.push_back(buildIdentifier(line, startArg, end - 1));
 
         std::string name = (callExpr) ? line[start].getValue() : line[start + 2].getValue();
-        bool inContainer = std::find(containers.begin(), containers.end(), name) != containers.end();
+        bool inContainer = std::find(bundles.begin(), bundles.end(), name) != bundles.end();
         std::unique_ptr<CallExprNode> callExpression = std::make_unique<CallExprNode>(name, arguments, line[start].getLineNumber());
 
         if (importedCallExpr)
@@ -744,7 +744,7 @@ std::unique_ptr<AssignNode> AbstractSyntaxTree::getAssignStatement(int index, co
 
     std::string type = splitLine(tokens[line], tabs, index - 2);
     std::string typeName = tokens[line][index - 2].getToken();
-    if (type != "" && !isDataType(typeName) && typeName != "VAR" && typeName != "IDENTIFIER")
+    if (type != "" && !isDataType(typeName) && typeName != "INFER" && typeName != "IDENTIFIER")
         throwSyntaxError(tokens[line][0].getLineNumber(), "Unexpected type used for variable '" + tokens[line][index - 1].getValue() + "'.");
 
     std::unique_ptr<Node> value = buildIdentifier(tokens[line], index + 1, tokens[line].size() - 2);
@@ -796,7 +796,7 @@ std::unique_ptr<AssignNode> AbstractSyntaxTree::getOperatorAssignStatement(int i
 
 std::vector<std::unique_ptr<Node>> AbstractSyntaxTree::buildContainer(const std::string &name, const std::vector<std::vector<Token>> &tokens, int &startLine, int expectedIndent)
 {
-    containers.push_back(name);
+    bundles.push_back(name);
 
     std::vector<std::unique_ptr<Node>> body;
     for (int line = startLine; line < tokens.size(); line++)
@@ -870,12 +870,12 @@ std::vector<std::unique_ptr<Node>> AbstractSyntaxTree::buildContainer(const std:
                     if (onComma)
                         onComma = false;
                     else
-                        throwSyntaxError(line + 1, "Variables couldn't be parsed in container.");
+                        throwSyntaxError(line + 1, "Variables couldn't be parsed in bundle.");
                 }
                 if (tokens[line][token].getToken() == "IDENTIFIER")
                 {
                     if (onComma)
-                        throwSyntaxError(line + 1, "Variables couldn't be parsed in container.");
+                        throwSyntaxError(line + 1, "Variables couldn't be parsed in bundle.");
                     else
                     {
                         body.push_back(std::make_unique<IdentifierNode>(tokens[line][token].getValue(), type, line + 1));
@@ -885,7 +885,7 @@ std::vector<std::unique_ptr<Node>> AbstractSyntaxTree::buildContainer(const std:
             }
 
             if (!onComma)
-                throwSyntaxError(line + 1, "Variables couldn't be parsed in container.");
+                throwSyntaxError(line + 1, "Variables couldn't be parsed in bundle.");
         }
 
         startLine = line;
@@ -904,7 +904,7 @@ std::unique_ptr<BlockNode> AbstractSyntaxTree::buildBlock(const std::vector<std:
         if (!isValidLine(tokens[line]))
             continue;
 
-        if (getNthToken(tokens[line], 1).getToken() == "IMPORT")
+        if (getNthToken(tokens[line], 1).getToken() == "BRING")
             throwSyntaxError(line + 1, "Import Statements must be declared at the top of the file.");
 
         int currentIndent = getNumTabs(tokens[line]);
@@ -914,7 +914,7 @@ std::unique_ptr<BlockNode> AbstractSyntaxTree::buildBlock(const std::vector<std:
             return blockNode;
         }
 
-        if (getNthToken(tokens[line], 1).getToken() == "CONTAINER")
+        if (getNthToken(tokens[line], 1).getToken() == "BUNDLE")
         {
             if (inFunction)
                 throwSyntaxError(line + 1, "Container can't be defined in a function.");
@@ -937,7 +937,7 @@ std::unique_ptr<BlockNode> AbstractSyntaxTree::buildBlock(const std::vector<std:
         int assignIndex = getTokenIndex(tokens[line], "ASSIGN");
         int operatorAssignIndex = getTokenIndex(tokens[line], {"PLUSASSIGN", "MINUSASSIGN", "STARASSIGN", "SLASHASSIGN", "EXPASSIGN"});
         int returnIndex = getTokenIndex(tokens[line], "RETURN");
-        int breakIndex = getTokenIndex(tokens[line], "BREAK");
+        int stopIndex = getTokenIndex(tokens[line], "STOP");
         int skipIndex = getTokenIndex(tokens[line], "SKIP");
 
         if (ifIndex != -1)
@@ -987,7 +987,7 @@ std::unique_ptr<BlockNode> AbstractSyntaxTree::buildBlock(const std::vector<std:
                 blockNode->addStatement(std::move(returnStmt));
             }
         }
-        else if (breakIndex != -1)
+        else if (stopIndex != -1)
         {
             if (!inLoop)
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'break' statement found outside of loop.");
@@ -995,7 +995,7 @@ std::unique_ptr<BlockNode> AbstractSyntaxTree::buildBlock(const std::vector<std:
                 throwSyntaxError(tokens[line][0].getLineNumber(), "'break' statement shouldn't have anything after it.");
             else
             {
-                std::unique_ptr<BreakNode> breakStmt = std::make_unique<BreakNode>(line + 1);
+                std::unique_ptr<StopNode> breakStmt = std::make_unique<StopNode>(line + 1);
                 blockNode->addStatement(std::move(breakStmt));
             }
         }
@@ -1092,7 +1092,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
 
         if (checkForExports)
         {
-            if (getNthToken(tokens[line], 1).getToken() == "EXPORT")
+            if (getNthToken(tokens[line], 1).getToken() == "EXPOSE")
             {
                 buildExports(tokens, line);
                 checkForExports = false;
@@ -1102,7 +1102,7 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
 
         if (checkForImports)
         {
-            if (getNthToken(tokens[line], 1).getToken() == "IMPORT")
+            if (getNthToken(tokens[line], 1).getToken() == "BRING")
             {
                 addImport(tokens, line);
                 continue;
@@ -1122,13 +1122,13 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
             }
         }
 
-        if (getNthToken(tokens[line], 1).getToken() == "CONTAINER")
+        if (getNthToken(tokens[line], 1).getToken() == "BUNDLE")
         {
             if (getNumValidTokens(tokens[line]) != 3)
-                throwSyntaxError(line + 1, "Couldn't parse container statement.");
+                throwSyntaxError(line + 1, "Couldn't parse bundle statement.");
 
             if (getNthToken(tokens[line], 2).getToken() != "IDENTIFIER" && getNthToken(tokens[line], 3).getToken() != "COLON")
-                throwSyntaxError(line + 1, "Couldn't parse container statement.");
+                throwSyntaxError(line + 1, "Couldn't parse bundle statement.");
 
             std::string name = getNthToken(tokens[line], 2).getValue();
             int origLine = line + 1;
@@ -1139,8 +1139,8 @@ void AbstractSyntaxTree::buildTree(const std::vector<std::vector<Token>> &tokens
             std::vector<std::unique_ptr<Node>> body = buildContainer(name, tokens, line, 1);
 
             line--;
-            auto container = std::make_unique<ContainerNode>(name, std::move(body), origLine);
-            root->addNode(std::move(container));
+            auto bundle = std::make_unique<BundleNode>(name, std::move(body), origLine);
+            root->addNode(std::move(bundle));
 
             continue;
         }

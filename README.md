@@ -23,7 +23,7 @@ func factorial(int n) -> int:
     return n * factorial(n - 1)
 
 
-var ans = factorial(5)
+infer ans = factorial(5)
 print(ans)
 
 // Expected output: 120

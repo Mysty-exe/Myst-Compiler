@@ -1,4 +1,4 @@
-func doubleInPlace(ref int target):
+func doubleInPlace(borrow int target):
     target = target * 2
 
 func main() -> int:

@@ -1,4 +1,4 @@
-export { SQUARE_FACTOR, computeSquare, isEven }
+expose { SQUARE_FACTOR, computeSquare, isEven }
 
 int SQUARE_FACTOR = 2
 

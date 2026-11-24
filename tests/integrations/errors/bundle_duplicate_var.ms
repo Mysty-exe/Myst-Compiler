@@ -1,2 +1,2 @@
-container Box:
+bundle Box:
     int width, width

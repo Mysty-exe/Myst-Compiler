@@ -108,19 +108,19 @@ TEST_CASE("Lexer correctly handles multi-line blocks, functions, and indentation
     REQUIRE(tokens[1][4].getValue() == "b");
 }
 
-// TEST_CASE("Lexer tokenizes containers and custom types", "[lexer]")
+// TEST_CASE("Lexer tokenizes bundles and custom types", "[lexer]")
 // {
 //     std::string source =
-//         "container Person:\n"
+//         "bundle Person:\n"
 //         "    int id\n"
 //         "    int age";
 
 //     lexer.tokenizeFile(source);
 //     auto tokens = lexer.getTokens();
 
-//     // Line 0: container Person:
+//     // Line 0: bundle Person:
 //     REQUIRE(tokens.size() >= 3);
-//     REQUIRE(tokens[0][0].getToken() == "CONTAINER");
+//     REQUIRE(tokens[0][0].getToken() == "BUNDLE");
 //     REQUIRE(tokens[0][1].getToken() == "IDENTIFIER");
 //     REQUIRE(tokens[0][1].getValue() == "Person");
 //     REQUIRE(tokens[0][2].getToken() == "COLON");
@@ -139,7 +139,7 @@ TEST_CASE("Lexer correctly handles multi-line blocks, functions, and indentation
 TEST_CASE("Lexer handles reference parameters in function signatures", "[lexer]")
 {
     std::string source =
-        "func increment(ref int val):\n"
+        "func increment(borrow int val):\n"
         "    val = val + 1";
 
     lexer.tokenizeFile(source);
@@ -151,7 +151,7 @@ TEST_CASE("Lexer handles reference parameters in function signatures", "[lexer]"
     REQUIRE(tokens[0][1].getToken() == "IDENTIFIER");
     REQUIRE(tokens[0][1].getValue() == "increment");
     REQUIRE(tokens[0][2].getToken() == "LPAREN");
-    REQUIRE(tokens[0][3].getToken() == "REF");
+    REQUIRE(tokens[0][3].getToken() == "BORROW");
     REQUIRE(tokens[0][4].getToken() == "INTTYPE");
     REQUIRE(tokens[0][5].getToken() == "IDENTIFIER");
     REQUIRE(tokens[0][5].getValue() == "val");
@@ -212,18 +212,18 @@ TEST_CASE("Lexer tokenizes nested module scoping with double colon operator", "[
     REQUIRE(tokens[0][7].getValue() == "Vector");
 }
 
-TEST_CASE("Lexer tokenizes module exports and import statements with aliases", "[lexer]")
+TEST_CASE("Lexer tokenizes module exposes and bring statements with aliases", "[lexer]")
 {
     std::string source =
-        "export { Vector, scale }\n"
-        "import math.geometry as Geo";
+        "expose { Vector, scale }\n"
+        "bring math.geometry as Geo";
 
     lexer.tokenizeFile(source);
     auto tokens = lexer.getTokens();
 
     REQUIRE(tokens.size() >= 2);
-    // Line 0: export { Vector, scale }
-    REQUIRE(tokens[0][0].getToken() == "EXPORT");
+    // Line 0: expose { Vector, scale }
+    REQUIRE(tokens[0][0].getToken() == "EXPOSE");
     REQUIRE(tokens[0][1].getToken() == "LCURLYBRACKET");
     REQUIRE(tokens[0][2].getToken() == "IDENTIFIER");
     REQUIRE(tokens[0][2].getValue() == "Vector");
@@ -232,8 +232,8 @@ TEST_CASE("Lexer tokenizes module exports and import statements with aliases", "
     REQUIRE(tokens[0][4].getValue() == "scale");
     REQUIRE(tokens[0][5].getToken() == "RCURLYBRACKET");
 
-    // Line 1: import math.geometry as Geo
-    REQUIRE(tokens[1][0].getToken() == "IMPORT");
+    // Line 1: bring math.geometry as Geo
+    REQUIRE(tokens[1][0].getToken() == "BRING");
     REQUIRE(tokens[1][1].getToken() == "MODULE");
     REQUIRE(tokens[1][1].getValue() == "math.geometry");
     REQUIRE(tokens[1][2].getToken() == "AS");
@@ -300,15 +300,15 @@ TEST_CASE("Lexer tokenizes complex boolean logic with unary negation and compari
     REQUIRE(tokens[0][13].getToken() == "RPAREN");
 }
 
-TEST_CASE("Lexer handles type inference via 'var' keyword", "[lexer]")
+TEST_CASE("Lexer handles type inference via 'infer' keyword", "[lexer]")
 {
-    std::string source = "var inferredVal = -99.9";
+    std::string source = "infer inferredVal = -99.9";
 
     lexer.tokenizeFile(source);
     auto tokens = lexer.getTokens();
 
     REQUIRE(tokens.size() >= 1);
-    REQUIRE(tokens[0][0].getToken() == "VAR");
+    REQUIRE(tokens[0][0].getToken() == "INFER");
     REQUIRE(tokens[0][1].getToken() == "IDENTIFIER");
     REQUIRE(tokens[0][1].getValue() == "inferredVal");
     REQUIRE(tokens[0][2].getToken() == "ASSIGN");
@@ -316,7 +316,7 @@ TEST_CASE("Lexer handles type inference via 'var' keyword", "[lexer]")
     REQUIRE(tokens[0][3].getValue() == "-99.9");
 }
 
-TEST_CASE("Lexer tokenizes container field accesses and mutations", "[lexer]")
+TEST_CASE("Lexer tokenizes bundle field accesses and mutations", "[lexer]")
 {
     std::string source =
         "Person p = Person(1, 30)\n"

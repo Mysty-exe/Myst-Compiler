@@ -1,4 +1,4 @@
-container NotAClass:
+bundle NotAClass:
     int x, y
 
     NotAClass() -> int:

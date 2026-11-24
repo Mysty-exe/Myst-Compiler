@@ -417,7 +417,7 @@ public:
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
-struct ContainerNode : Node
+struct BundleNode : Node
 {
 private:
     std::string name;
@@ -426,8 +426,8 @@ private:
     std::vector<std::unique_ptr<Node>> body;
 
 public:
-    ContainerNode(std::string name, std::vector<std::unique_ptr<Node>> body, int line);
-    ~ContainerNode() override;
+    BundleNode(std::string name, std::vector<std::unique_ptr<Node>> body, int line);
+    ~BundleNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
 };
@@ -523,14 +523,14 @@ public:
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
 };
 
-struct BreakNode : Node
+struct StopNode : Node
 {
 private:
     int currentWhileStmt;
 
 public:
-    BreakNode(int line);
-    ~BreakNode() override;
+    StopNode(int line);
+    ~StopNode() override;
     void setCurrentWhile(int currentStmt);
     virtual void print(int depth = 0) const override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;

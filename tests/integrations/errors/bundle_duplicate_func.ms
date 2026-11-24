@@ -1,4 +1,4 @@
-container MathOps:
+bundle MathOps:
     MathOps()
     
     calc(x: int):

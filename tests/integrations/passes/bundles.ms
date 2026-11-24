@@ -1,4 +1,4 @@
-// container Person:
+// bundle Person:
 //     int id
 //     int age
 //     decimal salary

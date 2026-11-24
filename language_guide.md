@@ -14,15 +14,15 @@ Myst supports standard primitive types aligned directly with LLVM's underlying p
 
 ### Variable Declarations
 
-- Use **`var`** only when you want the compiler to infer the type from the assigned value.
-- If you explicitly state the type, **`var` is omitted entirely**.
+- Use **`infer`** only when you want the compiler to infer the type from the assigned value.
+- If you explicitly state the type, **`infer` is omitted entirely**.
 - No semicolons are required at the end of lines.
 
 ```myst
 // Compiler infers the type
-var inferredInt = 45
+infer inferredInt = 45
 
-// Explicit type declaration (no 'var' needed)
+// Explicit type declaration (no 'infer' needed)
 int explicitInt = 45
 decimal y = 342.3
 char c = 'c'
@@ -63,7 +63,7 @@ func checkNumber(int x):
 
 ## 3. Top-Level Execution (No `main` Required)
 
-Unlike traditional systems languages like C or C++, **Myst does not require a `main()` function**. 
+Unlike traditional systems languages like C or C++, **Myst does not require a `main()` function**.
 
 Myst supports **top-level execution** out of the box. Code written at the root level of a file executes sequentially from top to bottom on startup. This gives Myst a clean, modern feel suitable for both scripting and building large systems modules without boilerplate entry-point wrappers.
 
@@ -81,10 +81,10 @@ print(x + y)
 Because Myst is a systems language without a garbage collector, managing how data is passed into functions is critical for performance:
 
 - **Pass by Value:** By default, primitive types and small data structures are copied when passed into functions.
-- **Pass by Reference (`ref`):** Placed **before the data type** in parameter lists to allow functions to mutate the caller's data directly without copying.
+- **Pass by Reference (`borrow`):** Placed **before the data type** in parameter lists to allow functions to mutate the caller's data directly without copying.
 
 ```myst
-func increment(ref int val):
+func increment(borrow int val):
     val = val + 1
 ```
 
@@ -92,10 +92,10 @@ func increment(ref int val):
 
 ## 5. Custom Types (Containers)
 
-Custom data aggregates in Myst are called **containers** and are defined by ending the declaration header with a **colon (`:`)**. Under the hood, these map directly to LLVM identified structs with strict hardware alignment and padding rules.
+Custom data aggregates in Myst are called **bundles** and are defined by ending the declaration header with a **colon (`:`)**. Under the hood, these map directly to LLVM identified structs with strict hardware alignment and padding rules.
 
 ```myst
-container Person:
+bundle Person:
     int id
     int age
     int tier
@@ -105,7 +105,7 @@ container Person:
 
 ### Creating and Using Instances
 
-You can instantiate containers using their constructor and access or mutate their fields directly.
+You can instantiate bundles using their constructor and access or mutate their fields directly.
 
 ```myst
 Person p = Person(1, 30, 3, 'A', '1')
@@ -125,9 +125,9 @@ Exports happen strictly **at the very beginning of the file**, explicitly exposi
 
 ```myst
 // math.myst
-export { Vector, scale }
+expose { Vector, scale }
 
-container Vector:
+bundle Vector:
     int x
     int y
 
@@ -141,7 +141,7 @@ Other files import functionality using dot notation at the top of the file.
 
 ```myst
 // main.myst
-import math as M
+bring math as M
 
 M::Vector v = M::Vector(10, 20)
 M::Vector scaled = M::scale(v, 2)

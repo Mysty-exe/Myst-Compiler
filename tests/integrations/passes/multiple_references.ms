@@ -1,4 +1,4 @@
-func swap(ref int a, ref int b):
+func swap(borrow int a, borrow int b):
     int temp = a
     a = b
     b = temp

@@ -1,3 +1,3 @@
 while true:
-    break
+    stop
     int x = 5

@@ -48,8 +48,8 @@ bool validNumber(const std::string &number)
 
 // Constants
 const std::vector<std::string> Token::reservedFunctions = {"__main__"};
-const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "var"}, {"print", "var", "CHARTYPE"}, {"input"}, {"exit", "INTTYPE"}};
-const std::vector<std::string> Token::keywords = {"import", "export", "as", "ref", "func", "ref", "var", "if", "elseif", "while", "break", "skip", "return", "and", "or", "not"};
+const std::vector<std::vector<std::string>> Token::builtInFunctions = {{"print", "infer"}, {"print", "infer", "CHARTYPE"}, {"input"}, {"exit", "INTTYPE"}};
+const std::vector<std::string> Token::keywords = {"bring", "expose", "as", "borrow", "func", "borrow", "infer", "if", "elseif", "while", "stop", "skip", "return", "and", "or", "not"};
 const std::vector<std::string> Token::dataTypes = {"string", "char", "int", "decimal", "bool"};
 const std::vector<std::string> Token::operators = {"+", "-", "*", "/", "%", "^", "<", ">", "!", "==", "!=", "<=", ">=", "->", "&&", "||", "and", "or", "not"};
 const std::vector<std::string> Token::oneCharOperators = {"=", "+", "-", "*", "/", "%", "^", ":", "<", ">", "(", ")", "{", "}", ",", ".", "!"};
@@ -116,22 +116,22 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::DECIMALTYPE;
     else if (value == "bool")
         type = TokenType::BOOLTYPE;
-    else if (value == "container")
-        type = TokenType::CONTAINER;
-    else if (value == "import")
-        type = TokenType::IMPORT;
+    else if (value == "bundle")
+        type = TokenType::BUNDLE;
+    else if (value == "bring")
+        type = TokenType::BRING;
     else if (value == "as")
         type = TokenType::AS;
-    else if (value == "export")
-        type = TokenType::EXPORT;
+    else if (value == "expose")
+        type = TokenType::EXPOSE;
     else if (value == "module")
         type = TokenType::MODULE;
     else if (value == "func")
         type = TokenType::FUNC;
-    else if (value == "ref")
-        type = TokenType::REF;
-    else if (value == "var")
-        type = TokenType::VAR;
+    else if (value == "borrow")
+        type = TokenType::BORROW;
+    else if (value == "infer")
+        type = TokenType::INFER;
     else if (value == "if")
         type = TokenType::IF;
     else if (value == "elseif")
@@ -142,8 +142,8 @@ Token::Token(std::string value, int line, int col)
         type = TokenType::WHILE;
     else if (value == "for")
         type = TokenType::FOR;
-    else if (value == "break")
-        type = TokenType::BREAK;
+    else if (value == "stop")
+        type = TokenType::STOP;
     else if (value == "skip")
         type = TokenType::SKIP;
     else if (value == "return")
@@ -262,22 +262,22 @@ std::string Token::getType(TokenType type)
         return "DECIMALTYPE";
     case TokenType::BOOLTYPE:
         return "BOOLTYPE";
-    case TokenType::CONTAINER:
-        return "CONTAINER";
-    case TokenType::IMPORT:
-        return "IMPORT";
-    case TokenType::EXPORT:
-        return "EXPORT";
+    case TokenType::BUNDLE:
+        return "BUNDLE";
+    case TokenType::BRING:
+        return "BRING";
+    case TokenType::EXPOSE:
+        return "EXPOSE";
     case TokenType::AS:
         return "AS";
     case TokenType::MODULE:
         return "MODULE";
     case TokenType::FUNC:
         return "FUNC";
-    case TokenType::REF:
-        return "REF";
-    case TokenType::VAR:
-        return "VAR";
+    case TokenType::BORROW:
+        return "BORROW";
+    case TokenType::INFER:
+        return "INFER";
     case TokenType::IF:
         return "IF";
     case TokenType::ELSEIF:
@@ -288,8 +288,8 @@ std::string Token::getType(TokenType type)
         return "WHILE";
     case TokenType::FOR:
         return "FOR";
-    case TokenType::BREAK:
-        return "BREAK";
+    case TokenType::STOP:
+        return "STOP";
     case TokenType::SKIP:
         return "SKIP";
     case TokenType::RETURN:
@@ -486,7 +486,7 @@ void Lexer::tokenizeLine(const std::string &line)
     int col = 0;
     addTabsInLine(line, lineNum + 1, col);
 
-    if (line.substr(0, 6) == "import")
+    if (line.substr(0, 5) == "bring")
         inImport = true;
 
     for (col; col < line.size(); col++)
@@ -521,13 +521,13 @@ void Lexer::tokenizeLine(const std::string &line)
             continue;
         }
 
-        // Check if import was in the line
+        // Check if bring was in the line
         if (inImport)
         {
             if (tokens[tokens.size() - 1].size() > 0)
             {
                 Token lastPushedToken = tokens[tokens.size() - 1][tokens[tokens.size() - 1].size() - 1];
-                if (lastPushedToken.getToken() == "IMPORT")
+                if (lastPushedToken.getToken() == "BRING")
                 {
                     currentToken += line[col];
                     continue;

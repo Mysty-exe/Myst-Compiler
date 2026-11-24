@@ -126,26 +126,26 @@ public:
     }
 };
 
-struct ContainerSymbol : Symbol
+struct BundleSymbol : Symbol
 {
 private:
     std::vector<std::unique_ptr<VarSymbol>> variables;
     std::vector<std::unique_ptr<FuncSymbol>> functions;
 
 public:
-    ContainerSymbol(int line, std::string name, std::vector<std::unique_ptr<VarSymbol>> &variables, std::vector<std::unique_ptr<FuncSymbol>> &funcs, bool used = true, std::string type = "") : Symbol(line, used, name, type)
+    BundleSymbol(int line, std::string name, std::vector<std::unique_ptr<VarSymbol>> &variables, std::vector<std::unique_ptr<FuncSymbol>> &funcs, bool used = true, std::string type = "") : Symbol(line, used, name, type)
     {
         this->variables = std::move(variables);
         this->functions = std::move(funcs);
     }
 
-    ~ContainerSymbol() override
+    ~BundleSymbol() override
     {
     }
 
     virtual std::string getType() override
     {
-        return "CONTAINER";
+        return "BUNDLE";
     }
 
     std::vector<std::unique_ptr<VarSymbol>> &getVariables()

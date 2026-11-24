@@ -1,2 +1,2 @@
-container Empty:
+bundle Empty:
     int x

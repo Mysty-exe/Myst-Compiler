@@ -1,4 +1,4 @@
-export { Vector, addVectors }
+expose { Vector, addVectors }
 
 container Vector:
     int x
