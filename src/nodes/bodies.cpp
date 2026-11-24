@@ -228,11 +228,20 @@ void FuncNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::st
     if (returnType == "")
         ir += "ret void\n";
 
-    if (ir[ir.size() - 2] == ':')
+    if (returnType != "" && !body->getStatements()[body->getNumStatements() - 1]->returnValueInPath())
         throwSemanticError(line, "Code Path without a Return Value Detected.");
 
-    if (returnType != "" && !dynamic_cast<ReturnStmtNode *>(body->getStatements()[body->getNumStatements() - 1].get()))
-        throwSemanticError(line, "Code Path without a Return Value Detected.");
+    if (ir[ir.size() - 2] == ':')
+    {
+        ir.pop_back();
+        for (int i = ir.size() - 1; i >= 0; i--)
+        {
+            if (ir[i] != '\n')
+                ir.pop_back();
+            else
+                break;
+        }
+    }
 
     ir += "}\n\n";
 
@@ -277,6 +286,10 @@ int BlockNode::getNumStatements() const
 std::vector<std::unique_ptr<Node>> &BlockNode::getStatements()
 {
     return statements;
+}
+bool BlockNode::returnValueInPath()
+{
+    return statements[statements.size() - 1]->returnValueInPath();
 }
 void BlockNode::print(int depth) const
 {
@@ -869,6 +882,15 @@ void BranchBlockNode::findReturnStmts(std::vector<Node *> &stmts)
     {
         branches->getStatements()[i]->findReturnStmts(stmts);
     }
+}
+bool BranchBlockNode::returnValueInPath()
+{
+    if (dynamic_cast<ElseStmtNode *>(branches->getStatements()[branches->getStatements().size() - 1].get()))
+    {
+        return true;
+    }
+
+    return false;
 }
 
 int WhileNode::numWhileStmt = 0;

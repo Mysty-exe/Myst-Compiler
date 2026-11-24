@@ -770,6 +770,10 @@ void ReturnStmtNode::findReturnStmts(std::vector<Node *> &stmts)
 {
     stmts.push_back(this);
 }
+bool ReturnStmtNode::returnValueInPath()
+{
+    return true;
+}
 
 BreakNode::BreakNode(int line)
 {

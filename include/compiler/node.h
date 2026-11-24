@@ -153,6 +153,7 @@ public:
     virtual void storeValue(std::string &ir, std::string &newType, const std::string &assignmentName, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "");
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "");
     virtual void findReturnStmts(std::vector<Node *> &stmts);
+    virtual bool returnValueInPath();
     virtual void print(int depth = 0) const = 0;
     int getLine() const;
     void setLine(int line);
@@ -352,6 +353,7 @@ public:
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual bool returnValueInPath();
     virtual void print(int depth = 0) const override;
 };
 
@@ -372,6 +374,7 @@ public:
     void mapImportsToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::vector<std::string> imports);
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual bool returnValueInPath();
     virtual void print(int depth = 0) const override;
 };
 
@@ -497,6 +500,7 @@ public:
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
     virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global = false, std::string prefix = "") override;
     virtual void findReturnStmts(std::vector<Node *> &stmts) override;
+    virtual bool returnValueInPath();
 };
 
 struct WhileNode : Node

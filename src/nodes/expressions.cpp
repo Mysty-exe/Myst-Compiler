@@ -80,6 +80,7 @@ void BinaryExprNode::lookForCallExprs(SemanticsInfo &semanticsInfo)
 }
 bool BinaryExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &type)
 {
+    std::string leftType = left->inferType(semanticsInfo), rightType = right->inferType(semanticsInfo);
     if ((op == "and" || op == "or" || op == "&&" || op == "||" || op == ">" || op == "<" || op == ">=" || op == "<=") && type != "BOOLTYPE")
     {
         throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
@@ -88,8 +89,7 @@ bool BinaryExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &
 
     if (op == ">" || op == "<" || op == ">=" || op == "<=")
     {
-        std::string leftSide = left->inferType(semanticsInfo), rightSide = right->inferType(semanticsInfo);
-        if (!((leftSide == "INTTYPE" || leftSide == "DECIMALTYPE") && (rightSide == "INTTYPE" || rightSide == "DECIMALTYPE")))
+        if (!((leftType == "INTTYPE" || leftType == "DECIMALTYPE") && (rightType == "INTTYPE" || rightType == "DECIMALTYPE")))
         {
             throwSemanticError(line, "Unexpected types used with operator '" + op + "'.");
             return false;
@@ -98,18 +98,21 @@ bool BinaryExprNode::checkType(SemanticsInfo &semanticsInfo, const std::string &
 
     if (op == "==" || op == "!=")
     {
-        std::string leftSide = left->inferType(semanticsInfo), rightSide = right->inferType(semanticsInfo);
-        if (leftSide == "BOOLTYPE" || rightSide == "BOOLTYPE")
+        if (leftType == "BOOLTYPE" || rightType == "BOOLTYPE")
         {
-            if (leftSide != rightSide)
+            if (leftType != rightType)
                 throwSemanticError(line, "Can't compare these two types with operator '" + op + "'.");
         }
+
+        right->checkType(semanticsInfo, right->inferType(semanticsInfo));
+        left->checkType(semanticsInfo, left->inferType(semanticsInfo));
+    }
+    else
+    {
+        right->checkType(semanticsInfo, type);
+        left->checkType(semanticsInfo, type);
     }
 
-    right->checkType(semanticsInfo, type);
-    left->checkType(semanticsInfo, type);
-
-    std::string leftType = left->inferType(semanticsInfo), rightType = right->inferType(semanticsInfo);
     if (op == "and" || op == "or" || op == "&&" || op == "||" || op == ">" || op == "<" || op == ">=" || op == "<=" || op == "==" || op == "!=")
     {
         if (leftType == "DECIMALTYPE" || rightType == "DECIMALTYPE")

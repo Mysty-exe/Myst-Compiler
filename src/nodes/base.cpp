@@ -294,6 +294,10 @@ void Node::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string
 void Node::findReturnStmts(std::vector<Node *> &stmts)
 {
 }
+bool Node::returnValueInPath()
+{
+    return false;
+}
 
 std::string RootNode::currentFile = "";
 RootNode::RootNode()
@@ -759,7 +763,6 @@ std::string IdentifierNode::inferType(SemanticsInfo &semanticsInfo)
         }
     }
 
-    std::cout << name << std::endl;
     throwSemanticError(line, "'" + name + "' hasn't been declared.");
     return "";
 }
