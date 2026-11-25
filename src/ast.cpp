@@ -488,17 +488,48 @@ std::unique_ptr<Node> AbstractSyntaxTree::buildLiteral(const std::vector<Token> 
 
 std::unique_ptr<CallExprNode> AbstractSyntaxTree::buildCallExpr(const std::vector<Token> &line, int start, int end)
 {
-    bool callExpr = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
-    bool importedCallExpr = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "DOUBLECOLON" && line[start + 2].getToken() == "IDENTIFIER" && line[start + 3].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
-
-    if (callExpr || importedCallExpr)
+    if (line[start].getToken() == "IDENTIFIER" && line[end].getToken() == "RPAREN")
     {
+        bool callExpr = line[start + 1].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
+        bool importedCallExpr = line[start + 1].getToken() == "DOUBLECOLON" && line[start + 2].getToken() == "IDENTIFIER" && line[start + 3].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
+        bool bundleCallExpr = line[start + 1].getToken() == "DOT" && line[start + 2].getToken() == "IDENTIFIER" && line[start + 3].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
+        bool importedbundleCallExpr = line[start + 1].getToken() == "DOUBLECOLON" && line[start + 2].getToken() == "IDENTIFIER" && line[start + 3].getToken() == "DOT" && line[start + 4].getToken() == "IDENTIFIER" && line[start + 5].getToken() == "LPAREN" && line[end].getToken() == "RPAREN";
+
         std::vector<std::unique_ptr<Node>> arguments;
         int startArg = 0, lparen = 0, rparen = 0;
+        std::string bundle = "", module = "", name = "";
+        bool imported = false;
         if (callExpr)
+        {
+            name = line[start].getValue();
             startArg = start + 2;
-        else
+        }
+        else if (importedCallExpr)
+        {
+            name = line[start + 2].getValue();
             startArg = start + 4;
+            module = line[start].getValue();
+            imported = true;
+        }
+        else if (bundleCallExpr)
+        {
+            bundle = line[start].getValue();
+            name = line[start + 2].getValue();
+            startArg = start + 4;
+        }
+        else if (importedbundleCallExpr)
+        {
+            module = line[start].getValue();
+            bundle = line[start + 2].getValue();
+            name = line[start + 4].getValue();
+            startArg = start + 6;
+            imported = true;
+        }
+        else
+        {
+            throwSyntaxError(line[0].getLineNumber(), "Line couldn't be parsed.");
+            return nullptr;
+        }
 
         for (int i = startArg; i <= end - 1; i++)
         {
@@ -518,12 +549,13 @@ std::unique_ptr<CallExprNode> AbstractSyntaxTree::buildCallExpr(const std::vecto
         if (startArg <= end - 1)
             arguments.push_back(buildIdentifier(line, startArg, end - 1));
 
-        std::string name = (callExpr) ? line[start].getValue() : line[start + 2].getValue();
-        bool inContainer = std::find(bundles.begin(), bundles.end(), name) != bundles.end();
         std::unique_ptr<CallExprNode> callExpression = std::make_unique<CallExprNode>(name, arguments, line[start].getLineNumber());
 
-        if (importedCallExpr)
-            callExpression->setImported(line[start].getValue());
+        if (imported)
+            callExpression->setImported(module);
+
+        if (bundle != "")
+            callExpression->setBundle(bundle);
 
         return callExpression;
     }
@@ -616,13 +648,42 @@ std::unique_ptr<Node> AbstractSyntaxTree::buildIdentifier(const std::vector<Toke
         if (line[start].getToken() == "LPAREN" && line[end].getToken() == "RPAREN")
             return buildIdentifier(line, start + 1, end - 1);
 
-        bool importedIdentifier = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "DOUBLECOLON" && line[end].getToken() == "IDENTIFIER";
-
-        if (importedIdentifier)
+        bool imported = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "DOUBLECOLON";
+        if (imported)
         {
-            std::unique_ptr<IdentifierNode> identifier = std::make_unique<IdentifierNode>(line[start + 2].getValue(), line[start].getLineNumber());
-            identifier->setImported(line[start].getValue());
-            return identifier;
+            if (line[start + 2].getToken() == "IDENTIFIER")
+            {
+                if (line[start + 3].getToken() == "DOT" && line[start + 4].getToken() == "IDENTIFIER")
+                {
+                    std::unique_ptr<IdentifierNode> identifier = std::make_unique<IdentifierNode>(line[start + 4].getValue(), line[start].getLineNumber());
+                    identifier->setBundle(line[start + 2].getValue());
+                    identifier->setImported(line[start].getValue());
+                    return identifier;
+                }
+                else
+                {
+                    std::unique_ptr<IdentifierNode> identifier = std::make_unique<IdentifierNode>(line[start + 2].getValue(), line[start].getLineNumber());
+                    identifier->setImported(line[start].getValue());
+                    return identifier;
+                }
+            }
+        }
+        else
+        {
+            if (line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() != "LPAREN")
+            {
+                if (line[start + 1].getToken() == "DOT" && line[start + 2].getToken() == "IDENTIFIER")
+                {
+                    std::unique_ptr<IdentifierNode> identifier = std::make_unique<IdentifierNode>(line[start + 2].getValue(), line[start].getLineNumber());
+                    identifier->setBundle(line[start].getValue());
+                    return identifier;
+                }
+                else
+                {
+                    std::unique_ptr<IdentifierNode> identifier = std::make_unique<IdentifierNode>(line[start + 2].getValue(), line[start].getLineNumber());
+                    return identifier;
+                }
+            }
         }
 
         return buildCallExpr(line, start, end);

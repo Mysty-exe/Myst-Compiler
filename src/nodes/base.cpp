@@ -662,6 +662,10 @@ void IdentifierNode::setType(std::string type)
 {
     this->type = type;
 }
+void IdentifierNode::setBundle(std::string bundle)
+{
+    this->bundle = bundle;
+}
 std::string IdentifierNode::getModName() const
 {
     return modName;

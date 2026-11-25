@@ -23,6 +23,10 @@ std::string CallExprNode::getModName() const
 {
     return modName;
 }
+void CallExprNode::setBundle(std::string bundle)
+{
+    this->bundle = bundle;
+}
 void CallExprNode::setImported(std::string modName)
 {
     imported = true;

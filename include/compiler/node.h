@@ -218,7 +218,7 @@ public:
 struct IdentifierNode : Node
 {
 private:
-    std::string name, modName, type;
+    std::string name, modName, type, bundle;
     bool imported;
 
 public:
@@ -229,6 +229,7 @@ public:
     std::string getType() const;
     void setName(std::string name);
     void setType(std::string type);
+    void setBundle(std::string bundle);
     std::string getModName() const;
     bool isImported();
     void setImported(std::string modName);
@@ -293,7 +294,7 @@ public:
 struct CallExprNode : Node
 {
 private:
-    std::string name, returnType, modName;
+    std::string name, returnType, modName, bundle;
     std::vector<std::string> argTypes;
     std::vector<std::unique_ptr<Node>> arguments;
     bool imported;
@@ -310,6 +311,7 @@ public:
     std::string getName() const;
     std::string getReturnType() const;
     std::string getModName() const;
+    void setBundle(std::string bundle);
     void setImported(std::string modName);
     virtual void print(int depth = 0) const override;
     virtual void lookForCallExprs(SemanticsInfo &semanticsInfo) override;

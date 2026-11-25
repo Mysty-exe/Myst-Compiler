@@ -1,7 +1,5 @@
-func compute(int x):
-    print(x)
+bundle Person:
+    int age, height
 
-func compute(decimal x):
-    print(x)
-
-compute(42.4)
+Person person = Person()
+print(person.age)
