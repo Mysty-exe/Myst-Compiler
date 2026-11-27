@@ -116,6 +116,10 @@ std::vector<std::unique_ptr<ParamNode>> &FuncNode::getParameters()
 {
     return parameters;
 }
+std::vector<std::unique_ptr<Node>> &FuncNode::getStatements()
+{
+    return body->getStatements();
+}
 void FuncNode::print(int depth) const
 {
     std::string depthTabs = repeat_string("\t", depth);
@@ -149,6 +153,7 @@ void FuncNode::addSignatureToTable(SemanticsInfo &semanticsInfo, bool includePar
 }
 void FuncNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {
+    std::cout << name << std::endl;
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
     {
         auto &scope = semanticsInfo.getScope(semanticsInfo.getVisibleScope()[i]);
@@ -398,6 +403,22 @@ void BundleNode::print(int depth) const
     for (FuncNode *node : functions)
         node->print(depth + 2);
 }
+int BundleNode::getAlignSize()
+{
+    int maxSize = 1;
+    for (IdentifierNode *identifier : variables)
+    {
+        if (identifier->getType() == "INTTYPE" && maxSize < 4)
+            maxSize = 4;
+        if (identifier->getType() == "DECIMALTYPE" && maxSize < 8)
+            maxSize = 8;
+        else
+        {
+        }
+    }
+
+    return maxSize;
+}
 void BundleNode::checkSemantics(SemanticsInfo &semanticsInfo)
 {
     for (int i = semanticsInfo.getVisibleScope().size() - 1; i >= 0; i--)
@@ -474,6 +495,20 @@ void BundleNode::checkSemantics(SemanticsInfo &semanticsInfo)
 
         auto funcSymbol = std::make_unique<FuncSymbol>(func->getLine(), true, func->getName(), func->getReturnType(), true, parameters);
         funcSymbols.push_back(std::move(funcSymbol));
+
+        semanticsInfo.addVisibleScope();
+
+        for (std::unique_ptr<ParamNode> &parameter : func->getParameters())
+            semanticsInfo.addSymbol(semanticsInfo.getLatestVisibleScope(), std::make_unique<VarSymbol>(parameter->getLine(), false, parameter->getName(), parameter->getType()));
+
+        for (IdentifierNode *identifier : variables)
+            semanticsInfo.addSymbol(semanticsInfo.getLatestVisibleScope(), std::make_unique<VarSymbol>(identifier->getLine(), true, identifier->getName(), identifier->getType()));
+
+        for (std::unique_ptr<Node> &node : func->getStatements())
+            node->checkSemantics(semanticsInfo);
+
+        semanticsInfo.removeScope();
+        semanticsInfo.removeVisibleScope();
     }
 
     if (!foundConstructor || functions.size() == 0)
@@ -482,9 +517,10 @@ void BundleNode::checkSemantics(SemanticsInfo &semanticsInfo)
     auto bundle = std::make_unique<BundleSymbol>(line, name, varSymbols, funcSymbols);
     semanticsInfo.addSymbol(semanticsInfo.getVisibleScope()[0], std::move(bundle));
 }
-void BundleNode::mapToIR(std::string &ir)
+void BundleNode::mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix)
 {
-    ir += "%" + name + " = type {\n";
+    std::string funcName = prefix + name;
+    ir += "%" + funcName + " = type {\n";
     for (int i = 0; i < variables.size(); i++)
     {
         if (i == variables.size() - 1)
@@ -493,6 +529,67 @@ void BundleNode::mapToIR(std::string &ir)
             ir += mapTypeIR(variables[i]->getType()) + ", \n";
     }
     ir += "}\n\n";
+
+    ir += "define void @" + name + ".empty(ptr %self) {\nentry:\n";
+    for (int i = 0; i < variables.size(); i++)
+    {
+        if (variables[i]->getType() == "INTTYPE")
+        {
+            ir += "%" + variables[i]->getName() + "_ptr = getelementptr inbounds %" + name + ", ptr %self, i32 0, i32 " + std::to_string(i) + "\n";
+            ir += "store i32 0, ptr %" + variables[i]->getName() + "_ptr, align " + std::to_string(getAlignSize()) + "\n";
+        }
+        if (variables[i]->getType() == "DECIMALTYPE")
+        {
+            ir += "%" + variables[i]->getName() + "_ptr = getelementptr inbounds %" + name + ", ptr %self, i32 0, i32 " + std::to_string(i) + "\n";
+            ir += "store double 0.0, ptr %" + variables[i]->getName() + "_ptr, align " + std::to_string(getAlignSize()) + "\n";
+        }
+        if (variables[i]->getType() == "BOOLTYPE")
+        {
+            ir += "%" + variables[i]->getName() + "_ptr = getelementptr inbounds %" + name + ", ptr %self, i32 0, i32 " + std::to_string(i) + "\n";
+            ir += "store i1 0, ptr %" + variables[i]->getName() + "_ptr, align " + std::to_string(getAlignSize()) + "\n";
+        }
+        if (variables[i]->getType() == "CHARTYPE")
+        {
+            ir += "%" + variables[i]->getName() + "_ptr = getelementptr inbounds %" + name + ", ptr %self, i32 0, i32 " + std::to_string(i) + "\n";
+            ir += "store i8 0, ptr %" + variables[i]->getName() + "_ptr, align " + std::to_string(getAlignSize()) + "\n";
+        }
+    }
+    ir += "ret void\n}\n\n";
+
+    for (FuncNode *func : functions)
+    {
+        if (func->getName() == name)
+        {
+            ir += "define void @" + name;
+            for (int i = 0; i < func->getParameters().size(); i++)
+                ir += (i == func->getParameters().size() - 1) ? (func->getParameters()[i]->getType()) : (func->getParameters()[i]->getType() + ".");
+
+            ir += (func->getParameters().size() == 0) ? "(ptr %self" : "(ptr %self, ";
+            for (int i = 0; i < func->getParameters().size(); i++)
+                ir += mapTypeIR(func->getParameters()[i]->getType()) + " %" + func->getParameters()[i]->getName() + ((i == func->getParameters().size() - 1) ? "" : ", ");
+            ir += ") {\nentry:\n";
+
+            ir += "call void @" + funcName + ".empty(ptr %self)\n";
+
+            for (int i = 0; i < variables.size(); i++)
+            {
+                ir += "%" + std::to_string(llvmInfo.getNextTempVar()) + " = getelementptr inbounds %" + name + ", ptr %self, i32 0, i32 " + std::to_string(i) + "\n";
+                llvmInfo.addTempVar({variables[i]->getName(), "ptr"});
+            }
+
+            for (int i = 0; i < func->getParameters().size(); i++)
+            {
+                ir += "%" + std::to_string(llvmInfo.getNextTempVar()) + " = alloca " + mapTypeIR(func->getParameters()[i]->getType()) + ", align " + mapNumBytesIR(func->getParameters()[i]->getType()) + "\n";
+                ir += "store " + mapTypeIR(func->getParameters()[i]->getType()) + " %" + func->getParameters()[i]->getName() + ", ptr %" + std::to_string(llvmInfo.getNextTempVar()) + ", align " + mapNumBytesIR(func->getParameters()[i]->getType()) + "\n";
+                llvmInfo.addTempVar({func->getParameters()[i]->getName(), "ptr"});
+            }
+
+            for (std::unique_ptr<Node> &node : func->getStatements())
+                node->mapToIR(ir, llvmInfo, false, prefix);
+
+            ir += "ret void\n}\n\n";
+        }
+    }
 }
 
 IfStmtNode::IfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body, int line)

@@ -219,7 +219,7 @@ void LLVM::mapToIR(std::vector<std::unique_ptr<AbstractSyntaxTree>> &asts, const
         for (std::unique_ptr<Node> &node : ast->getRoot()->getChildren())
         {
             if (auto *bundle = dynamic_cast<BundleNode *>(node.get()))
-                bundle->mapToIR(ir);
+                bundle->mapToIR(ir, tempVars, false, prefix);
             else if (auto *function = dynamic_cast<FuncNode *>(node.get()))
                 function->mapToIR(ir, tempVars, false, prefix);
         }

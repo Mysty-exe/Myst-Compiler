@@ -1,4 +1,7 @@
 bundle Person:
     int age, height
-    Person()
 
+    Person(int a, int h):
+        age = a
+        height = h
+        print(age)

@@ -412,6 +412,7 @@ public:
     std::string getReturnType();
     void setReturnType(std::string type);
     std::vector<std::unique_ptr<ParamNode>> &getParameters();
+    std::vector<std::unique_ptr<Node>> &getStatements();
     virtual void print(int depth = 0) const override;
     void addSignatureToTable(SemanticsInfo &semanticsInfo, bool includeParams = true);
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
@@ -431,8 +432,9 @@ public:
     BundleNode(std::string name, std::vector<std::unique_ptr<Node>> body, int line);
     ~BundleNode() override;
     virtual void print(int depth = 0) const override;
+    int getAlignSize();
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
-    virtual void mapToIR(std::string &ir);
+    virtual void mapToIR(std::string &ir, LLVMInfo &llvmInfo, bool global, std::string prefix);
 };
 
 struct IfStmtNode : Node
