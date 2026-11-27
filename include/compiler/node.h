@@ -432,6 +432,7 @@ public:
     ~BundleNode() override;
     virtual void print(int depth = 0) const override;
     virtual void checkSemantics(SemanticsInfo &semanticsInfo) override;
+    virtual void mapToIR(std::string &ir);
 };
 
 struct IfStmtNode : Node

@@ -1,5 +1,4 @@
 bundle Person:
     int age, height
+    Person()
 
-Person person = Person()
-print(person.age)

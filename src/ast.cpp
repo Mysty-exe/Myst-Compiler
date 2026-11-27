@@ -651,7 +651,7 @@ std::unique_ptr<Node> AbstractSyntaxTree::buildIdentifier(const std::vector<Toke
         bool imported = line[start].getToken() == "IDENTIFIER" && line[start + 1].getToken() == "DOUBLECOLON";
         if (imported)
         {
-            if (line[start + 2].getToken() == "IDENTIFIER")
+            if (line[start + 2].getToken() == "IDENTIFIER" && line[start + 3].getToken() != "LPAREN")
             {
                 if (line[start + 3].getToken() == "DOT" && line[start + 4].getToken() == "IDENTIFIER")
                 {

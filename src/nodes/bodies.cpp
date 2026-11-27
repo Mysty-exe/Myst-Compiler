@@ -482,6 +482,18 @@ void BundleNode::checkSemantics(SemanticsInfo &semanticsInfo)
     auto bundle = std::make_unique<BundleSymbol>(line, name, varSymbols, funcSymbols);
     semanticsInfo.addSymbol(semanticsInfo.getVisibleScope()[0], std::move(bundle));
 }
+void BundleNode::mapToIR(std::string &ir)
+{
+    ir += "%" + name + " = type {\n";
+    for (int i = 0; i < variables.size(); i++)
+    {
+        if (i == variables.size() - 1)
+            ir += mapTypeIR(variables[i]->getType()) + "\n";
+        else
+            ir += mapTypeIR(variables[i]->getType()) + ", \n";
+    }
+    ir += "}\n\n";
+}
 
 IfStmtNode::IfStmtNode(std::unique_ptr<Node> &condition, std::unique_ptr<BlockNode> &body, int line)
 {
